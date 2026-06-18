@@ -12,6 +12,9 @@ services:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       PYTHONUNBUFFERED: "1"
+      # Trust the reverse proxy's X-Forwarded-* headers so the server knows it is
+      # served over HTTPS — otherwise issued OAuth tokens fail audience validation.
+      FORWARDED_ALLOW_IPS: "*"
       MEMORY_DIR: /data/memory
       SKILLS_DIR: /data/skills
       WORK_DIR: /data/work
