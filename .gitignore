@@ -5,6 +5,7 @@
 data/memory/*
 data/skills/*
 data/work/*
+data/auth/*
 logs/*
 secrets/*
 !**/.gitkeep

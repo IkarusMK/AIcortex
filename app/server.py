@@ -7,6 +7,10 @@ variables are set: the server then acts as an OAuth 2.1 resource server via
 FastMCP's OIDC proxy, using your own identity provider (e.g. Pocket ID, Authentik,
 Keycloak, Auth0) as the login backend. Without those variables it runs OPEN
 (fine for local testing — never expose an unauthenticated server publicly).
+
+OAuth client registrations are persisted to an on-disk store (AUTH_STORE_DIR,
+optionally encrypted with STORAGE_ENCRYPTION_KEY) so they survive container
+restarts — on Linux the default store is ephemeral, which breaks reconnects.
 """
 import os
 
@@ -18,6 +22,26 @@ HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
+def _client_storage():
+    """Persistent (optionally encrypted) disk store for OAuth client
+    registrations, so they survive container restarts."""
+    auth_dir = os.environ.get("AUTH_STORE_DIR", "/data/auth")
+    try:
+        from key_value.aio.stores.disk import DiskStore
+
+        store = DiskStore(directory=auth_dir)
+        enc_key = os.environ.get("STORAGE_ENCRYPTION_KEY")
+        if enc_key:
+            from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+            from cryptography.fernet import Fernet
+
+            store = FernetEncryptionWrapper(key_value=store, fernet=Fernet(enc_key))
+        return store
+    except Exception as exc:  # fall back to the (ephemeral) default
+        print(f"[ClaudeNasConnector] WARNING: disk client_storage unavailable ({exc}); using default")
+        return None
+
+
 def _build_auth():
     """Enable OAuth (OIDC proxy) when OIDC_CONFIG_URL + OIDC_CLIENT_ID are set."""
     config_url = os.environ.get("OIDC_CONFIG_URL")
@@ -27,7 +51,7 @@ def _build_auth():
 
     from fastmcp.server.auth.oidc_proxy import OIDCProxy
 
-    return OIDCProxy(
+    kwargs = dict(
         config_url=config_url,
         client_id=client_id,
         client_secret=os.environ.get("OIDC_CLIENT_SECRET"),
@@ -35,6 +59,10 @@ def _build_auth():
         required_scopes=["openid", "profile", "email"],
         jwt_signing_key=os.environ.get("JWT_SIGNING_KEY"),
     )
+    storage = _client_storage()
+    if storage is not None:
+        kwargs["client_storage"] = storage
+    return OIDCProxy(**kwargs)
 
 
 auth = _build_auth()

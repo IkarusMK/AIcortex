@@ -22,6 +22,7 @@ services:
       - ./data/memory:/data/memory
       - ./data/skills:/data/skills
       - ./data/work:/data/work
+      - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs
     healthcheck:
