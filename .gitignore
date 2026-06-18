@@ -1,0 +1,17 @@
+# Secrets / local environment
+.env
+
+# Runtime data (keep the directory structure, ignore the contents)
+data/memory/*
+data/skills/*
+data/work/*
+logs/*
+secrets/*
+!**/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store

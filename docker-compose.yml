@@ -1,0 +1,37 @@
+services:
+  claude-nas-connector:
+    build: .
+    # To use a prebuilt image instead of building locally:
+    # image: ghcr.io/ikarusmk/claudenasconnector:latest
+    container_name: claude-nas-connector
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8787}:8787"
+    environment:
+      TZ: "${TZ:-UTC}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      PYTHONUNBUFFERED: "1"
+      MEMORY_DIR: /data/memory
+      SKILLS_DIR: /data/skills
+      WORK_DIR: /data/work
+      SECRETS_DIR: /secrets
+    env_file:
+      - .env
+    volumes:
+      - ./data/memory:/data/memory
+      - ./data/skills:/data/skills
+      - ./data/work:/data/work
+      - ./secrets:/secrets:ro
+      - ./logs:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(0 if s.connect_ex(('127.0.0.1',8787))==0 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
