@@ -56,7 +56,9 @@ def _build_auth():
         client_id=client_id,
         client_secret=os.environ.get("OIDC_CLIENT_SECRET"),
         base_url=os.environ.get("BASE_URL", f"http://localhost:{PORT}"),
-        required_scopes=["openid", "profile", "email"],
+        # No required_scopes: the proxy-issued MCP token doesn't carry the
+        # upstream OIDC scopes as claims, so requiring them rejects valid tokens.
+        # A successful login through the provider is sufficient authorization.
         jwt_signing_key=os.environ.get("JWT_SIGNING_KEY"),
     )
     storage = _client_storage()
