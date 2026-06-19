@@ -20,6 +20,7 @@ import memory
 import skills
 import services
 import secrets_store
+import guide
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -73,7 +74,9 @@ def _build_auth():
 
 
 auth = _build_auth()
-mcp = FastMCP("ClaudeNasConnector", auth=auth)
+# `instructions` are sent to the client on connect — a fresh LLM immediately
+# learns what this connector is and how to use it.
+mcp = FastMCP("ClaudeNasConnector", auth=auth, instructions=guide.GUIDE)
 
 
 @mcp.tool
@@ -93,6 +96,9 @@ services.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
+
+# Self-describing usage guide (also sent as server `instructions` on connect)
+guide.register(mcp)
 
 
 if __name__ == "__main__":
