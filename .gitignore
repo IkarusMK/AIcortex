@@ -5,6 +5,7 @@
 data/memory/*
 data/skills/*
 data/services/*
+data/vault/*
 data/work/*
 data/auth/*
 logs/*

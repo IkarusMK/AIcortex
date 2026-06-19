@@ -15,6 +15,8 @@ from pathlib import Path
 
 import httpx
 
+import secrets_store
+
 SERVICES_DIR = Path(os.environ.get("SERVICES_DIR", "/data/services"))
 
 _ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
@@ -57,8 +59,8 @@ def register(mcp):
             }
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             note = ""
-            if token_env and not os.environ.get(token_env):
-                note = f" (reminder: set {token_env}=... in the server .env)"
+            if token_env and not secrets_store.get_secret(token_env):
+                note = f" (reminder: store it with secret_set('{token_env}', ...) or set it in .env)"
             return f"Registered service '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register service: {exc}"
@@ -97,9 +99,9 @@ def register(mcp):
         headers = {}
         tok_env = cfg.get("token_env")
         if tok_env:
-            token = os.environ.get(tok_env)
+            token = secrets_store.get_secret(tok_env)
             if not token:
-                return f"Service '{service}' needs env '{tok_env}', which is not set on the server."
+                return f"Service '{service}' needs secret '{tok_env}' — store it with secret_set or set it in .env."
             headers["Authorization"] = f"{cfg.get('auth_scheme', 'Bearer')} {token}".strip()
         try:
             r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)

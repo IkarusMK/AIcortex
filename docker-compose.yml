@@ -18,6 +18,7 @@ services:
       MEMORY_DIR: /data/memory
       SKILLS_DIR: /data/skills
       SERVICES_DIR: /data/services
+      VAULT_DIR: /data/vault
       WORK_DIR: /data/work
       SECRETS_DIR: /secrets
     env_file:
@@ -26,6 +27,7 @@ services:
       - ./data/memory:/data/memory
       - ./data/skills:/data/skills
       - ./data/services:/data/services
+      - ./data/vault:/data/vault
       - ./data/work:/data/work
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro

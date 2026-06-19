@@ -19,6 +19,7 @@ from fastmcp import FastMCP
 import memory
 import skills
 import services
+import secrets_store
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -89,6 +90,9 @@ skills.register(mcp)
 
 # Generic service caller: call_service / service_add / service_list (integrations as data)
 services.register(mcp)
+
+# Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
+secrets_store.register(mcp)
 
 
 if __name__ == "__main__":

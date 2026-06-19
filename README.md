@@ -182,6 +182,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Memory tools (`memory_write` / `memory_read` / `memory_list` / `memory_search` / `memory_delete`), scope-namespaced for multi-agent
 - [x] Skill router (`skill_search` / `skill_list` / `skill_load` / `skill_resource` / `skill_write`)
 - [x] Generic service caller (`call_service` / `service_add` / `service_list`) — integrations as data + skills, no redeploy
+- [x] Encrypted secret vault (`secret_set` / `secret_list` / `secret_delete`) — set secrets via the connector; values encrypted at rest, never returned
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [ ] Multi-agent: agent inbox + sub-agent orchestration
 - [ ] Prebuilt image on GHCR
