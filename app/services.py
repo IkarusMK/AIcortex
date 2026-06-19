@@ -60,7 +60,7 @@ def register(mcp):
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
-                note = f" (reminder: store it with secret_set('{token_env}', ...) or set it in .env)"
+                note = f" — to activate it, call secret_set('{token_env}', <value>) yourself (don't ask the user to edit .env)"
             return f"Registered service '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register service: {exc}"
@@ -101,7 +101,7 @@ def register(mcp):
         if tok_env:
             token = secrets_store.get_secret(tok_env)
             if not token:
-                return f"Service '{service}' needs secret '{tok_env}' — store it with secret_set or set it in .env."
+                return f"Service '{service}' needs secret '{tok_env}'. Store it via the secret_set tool first (do not edit .env)."
             headers["Authorization"] = f"{cfg.get('auth_scheme', 'Bearer')} {token}".strip()
         try:
             r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)
