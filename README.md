@@ -145,6 +145,24 @@ server runs open (local testing only).
 - Keep all real credentials (API tokens, etc.) in `.env` / a secrets store **on your NAS**. They are used server-side and never sent to the model.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
+## Troubleshooting
+
+Hard-won notes from running this behind a reverse proxy with an OIDC provider.
+Enable verbose logs to see the real reason for an auth failure:
+
+```yaml
+# docker-compose.yml → environment:
+FASTMCP_LOG_LEVEL: "DEBUG"
+```
+
+| Symptom | Cause & fix |
+|---------|-------------|
+| Login succeeds, but Claude says *"returned an error when connecting"*; logs show `Token verified successfully` then **`Token missing required scopes`** | The proxy-issued MCP token doesn't carry the upstream OIDC scopes as claims. **Don't set `required_scopes`** — a successful login is enough. (Already removed in `server.py`.) |
+| Logs show `Issued new FastMCP tokens` immediately followed by **`Bearer token rejected`** (401 `invalid_token`) | Behind a TLS-terminating proxy, uvicorn ignored `X-Forwarded-Proto`, so the server computed an `http://` URL and rejected its own `https`-audience tokens. Set **`FORWARDED_ALLOW_IPS: "*"`** (already in `docker-compose.yml`). |
+| Log warns **`disk client_storage unavailable (Fernet key must be 32 url-safe base64-encoded bytes)`** | `STORAGE_ENCRYPTION_KEY` isn't a valid Fernet key (it's **not** the same as `JWT_SIGNING_KEY`). Generate: `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`. Or omit it for an unencrypted (still persistent) store. |
+| Worked once, then `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral and got wiped. Persistent `data/auth` (this repo) fixes it. To clear a stuck client on Claude's side: remove the connector, fully quit & reopen the app, re-add. |
+| Connector can't connect at all; proxy returns a login **web page** | You put reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer (this server). |
+
 ## Roadmap
 
 - [x] Walking skeleton: `ping` tool + remote MCP over HTTPS
