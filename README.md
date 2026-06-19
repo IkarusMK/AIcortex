@@ -167,7 +167,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 
 - [x] Walking skeleton: `ping` tool + remote MCP over HTTPS
 - [x] Authentication: OAuth 2.1 via your own OIDC provider (Pocket ID, Authentik, Keycloak, Auth0, …)
-- [ ] Memory tools (`memory_read` / `memory_write` / `memory_list`), namespaced for multi-agent
+- [x] Memory tools (`memory_write` / `memory_read` / `memory_list` / `memory_search` / `memory_delete`), scope-namespaced for multi-agent
 - [ ] Skill router (`skill_search` / `skill_load` / `skill_resource`)
 - [ ] Built-in tool integrations (Home Assistant, etc.)
 - [ ] Multi-agent: agent inbox + sub-agent orchestration

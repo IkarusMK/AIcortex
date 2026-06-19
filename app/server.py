@@ -16,6 +16,8 @@ import os
 
 from fastmcp import FastMCP
 
+import memory
+
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
 HOST = os.environ.get("MCP_HOST", "0.0.0.0")
@@ -77,7 +79,9 @@ def ping(name: str = "world") -> str:
     return f"Hello {name}, your NAS MCP server is alive! 🎉"
 
 
-# --- Roadmap: memory_read / memory_write / memory_list ---
+# Memory tools: write / read / list / search / delete (file-based under MEMORY_DIR)
+memory.register(mcp)
+
 # --- Roadmap: skill_search / skill_load / skill_resource ---
 
 
