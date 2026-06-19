@@ -8,13 +8,15 @@ Add it once as a *custom connector* and Claude gains:
 
 - 🧠 **Consistent memory** that lives on your NAS and follows you across every device
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
-- 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them and loads the right one on demand (progressive disclosure)
-- 🛠️ **Your tools** — home automation, document stores, a 3D printer, finance APIs … as callable MCP tools
+- 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
+- 🛠️ **Tools as data** — register any API with `service_add` and call it via `call_service`; new integrations need no code and no redeploy
+- 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
+- 🧭 **Self-describing** — any connecting LLM receives usage instructions + a `guide` tool, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
 
 The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ⚠️ **Status: early.** It currently ships a working `ping` tool that proves the full chain (NAS → reverse proxy → Claude connector). Memory tools and the skill router are on the roadmap below; **OAuth authentication is already supported** (see [Authentication](#authentication)). **Do not expose this publicly without enabling it.**
+> ✅ **Status: working.** Memory, the skill router, the generic service caller, an encrypted secret vault, and OAuth (via your own OIDC provider) are all live — and the connector is *self-describing*. **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -28,8 +30,21 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 ClaudeNasConnector  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory  ·  Skills (searchable)  ·  Your tools & APIs
+Memory  ·  Skills (searchable)  ·  Services & APIs  ·  Secret vault
 ```
+
+## Capabilities (tools at a glance)
+
+| Group | Tools | What it does |
+|-------|-------|--------------|
+| Health | `ping` | Connectivity check |
+| Memory | `memory_write` · `memory_read` · `memory_list` · `memory_search` · `memory_delete` | Durable, scope-namespaced facts on the NAS |
+| Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
+| Services | `service_add` · `service_list` · `call_service` | Register & call any API as data |
+| Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
+| Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
+
+New capabilities are added as **data** (a skill, a service config, a secret) — not code, no redeploy.
 
 ## Project structure
 
@@ -40,11 +55,14 @@ ClaudeNasConnector/
 │   ├── memory.py       #   memory tools
 │   ├── skills.py       #   skill router
 │   ├── services.py     #   generic allow-listed service caller
+│   ├── secrets_store.py#   encrypted secret vault
+│   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
 ├── data/               # Persistent, human-readable state (git-ignored content)
 │   ├── memory/         #   memory files — what Claude remembers about you
 │   ├── skills/         #   skill library — <skill>/SKILL.md the router searches
 │   ├── services/       #   service configs (integrations as data)
+│   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
 ├── secrets/            # Local credentials (.env) — never leave the NAS
@@ -154,7 +172,7 @@ server runs open (local testing only).
 ## Security
 
 - This server is reachable from the public internet via your proxy. **Enable [Authentication](#authentication) before exposing it** — anyone who reaches the endpoint can otherwise call its tools.
-- Keep all real credentials (API tokens, etc.) in `.env` / a secrets store **on your NAS**. They are used server-side and never sent to the model.
+- Keep all real credentials (API tokens, etc.) on your NAS — either in `.env`, or set them through the connector with `secret_set` (encrypted at rest in `data/vault`, referenced by name, **never returned to the model**). Used server-side only.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
 ## Troubleshooting
