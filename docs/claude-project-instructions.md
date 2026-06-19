@@ -36,6 +36,17 @@ SECURITY
 
 ---
 
+## Storage policy (where things live)
+
+Everything that makes the assistant *yours* lives on the NAS connector — nothing scattered:
+
+- **Skills** → search with `skill_search`, create with `skill_write` (never a local file).
+- **Tools / integrations** → check `service_list`, register new APIs with `service_add` (as data), call via `call_service`.
+- **API keys / passwords / secrets** → only in the server's `.env` (referenced by `token_env`); never in chat, in the repo, or hardcoded.
+- **Memory** → `memory_write` for durable facts; recall with `memory_list` / `memory_read` / `memory_search` before assuming.
+
+New capability = "learn it" (data + skill), no redeploy.
+
 ## Multi-agent note
 
 When you run more than one agent, give each its own `agent_id` and use
