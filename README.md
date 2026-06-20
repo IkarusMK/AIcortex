@@ -46,6 +46,7 @@ Memory  ·  Skills  ·  HTTP services  ·  MQTT & FTP devices  ·  Secret vault
 | Services (HTTP) | `service_add` · `service_list` · `call_service` | Register & call any HTTP API as data |
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. Bambu LAN) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. send a print job) |
+| MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
 
@@ -63,6 +64,7 @@ LLMConnector/
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
 │   ├── ftp_tools.py    #   generic FTP/FTPS transfer (e.g. send print jobs)
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
+│   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── secrets_store.py#   encrypted secret vault
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
@@ -72,6 +74,7 @@ LLMConnector/
 │   ├── services/       #   HTTP service configs (integrations as data)
 │   ├── mqtt/           #   MQTT broker/device configs
 │   ├── ftp/            #   FTP/FTPS endpoint configs
+│   ├── mcp/            #   upstream MCP server configs
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
@@ -233,7 +236,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
 - [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP devices (e.g. Bambu Lab LAN) are data too
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
-- [ ] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_call`)
+- [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [ ] Multi-agent: agent inbox + sub-agent orchestration
 - [ ] Prebuilt image on GHCR

@@ -34,6 +34,7 @@ services:
       WORK_DIR: /data/work
       MQTT_DIR: /data/mqtt
       FTP_DIR: /data/ftp
+      MCP_DIR: /data/mcp
       SECRETS_DIR: /secrets
     env_file:
       - .env
@@ -45,6 +46,7 @@ services:
       - ./data/work:/data/work
       - ./data/mqtt:/data/mqtt
       - ./data/ftp:/data/ftp
+      - ./data/mcp:/data/mcp
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs

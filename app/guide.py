@@ -38,6 +38,7 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - MQTT-Geräte (z.B. Bambu-Drucker): mqtt_add / mqtt_list / mqtt_publish (Befehl) /
   mqtt_get (Status abonnieren).
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
+- Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 
 SECRETS — NUR Vault, NIEMALS .env
 - Alle API-Keys/Tokens/Passwörter ausschließlich per secret_set(name, value) in den
@@ -78,6 +79,7 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - MQTT devices (e.g. Bambu printer): mqtt_add / mqtt_list / mqtt_publish (command) /
   mqtt_get (subscribe for status).
 - FTP/FTPS files: ftp_add / ftp_upload (source under /data) / ftp_list.
+- Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via
 secret_set(name, value) into the encrypted vault — encrypted at rest, never shown

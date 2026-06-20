@@ -21,6 +21,7 @@ import skills
 import services
 import mqtt_tools
 import ftp_tools
+import mcp_gateway
 import secrets_store
 import guide
 
@@ -111,6 +112,9 @@ mqtt_tools.register(mcp)
 
 # Generic FTP/FTPS transfer: ftp_add / ftp_list_endpoints / ftp_list / ftp_upload (files as data)
 ftp_tools.register(mcp)
+
+# MCP gateway: mcp_add / mcp_list / mcp_tools / mcp_call (other MCP servers as data)
+mcp_gateway.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
