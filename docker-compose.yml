@@ -1,9 +1,9 @@
 services:
-  claude-nas-connector:
+  llm-connector:
     build: .
     # To use a prebuilt image instead of building locally:
-    # image: ghcr.io/ikarusmk/claudenasconnector:latest
-    container_name: claude-nas-connector
+    # image: ghcr.io/ikarusmk/llmconnector:latest
+    container_name: llm-connector
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8787}:8787"
