@@ -51,7 +51,7 @@ Memory  ·  Skills  ·  HTTP services  ·  MQTT & FTP devices  ·  Secret vault
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
 
-New capabilities are added as **data** (a skill, a service config, a secret) — not code, no redeploy.
+New capabilities are added as **data** (a skill, a service config, a secret) — not code, no redeploy. Full CRUD: every config module also has a delete (`skill_delete`, `service_delete`, `mqtt_delete`, `ftp_delete`, `mcp_delete`, `task_delete`, `agent_remove`, `inbox_delete`, plus `memory_delete` / `secret_delete`), so anything you can register you can also remove via the connector.
 
 ## Project structure
 

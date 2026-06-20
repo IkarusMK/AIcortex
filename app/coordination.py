@@ -79,6 +79,20 @@ def register(mcp):
                 return f"Marked {message_id} read."
         return f"No message {message_id}."
 
+    @mcp.tool
+    def inbox_delete(message_id: str = "", purge_read: bool = False) -> str:
+        """Delete one message by id, or purge all read messages (purge_read=True)."""
+        items = _read(INBOX_FILE)
+        if purge_read:
+            kept = [m for m in items if not m.get("read")]
+            _write(INBOX_FILE, kept)
+            return f"Purged {len(items) - len(kept)} read message(s)."
+        kept = [m for m in items if m.get("id") != message_id]
+        if len(kept) == len(items):
+            return f"No message {message_id}."
+        _write(INBOX_FILE, kept)
+        return f"Deleted message {message_id}."
+
     # ── Task board ─────────────────────────────────────────────────────
     @mcp.tool
     def task_add(title: str, detail: str = "", created_by: str = "") -> str:
@@ -134,6 +148,16 @@ def register(mcp):
                 return f"Updated task {task_id} (status={t.get('status')})."
         return f"No task {task_id}."
 
+    @mcp.tool
+    def task_delete(task_id: str) -> str:
+        """Delete a task from the board by id."""
+        items = _read(TASKS_FILE)
+        kept = [t for t in items if t.get("id") != task_id]
+        if len(kept) == len(items):
+            return f"No task {task_id}."
+        _write(TASKS_FILE, kept)
+        return f"Deleted task {task_id}."
+
     # ── Agent registry ─────────────────────────────────────────────────
     @mcp.tool
     def agent_register(name: str, role: str = "", capabilities: str = "") -> str:
@@ -160,3 +184,13 @@ def register(mcp):
         return "\n".join(
             f"- {a.get('name')} — {a.get('role', '')} — seen {a.get('last_seen', '')} — caps: {a.get('capabilities', '')}"
             for a in items)
+
+    @mcp.tool
+    def agent_remove(name: str) -> str:
+        """Remove an agent from the registry by name."""
+        items = _read(AGENTS_FILE)
+        kept = [a for a in items if a.get("name") != name]
+        if len(kept) == len(items):
+            return f"No agent '{name}'."
+        _write(AGENTS_FILE, kept)
+        return f"Removed agent '{name}'."

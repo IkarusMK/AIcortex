@@ -46,6 +46,11 @@ MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
 - Registry: agent_register(name, role) zu Beginn / agent_list. So teilen Mac, Handy
   und geplante Läufe Nachrichten & Aufgaben (Wissen weiter über Memory-Scopes).
 
+AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
+service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
+inbox_delete (plus memory_delete / secret_delete). Was du registrierst, kannst du
+auch per Connector entfernen.
+
 SECRETS — NUR Vault, NIEMALS .env
 - Alle API-Keys/Tokens/Passwörter ausschließlich per secret_set(name, value) in den
   verschlüsselten Vault legen: verschlüsselt at-rest, wird nie zurückgegeben,
@@ -92,6 +97,11 @@ MULTI-AGENT (shared coordination layer for several Claude agents)
 - Task board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
 - Registry: agent_register(name, role) at start / agent_list. Lets desktop, mobile
   and scheduled runs share messages & tasks (knowledge still via memory scopes).
+
+CLEANUP (full CRUD): every register has a matching delete — skill_delete,
+service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
+inbox_delete (plus memory_delete / secret_delete). Anything you register, you can
+also remove via the connector.
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via
 secret_set(name, value) into the encrypted vault — encrypted at rest, never shown

@@ -145,6 +145,15 @@ def register(mcp):
         return "\n".join(out)
 
     @mcp.tool
+    def mqtt_delete(name: str) -> str:
+        """Remove a registered MQTT broker by name."""
+        p = _cfg_path(name)
+        if p.exists():
+            p.unlink()
+            return f"Deleted MQTT broker '{_slug(name)}'."
+        return f"No broker '{name}'."
+
+    @mcp.tool
     def mqtt_publish(broker: str, topic: str, payload: dict = None,
                      payload_str: str = "", qos: int = 0) -> str:
         """Publish to a topic on a registered broker. Pass JSON via `payload`

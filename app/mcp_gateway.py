@@ -127,6 +127,15 @@ def register(mcp):
         return "\n".join(out)
 
     @mcp.tool
+    def mcp_delete(name: str) -> str:
+        """Remove a registered upstream MCP server by name."""
+        p = _cfg_path(name)
+        if p.exists():
+            p.unlink()
+            return f"Deleted MCP server '{_slug(name)}'."
+        return f"No MCP server '{name}'."
+
+    @mcp.tool
     async def mcp_tools(server: str) -> str:
         """List the tools a registered upstream MCP server exposes (discovery)."""
         cfg = _load(server)

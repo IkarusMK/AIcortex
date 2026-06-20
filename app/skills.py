@@ -88,3 +88,13 @@ def register(mcp):
         fm = f"---\nname: {name}\ndescription: {description}\ntags: {tags}\n---\n\n"
         (folder / "SKILL.md").write_text(fm + (instructions or "").rstrip() + "\n", encoding="utf-8")
         return f"Saved skill '{folder.name}'."
+
+    @mcp.tool
+    def skill_delete(name: str) -> str:
+        """Delete a skill and its folder by name."""
+        import shutil
+        folder = SKILLS_DIR / _slug(name)
+        if folder.exists() and folder.is_dir():
+            shutil.rmtree(folder)
+            return f"Deleted skill '{folder.name}'."
+        return f"No skill named '{name}'."

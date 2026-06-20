@@ -89,6 +89,15 @@ def register(mcp):
         return "\n".join(out)
 
     @mcp.tool
+    def service_delete(name: str) -> str:
+        """Remove a registered service by name."""
+        p = _cfg_path(name)
+        if p.exists():
+            p.unlink()
+            return f"Deleted service '{_slug(name)}'."
+        return f"No service '{name}'."
+
+    @mcp.tool
     def call_service(service: str, path: str = "/", method: str = "GET",
                      json_body: dict = None, params: dict = None) -> str:
         """Call a registered service's API. Only configured services can be reached;

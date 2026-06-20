@@ -172,6 +172,15 @@ def register(mcp):
                 ftp.close()
 
     @mcp.tool
+    def ftp_delete(name: str) -> str:
+        """Remove a registered FTP endpoint by name."""
+        p = _cfg_path(name)
+        if p.exists():
+            p.unlink()
+            return f"Deleted FTP endpoint '{_slug(name)}'."
+        return f"No FTP endpoint '{name}'."
+
+    @mcp.tool
     def ftp_upload(server: str, nas_path: str, remote_path: str) -> str:
         """Upload a file from the NAS (path under /data) to the FTP endpoint.
         STATE-CHANGING — confirm with the user first. nas_path is relative to
