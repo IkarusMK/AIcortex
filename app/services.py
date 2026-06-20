@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+import netguard
 import secrets_store
 
 SERVICES_DIR = Path(os.environ.get("SERVICES_DIR", "/data/services"))
@@ -101,6 +102,9 @@ def register(mcp):
         if "://" in (path or "") or (path or "").startswith("//"):
             return "Invalid path (must be relative to the service base_url)."
         url = cfg.get("base_url", "").rstrip("/") + "/" + (path or "").lstrip("/")
+        ok, reason = netguard.check_url(url)
+        if not ok:
+            return f"Blocked by network policy — {reason}"
         headers = {}
         tok_env = cfg.get("token_env")
         if tok_env:

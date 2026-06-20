@@ -14,7 +14,19 @@ services:
       PYTHONUNBUFFERED: "1"
       # Trust the reverse proxy's X-Forwarded-* headers so the server knows it is
       # served over HTTPS — otherwise issued OAuth tokens fail audience validation.
-      FORWARDED_ALLOW_IPS: "*"
+      # Default "*" is convenient on an isolated Docker network; for a tighter
+      # setup scope it to your proxy's source IP/subnet (e.g. "172.18.0.0/16").
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-*}"
+      # SSRF allow-list: internal/private IP ranges the dispatchers (call_service,
+      # mqtt, ftp) may reach. EMPTY = block all private/link-local by default.
+      # Set to the LAN and/or VPN subnets you actually use, e.g.
+      # "192.168.1.0/24,100.64.0.0/10". Operator-only — the model can't change it.
+      INTERNAL_ALLOW_CIDRS: "${INTERNAL_ALLOW_CIDRS:-}"
+      # Safety opt-ins (leave unset for the secure defaults):
+      #  ALLOW_INSECURE=1        → allow an open 0.0.0.0 bind when no OIDC is set
+      #  ALLOW_PLAINTEXT_VAULT=1 → allow secret_set without STORAGE_ENCRYPTION_KEY
+      ALLOW_INSECURE: "${ALLOW_INSECURE:-}"
+      ALLOW_PLAINTEXT_VAULT: "${ALLOW_PLAINTEXT_VAULT:-}"
       MEMORY_DIR: /data/memory
       SKILLS_DIR: /data/skills
       SERVICES_DIR: /data/services

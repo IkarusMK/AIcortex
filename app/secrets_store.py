@@ -56,6 +56,13 @@ def register(mcp):
     def secret_set(name: str, value: str) -> str:
         """Store a secret on the NAS, encrypted at rest. Reference it by `name`
         as a service's token_env. The value is never shown back."""
+        if _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
+            return ("Refusing to store: STORAGE_ENCRYPTION_KEY is not set, so the vault "
+                    "would be PLAINTEXT despite the .enc name. Generate a key with "
+                    "`python -c \"from cryptography.fernet import Fernet; "
+                    "print(Fernet.generate_key().decode())\"`, set it as "
+                    "STORAGE_ENCRYPTION_KEY and restart — or set ALLOW_PLAINTEXT_VAULT=1 "
+                    "to override (NOT recommended).")
         d = _read_all()
         d[name] = value
         _write_all(d)

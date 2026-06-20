@@ -120,7 +120,22 @@ guide.register(mcp)
 
 
 if __name__ == "__main__":
-    print(f"[LLMConnector] auth: {'OIDC proxy' if auth else 'OPEN (no auth)'}")
+    # Fail closed: without OIDC the server has no auth. Rather than silently
+    # listen on 0.0.0.0 (an accidental port-forward would expose every tool),
+    # bind to localhost only — unless the operator explicitly opts in with
+    # ALLOW_INSECURE=1. With OIDC configured, bind as configured (HOST).
+    bind_host = HOST
+    if auth is None:
+        if os.environ.get("ALLOW_INSECURE") == "1":
+            print(f"[LLMConnector] WARNING: no OIDC — running OPEN (no auth) on "
+                  f"{bind_host}:{PORT} because ALLOW_INSECURE=1. Do NOT expose this publicly.")
+        else:
+            bind_host = "127.0.0.1"
+            print(f"[LLMConnector] No OIDC configured → binding to 127.0.0.1:{PORT} "
+                  f"(local only). Set OIDC_* for real auth, or ALLOW_INSECURE=1 to force "
+                  f"an open bind (not recommended).")
+    else:
+        print(f"[LLMConnector] auth: OIDC proxy — binding {bind_host}:{PORT}")
     # Streamable-HTTP transport — what Claude custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
-    mcp.run(transport="http", host=HOST, port=PORT)
+    mcp.run(transport="http", host=bind_host, port=PORT)

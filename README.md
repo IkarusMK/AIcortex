@@ -167,14 +167,30 @@ Enable it by setting these in `.env` (see `.env.example`):
 
 Register the OAuth client in your provider with redirect URI
 **`<BASE_URL>/auth/callback`**. Then (re-)add the custom connector in Claude — it
-will send you through your provider's login. When the OIDC variables are unset the
-server runs open (local testing only).
+will send you through your provider's login. **When the OIDC variables are unset,
+the server binds to `127.0.0.1` only** (local testing); set `ALLOW_INSECURE=1` to
+force an open bind without auth (not recommended).
+
+> ⚠️ **Authentication ≠ authorization.** Any account that can log in to your IdP
+> gets **full** access to every tool and all data — there is no per-user/role
+> check. Point this at a **single-user or dedicated** provider; don't reuse a
+> shared family/company IdP without restricting which subjects may log in.
 
 ## Security
 
-- This server is reachable from the public internet via your proxy. **Enable [Authentication](#authentication) before exposing it** — anyone who reaches the endpoint can otherwise call its tools.
-- Keep all real credentials on your NAS. For integration/device secrets (API tokens, device passwords) use the **encrypted vault** via `secret_set` — encrypted at rest in `data/vault`, referenced by name (`token_env` / `password_env`), **never returned to the model**, and settable from mobile. `.env` is only for server *bootstrap* config that must exist before the vault loads (e.g. the OIDC client secret, `JWT_SIGNING_KEY`). Don't ask the assistant to edit `.env` for integration secrets — that's what the vault is for.
+- **Auth fails closed.** Without OIDC the server binds to `127.0.0.1` only (override with `ALLOW_INSECURE=1`). With OIDC, **enable it before exposing the proxy** — anyone who reaches `/mcp` can otherwise call every tool.
+- **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are tools the *model* can call, so the list of registered targets is not a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only, not settable by the model). Set it to the LAN/VPN ranges you actually use — e.g. `192.168.1.0/24` — otherwise calls to your own devices are blocked too.
+- **Encrypted vault, enforced.** Integration/device secrets go in the **vault** via `secret_set` (encrypted at rest in `data/vault`, referenced by name, never returned to the model, settable from mobile). `secret_set` **refuses to store plaintext** unless `STORAGE_ENCRYPTION_KEY` is set (or you opt in with `ALLOW_PLAINTEXT_VAULT=1`). `.env` is only for bootstrap config (OIDC secret, `JWT_SIGNING_KEY`) — don't ask the assistant to edit it for integration secrets.
+- **Forwarded headers.** `FORWARDED_ALLOW_IPS` defaults to `*` (fine on an isolated Docker network). If the container is directly reachable, scope it to your proxy's source IP/subnet.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
+
+## Deploying on a VPS or over a VPN
+
+The connector is just an HTTPS MCP endpoint, so it runs anywhere Docker does — your NAS, a VPS, or a cloud box — and reaches devices over whatever network you give it. The SSRF guard makes that safe:
+
+- **On a VPS (public APIs only):** same reverse proxy + OIDC, set `BASE_URL` to its public URL, and leave `INTERNAL_ALLOW_CIDRS` **empty** so it can only reach public services.
+- **Reach home devices from a VPS:** link the VPS and your LAN with a VPN (WireGuard, Tailscale, …) and add the **VPN/remote subnet** to `INTERNAL_ALLOW_CIDRS` (e.g. `100.64.0.0/10` for Tailscale, or your WireGuard range). The guard then permits exactly those hosts and nothing else.
+- **Multi-site / enterprise:** scope `FORWARDED_ALLOW_IPS` to the proxy, list only trusted subnets in `INTERNAL_ALLOW_CIDRS`, and use a dedicated OIDC client (see the authorization note above).
 
 ## Troubleshooting
 

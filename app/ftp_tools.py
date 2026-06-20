@@ -14,6 +14,7 @@ import re
 import ssl
 from pathlib import Path
 
+import netguard
 import secrets_store
 
 FTP_DIR = Path(os.environ.get("FTP_DIR", "/data/ftp"))
@@ -60,6 +61,9 @@ def _load(name: str):
 
 def _connect(cfg):
     host = cfg["host"]
+    ok, reason = netguard.check_host(host)
+    if not ok:
+        raise ConnectionError(f"Blocked by network policy — {reason}")
     port = int(cfg.get("port") or 21)
     mode = (cfg.get("tls") or "none").lower()  # none | explicit | implicit
     ctx = ssl.create_default_context()

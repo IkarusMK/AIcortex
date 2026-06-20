@@ -18,6 +18,7 @@ import time
 import uuid
 from pathlib import Path
 
+import netguard
 import secrets_store
 
 MQTT_DIR = Path(os.environ.get("MQTT_DIR", "/data/mqtt"))
@@ -48,6 +49,10 @@ def _new_client(cfg):
     Raises on connection/auth failure or timeout. Caller must loop_stop() +
     disconnect() when done (use try/finally).
     """
+    ok, reason = netguard.check_host(cfg.get("host", ""))
+    if not ok:
+        raise ConnectionError(f"Blocked by network policy — {reason}")
+
     import paho.mqtt.client as mqtt
 
     client = mqtt.Client(
