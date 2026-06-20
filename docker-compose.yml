@@ -35,6 +35,7 @@ services:
       MQTT_DIR: /data/mqtt
       FTP_DIR: /data/ftp
       MCP_DIR: /data/mcp
+      COORD_DIR: /data/coordination
       SECRETS_DIR: /secrets
     env_file:
       - .env
@@ -47,6 +48,7 @@ services:
       - ./data/mqtt:/data/mqtt
       - ./data/ftp:/data/ftp
       - ./data/mcp:/data/mcp
+      - ./data/coordination:/data/coordination
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs
