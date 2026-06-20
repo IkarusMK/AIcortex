@@ -23,6 +23,7 @@ import mqtt_tools
 import ftp_tools
 import mcp_gateway
 import coordination
+import cron
 import secrets_store
 import guide
 
@@ -119,6 +120,9 @@ mcp_gateway.register(mcp)
 
 # Multi-agent coordination: inbox_* / task_* / agent_* (shared inbox, tasks, registry)
 coordination.register(mcp)
+
+# Scheduled jobs as data: cron_add / cron_list / cron_delete / cron_due / cron_mark_run
+cron.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
