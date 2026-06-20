@@ -1,4 +1,4 @@
-"""ClaudeNasConnector — MCP server.
+"""LLMConnector — MCP server.
 
 A self-hosted MCP server you add to the Claude apps as a custom connector.
 
@@ -44,7 +44,7 @@ def _client_storage():
             store = FernetEncryptionWrapper(key_value=store, fernet=Fernet(enc_key))
         return store
     except Exception as exc:  # fall back to the (ephemeral) default
-        print(f"[ClaudeNasConnector] WARNING: disk client_storage unavailable ({exc}); using default")
+        print(f"[LLMConnector] WARNING: disk client_storage unavailable ({exc}); using default")
         return None
 
 
@@ -86,7 +86,7 @@ def _build_auth():
 auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
-mcp = FastMCP("ClaudeNasConnector", auth=auth, instructions=guide.GUIDE)
+mcp = FastMCP("LLMConnector", auth=auth, instructions=guide.GUIDE)
 
 
 @mcp.tool
@@ -112,7 +112,7 @@ guide.register(mcp)
 
 
 if __name__ == "__main__":
-    print(f"[ClaudeNasConnector] auth: {'OIDC proxy' if auth else 'OPEN (no auth)'}")
+    print(f"[LLMConnector] auth: {'OIDC proxy' if auth else 'OPEN (no auth)'}")
     # Streamable-HTTP transport — what Claude custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
     mcp.run(transport="http", host=HOST, port=PORT)

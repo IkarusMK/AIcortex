@@ -1,4 +1,4 @@
-# ClaudeNasConnector
+# LLMConnector
 
 > Give Claude a Hermes-style agent home — on your own NAS.
 
@@ -27,7 +27,7 @@ Claude app (desktop / mobile)  ·  one or many agents
 Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
         │
         ▼
-ClaudeNasConnector  (this container, on your NAS)
+LLMConnector  (this container, on your NAS)
         │  uses local files & secrets
         ▼
 Memory  ·  Skills (searchable)  ·  Services & APIs  ·  Secret vault
@@ -49,7 +49,7 @@ New capabilities are added as **data** (a skill, a service config, a secret) —
 ## Project structure
 
 ```
-ClaudeNasConnector/
+LLMConnector/
 ├── app/                # Server code (FastMCP)
 │   ├── server.py       #   entrypoint — wires auth + registers tool modules
 │   ├── memory.py       #   memory tools
@@ -89,8 +89,9 @@ This is the heart of the project — making Claude *itself* portable, not just c
 New integrations don't need new code. A **service** is a small config you register
 at runtime with `service_add` (stored under `data/services`); `call_service` then
 reaches it — only registered services are allowed, and the auth token is injected
-server-side from an environment variable (`token_env`), never stored in data or
-returned to the model. Pair a service with a `skill_write` skill that explains how
+server-side from a stored secret (`token_env`, set via `secret_set` into the
+encrypted vault or via `.env`), never stored in service data or returned to the
+model. Pair a service with a `skill_write` skill that explains how
 to use it, and a new capability is live **without a redeploy**.
 
 ## Multi-agent ready
@@ -114,8 +115,8 @@ Full orchestration (spawning/coordinating sub-agents) is on the roadmap; the sea
 ## Quick start
 
 ```bash
-git clone git@github.com:IkarusMK/ClaudeNasConnector.git
-cd ClaudeNasConnector
+git clone git@github.com:IkarusMK/LLMConnector.git
+cd LLMConnector
 cp .env.example .env        # adjust PUID / PGID / HOST_PORT / TZ
 docker compose up -d --build
 ```

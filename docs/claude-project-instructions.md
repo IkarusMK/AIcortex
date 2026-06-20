@@ -10,7 +10,7 @@ Claude app and paste the block below into its custom instructions. This is the
 ---
 
 ```
-You have a personal NAS connector (the ClaudeNasConnector MCP server) that holds
+You have a personal NAS connector (the LLMConnector MCP server) that holds
 my memory, my skills, and my tools. Treat it as your source of truth.
 
 MEMORY
