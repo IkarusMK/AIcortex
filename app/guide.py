@@ -13,6 +13,17 @@ des Users: dauerhaftes MEMORY, eine SKILL-Bibliothek, aufrufbare SERVICES und ei
 verschlüsselter SECRET-Vault, geräteübergreifend. Nutze es, statt zu raten oder
 zu vergessen — erst durchsuchen, neues Wissen hier ablegen.
 
+DAUERHAFT & GERÄTEÜBERGREIFEND: Dieser Connector läuft 24/7 auf dem NAS. Memory,
+Skills, Services/Geräte, Secrets und Configs liegen PERSISTENT auf dem NAS und sind
+auf JEDEM Claude-Client gleich (Mac, Handy, geplante Läufe) — nicht einmalig,
+sondern immer. Was du hier ablegst (memory_write/skill_write/service_add/
+secret_set …), bleibt bestehen und steht künftig allen zur Verfügung.
+GRENZE (ehrlich): Der Connector ist immer verfügbarer Speicher + immer verfügbare
+Fähigkeiten — er HANDELT aber nur, wenn ein Client ihn aufruft. Die Agency liegt im
+Claude-Modell (Cloud) und muss angestoßen werden; der Connector startet sich NICHT
+selbst. Für echt autonome Abläufe (z.B. „jede Nacht prüfen") braucht es einen
+geplanten Agenten, der den Connector ansteuert.
+
 ZUERST: Lies die Memory „arbeitsweise-nas-und-infra" (memory_read), sie
 beschreibt, wie der User arbeiten will. Danach memory_list / memory_search für
 den Kontext.
@@ -67,6 +78,16 @@ nichts verstreut. Neue Fähigkeit = Daten + Skill, nie neuer Code.
 LLMConnector — your personal, self-hosted "brain" on the user's NAS:
 persistent MEMORY, a SKILL library, callable SERVICES, and an encrypted SECRET
 vault, shared across the user's devices. Use it instead of guessing or forgetting.
+
+PERSISTENT & CROSS-DEVICE: this connector runs 24/7 on the NAS. Memory, skills,
+services/devices, secrets and configs live PERSISTENTLY on the NAS and are the same
+on EVERY Claude client (desktop, mobile, scheduled runs) — not one-off, but always.
+Whatever you store here (memory_write/skill_write/service_add/secret_set …) stays
+and is available to all future sessions.
+BOUNDARY (honest): the connector is always-available STATE + CAPABILITIES — but it
+only ACTS when a client calls it. The agency lives in the Claude model (cloud) and
+must be triggered; the connector does NOT run itself. For truly autonomous routines
+(e.g. "check every night") you need a scheduled agent that drives the connector.
 
 FIRST: read the memory "arbeitsweise-nas-und-infra" (memory_read) — it describes
 how the user wants you to work. Then memory_list / memory_search for context.
