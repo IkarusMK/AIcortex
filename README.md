@@ -147,6 +147,8 @@ What the connector **can't** do is run the model itself — a Claude run must be
 
 > The runner is the **only** piece that lives outside the connector — the model/agency runs in Anthropic's cloud and must be invoked. Everything it acts on (schedule, tools, memory, secrets) stays on the NAS.
 
+A ready-to-deploy reference runner (container + tick loop + orchestrator, with a swappable LLM backend) lives in [`runner/`](runner/README.md). The reference backend is Claude Code, which performs the connector's OAuth login itself — so no change to the connector's auth is needed.
+
 ## Requirements
 
 - A NAS or server running **Docker** (Compose v2).
@@ -274,7 +276,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
 - [x] Scheduling: cron jobs as data (`cron_add` / `cron_list` / `cron_delete` + `cron_due` / `cron_mark_run`)
-- [ ] Autonomy runner: a NAS-side scheduled Claude runtime that fires due jobs and notifies you (see [Autonomy & scheduling](#autonomy--scheduling))
+- [x] Autonomy runner: reference NAS-side runner with a swappable LLM backend ([`runner/`](runner/README.md)) — fires due jobs and notifies you
 - [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
 
 ## License
