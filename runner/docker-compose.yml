@@ -1,0 +1,25 @@
+services:
+  llm-connector-runner:
+    build: .
+    container_name: llm-connector-runner
+    restart: unless-stopped
+    environment:
+      HOME: /config
+      # ── Model auth ──────────────────────────────────────────────────
+      # "Mittelweg": run the model on a pay-per-use API key (cheap for a few
+      # daily jobs), independent of the interactive chat subscription.
+      # Leave empty to use a subscription login instead (one-time `claude` OAuth).
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # Tick interval in seconds (cron_due decides what's actually due).
+      RUNNER_INTERVAL: "${RUNNER_INTERVAL:-60}"
+      # Swap the LLM backend here (must accept a prompt arg + have the connector
+      # tools available). Default = Claude Code headless.
+      RUNNER_CMD: "${RUNNER_CMD:-claude -p --output-format text}"
+    volumes:
+      - ./config:/config          # persists connector OAuth + MCP config + API key
+      - ./logs:/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
