@@ -9,14 +9,16 @@ Add it once as a *custom connector* and Claude gains:
 - 🧠 **Consistent memory** that lives on your NAS and follows you across every device
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
 - 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
-- 🛠️ **Tools as data** — register any API with `service_add` and call it via `call_service`; new integrations need no code and no redeploy
+- 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
+- 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a Bambu Lab printer in LAN mode) in the same way — as data, no redeploy
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
+- 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions + a `guide` tool, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
 
 The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: working.** Memory, the skill router, the generic service caller, an encrypted secret vault, and OAuth (via your own OIDC provider) are all live — and the connector is *self-describing*. **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: working.** Memory, the skill router, HTTP/MQTT/FTP dispatchers, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -30,7 +32,8 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 LLMConnector  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory  ·  Skills (searchable)  ·  Services & APIs  ·  Secret vault
+Memory  ·  Skills  ·  HTTP services  ·  MQTT & FTP devices  ·  Secret vault
+       (every outbound call passes the SSRF egress guard)
 ```
 
 ## Capabilities (tools at a glance)
@@ -40,7 +43,9 @@ Memory  ·  Skills (searchable)  ·  Services & APIs  ·  Secret vault
 | Health | `ping` | Connectivity check |
 | Memory | `memory_write` · `memory_read` · `memory_list` · `memory_search` · `memory_delete` | Durable, scope-namespaced facts on the NAS |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
-| Services | `service_add` · `service_list` · `call_service` | Register & call any API as data |
+| Services (HTTP) | `service_add` · `service_list` · `call_service` | Register & call any HTTP API as data |
+| Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. Bambu LAN) as data |
+| Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. send a print job) |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
 
@@ -54,14 +59,19 @@ LLMConnector/
 │   ├── server.py       #   entrypoint — wires auth + registers tool modules
 │   ├── memory.py       #   memory tools
 │   ├── skills.py       #   skill router
-│   ├── services.py     #   generic allow-listed service caller
+│   ├── services.py     #   generic allow-listed HTTP service caller
+│   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
+│   ├── ftp_tools.py    #   generic FTP/FTPS transfer (e.g. send print jobs)
+│   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── secrets_store.py#   encrypted secret vault
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
 ├── data/               # Persistent, human-readable state (git-ignored content)
 │   ├── memory/         #   memory files — what Claude remembers about you
 │   ├── skills/         #   skill library — <skill>/SKILL.md the router searches
-│   ├── services/       #   service configs (integrations as data)
+│   ├── services/       #   HTTP service configs (integrations as data)
+│   ├── mqtt/           #   MQTT broker/device configs
+│   ├── ftp/            #   FTP/FTPS endpoint configs
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
@@ -209,6 +219,8 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 | Log warns **`disk client_storage unavailable (Fernet key must be 32 url-safe base64-encoded bytes)`** | `STORAGE_ENCRYPTION_KEY` isn't a valid Fernet key (it's **not** the same as `JWT_SIGNING_KEY`). Generate: `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`. Or omit it for an unencrypted (still persistent) store. |
 | Worked once, then `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral and got wiped. Persistent `data/auth` (this repo) fixes it. To clear a stuck client on Claude's side: remove the connector, fully quit & reopen the app, re-add. |
 | Connector can't connect at all; proxy returns a login **web page** | You put reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer (this server). |
+| OIDC provider's consent/"Sign in" button spins forever, no `POST …/authorize` ever reaches the IdP; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` request carried **no `scope`** (some IdP UIs, e.g. Pocket ID, crash on `scope=null`). Send one **without** re-introducing token-scope validation: `extra_authorize_params={"scope": "openid profile email"}` (already in `server.py`; override via `OIDC_SCOPE`). |
+| `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** (e.g. `192.168.178.0/24`) and restart. |
 
 ## Roadmap
 
@@ -219,6 +231,9 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Generic service caller (`call_service` / `service_add` / `service_list`) — integrations as data + skills, no redeploy
 - [x] Encrypted secret vault (`secret_set` / `secret_list` / `secret_delete`) — set secrets via the connector; values encrypted at rest, never returned
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
+- [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP devices (e.g. Bambu Lab LAN) are data too
+- [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
+- [ ] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [ ] Multi-agent: agent inbox + sub-agent orchestration
 - [ ] Prebuilt image on GHCR
