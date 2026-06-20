@@ -117,9 +117,9 @@ The design lets several agents share one NAS brain without stepping on each othe
 - **Namespaced memory** — memory is addressed by scope, so agents share common knowledge while keeping private notes (`shared` vs. per-agent).
 - **Shared skill & tool registry** — every agent queries the same `skill_search` and tool set; add a capability once, all agents get it.
 - **Per-agent workspaces** — isolated working directories under `data/work` for parallel tasks.
-- **(Planned) agent inbox** — an append-only channel for agent-to-agent and agent-to-you messages, à la Hermes.
+- **Agent inbox + task board** — `inbox_*` (append-only messages), `task_*` (claimable task board) and `agent_*` (registry) let several agents coordinate, à la Hermes.
 
-Full orchestration (spawning/coordinating sub-agents) is on the roadmap; the seams above are in place so it can land **without a rewrite**. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Sub-agent *spawning* stays client-side (the model lives in the cloud); the connector is the shared coordination layer. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Requirements
 
@@ -138,6 +138,11 @@ docker compose up -d --build
 ```
 
 The MCP endpoint is served at `http://<host>:8787/mcp`.
+
+> **Prebuilt image (no local build):** a multi-arch image is published to GHCR by
+> CI. In `docker-compose.yml`, comment out `build: .`, uncomment
+> `image: ghcr.io/ikarusmk/llmconnector:latest`, then `docker compose pull && docker compose up -d`.
+> (Make the GHCR package **public** once, under the repo's *Packages* settings, so the NAS can pull it without a token.)
 
 ### Expose it & add the connector
 
@@ -242,7 +247,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
-- [ ] Prebuilt image on GHCR
+- [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
 
 ## License
 
