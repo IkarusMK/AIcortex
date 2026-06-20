@@ -50,6 +50,8 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   mqtt_get (Status abonnieren).
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
+- Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
+  Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
 
 MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
 - Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
@@ -112,6 +114,8 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   mqtt_get (subscribe for status).
 - FTP/FTPS files: ftp_add / ftp_upload (source under /data) / ftp_list.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
+- Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
+  A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
 
 MULTI-AGENT (shared coordination layer for several Claude agents)
 - Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).

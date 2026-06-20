@@ -36,6 +36,7 @@ services:
       FTP_DIR: /data/ftp
       MCP_DIR: /data/mcp
       COORD_DIR: /data/coordination
+      CRON_DIR: /data/cron
       SECRETS_DIR: /secrets
     env_file:
       - .env
@@ -49,6 +50,7 @@ services:
       - ./data/ftp:/data/ftp
       - ./data/mcp:/data/mcp
       - ./data/coordination:/data/coordination
+      - ./data/cron:/data/cron
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs
