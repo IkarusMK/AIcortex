@@ -15,10 +15,11 @@ Add it once as a *custom connector* and Claude gains:
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions + a `guide` tool, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
+- ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers a Claude run when a job is due and reports the result back to you. The connector holds the schedule; a Claude runtime executes it.
 
 The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: working.** Memory, the skill router, HTTP/MQTT/FTP dispatchers, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: working.** Memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side Claude runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -32,8 +33,13 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 LLMConnector  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory  ·  Skills  ·  HTTP services  ·  MQTT & FTP devices  ·  Secret vault
+Memory · Skills · HTTP services · MQTT & FTP devices · MCP gateway · Inbox/Tasks · Cron · Secret vault
        (every outbound call passes the SSRF egress guard)
+
+Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
+`cron_due`, runs each due job through the connector, then notifies you
+(push / inbox). The connector stores the schedule; the runner is the Claude
+runtime that actually fires it.
 ```
 
 ## Capabilities (tools at a glance)
@@ -121,6 +127,25 @@ The design lets several agents share one NAS brain without stepping on each othe
 - **Agent inbox + task board** — `inbox_*` (append-only messages), `task_*` (claimable task board) and `agent_*` (registry) let several agents coordinate, à la Hermes.
 
 Sub-agent *spawning* stays client-side (the model lives in the cloud); the connector is the shared coordination layer. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Autonomy & scheduling
+
+Schedules live on the NAS as **data** — create them from any device with `cron_add(name, schedule, prompt)` (5-field cron, server-local time); `cron_list` / `cron_delete` manage them. That part is built into the connector.
+
+What the connector **can't** do is run the model itself — a Claude run must be triggered. So the autonomy *engine* is a small **NAS-side runner**:
+
+1. System cron on the NAS runs a recurring `claude -p "<orchestrator>"` (e.g. every minute).
+2. That run calls `cron_due` → executes each due job's prompt **through this connector** (so it has every tool) → `cron_mark_run`.
+3. It reports the result via your configured channel — or, if none is set, posts to the connector **inbox**, which you read in the Claude app.
+
+**Runner runtime — two options:**
+
+| Option | Cost | Notes |
+|--------|------|-------|
+| **Subscription** (`claude` CLI / OAuth) | none (uses your plan) | Consumer plans are meant for *interactive* use — unattended automation is a gray area with tight usage limits. Keep it to a few jobs/day. |
+| **API key** (Agent SDK) | pay-per-use (pennies for light daily jobs) | The sanctioned, stable path for unattended runs. Key stays in the vault. |
+
+> The runner is the **only** piece that lives outside the connector — the model/agency runs in Anthropic's cloud and must be invoked. Everything it acts on (schedule, tools, memory, secrets) stays on the NAS.
 
 ## Requirements
 
@@ -248,6 +273,8 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
+- [x] Scheduling: cron jobs as data (`cron_add` / `cron_list` / `cron_delete` + `cron_due` / `cron_mark_run`)
+- [ ] Autonomy runner: a NAS-side scheduled Claude runtime that fires due jobs and notifies you (see [Autonomy & scheduling](#autonomy--scheduling))
 - [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
 
 ## License
