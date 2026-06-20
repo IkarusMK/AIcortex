@@ -44,10 +44,14 @@ def _load(name: str):
 def register(mcp):
     @mcp.tool
     def service_add(name: str, base_url: str, token_env: str = "",
-                    auth_scheme: str = "Bearer", description: str = "") -> str:
+                    auth_scheme: str = "Bearer", description: str = "",
+                    auth_header: str = "Authorization") -> str:
         """Register/update a callable service (stored as DATA — no redeploy).
-        token_env = the NAME of an env var holding the auth token; set the actual
-        secret in the server's .env. The token itself is never stored here."""
+        token_env = the NAME of the secret holding the auth token (store it with
+        secret_set). The token itself is never stored here.
+        auth_header = which header carries the token (default "Authorization").
+        For APIs with a custom header (e.g. n8n) use auth_header="X-N8N-API-KEY"
+        and auth_scheme="" so the raw token is sent without a "Bearer " prefix."""
         try:
             SERVICES_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -55,6 +59,7 @@ def register(mcp):
                 "base_url": base_url.rstrip("/"),
                 "token_env": token_env,
                 "auth_scheme": auth_scheme,
+                "auth_header": auth_header or "Authorization",
                 "description": description,
             }
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -102,7 +107,11 @@ def register(mcp):
             token = secrets_store.get_secret(tok_env)
             if not token:
                 return f"Service '{service}' needs secret '{tok_env}'. Store it via the secret_set tool first (do not edit .env)."
-            headers["Authorization"] = f"{cfg.get('auth_scheme', 'Bearer')} {token}".strip()
+            header_name = cfg.get("auth_header") or "Authorization"
+            scheme = cfg.get("auth_scheme", "Bearer")
+            # With a scheme (e.g. Bearer) send "<scheme> <token>"; without one
+            # (custom-header APIs like n8n) send the raw token value.
+            headers[header_name] = f"{scheme} {token}".strip() if scheme else token
         try:
             r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)
             body = r.text
