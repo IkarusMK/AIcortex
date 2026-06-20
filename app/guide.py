@@ -40,6 +40,12 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 
+MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
+- Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
+- Task-Board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
+- Registry: agent_register(name, role) zu Beginn / agent_list. So teilen Mac, Handy
+  und geplante Läufe Nachrichten & Aufgaben (Wissen weiter über Memory-Scopes).
+
 SECRETS — NUR Vault, NIEMALS .env
 - Alle API-Keys/Tokens/Passwörter ausschließlich per secret_set(name, value) in den
   verschlüsselten Vault legen: verschlüsselt at-rest, wird nie zurückgegeben,
@@ -80,6 +86,12 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   mqtt_get (subscribe for status).
 - FTP/FTPS files: ftp_add / ftp_upload (source under /data) / ftp_list.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
+
+MULTI-AGENT (shared coordination layer for several Claude agents)
+- Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
+- Task board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
+- Registry: agent_register(name, role) at start / agent_list. Lets desktop, mobile
+  and scheduled runs share messages & tasks (knowledge still via memory scopes).
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via
 secret_set(name, value) into the encrypted vault — encrypted at rest, never shown

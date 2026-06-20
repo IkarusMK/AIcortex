@@ -47,6 +47,7 @@ Memory  ·  Skills  ·  HTTP services  ·  MQTT & FTP devices  ·  Secret vault
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. Bambu LAN) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. send a print job) |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
+| Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
 
@@ -65,6 +66,7 @@ LLMConnector/
 │   ├── ftp_tools.py    #   generic FTP/FTPS transfer (e.g. send print jobs)
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
+│   ├── coordination.py #   multi-agent inbox / task board / agent registry
 │   ├── secrets_store.py#   encrypted secret vault
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
@@ -75,6 +77,7 @@ LLMConnector/
 │   ├── mqtt/           #   MQTT broker/device configs
 │   ├── ftp/            #   FTP/FTPS endpoint configs
 │   ├── mcp/            #   upstream MCP server configs
+│   ├── coordination/   #   multi-agent inbox / tasks / agents
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
@@ -238,7 +241,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
-- [ ] Multi-agent: agent inbox + sub-agent orchestration
+- [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
 - [ ] Prebuilt image on GHCR
 
 ## License
