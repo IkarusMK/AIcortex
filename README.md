@@ -173,7 +173,7 @@ server runs open (local testing only).
 ## Security
 
 - This server is reachable from the public internet via your proxy. **Enable [Authentication](#authentication) before exposing it** — anyone who reaches the endpoint can otherwise call its tools.
-- Keep all real credentials (API tokens, etc.) on your NAS — either in `.env`, or set them through the connector with `secret_set` (encrypted at rest in `data/vault`, referenced by name, **never returned to the model**). Used server-side only.
+- Keep all real credentials on your NAS. For integration/device secrets (API tokens, device passwords) use the **encrypted vault** via `secret_set` — encrypted at rest in `data/vault`, referenced by name (`token_env` / `password_env`), **never returned to the model**, and settable from mobile. `.env` is only for server *bootstrap* config that must exist before the vault loads (e.g. the OIDC client secret, `JWT_SIGNING_KEY`). Don't ask the assistant to edit `.env` for integration secrets — that's what the vault is for.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
 ## Troubleshooting

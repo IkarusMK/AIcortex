@@ -41,8 +41,8 @@ SECURITY
 Everything that makes the assistant *yours* lives on the NAS connector — nothing scattered:
 
 - **Skills** → search with `skill_search`, create with `skill_write` (never a local file).
-- **Tools / integrations** → check `service_list`, register new APIs with `service_add` (as data), call via `call_service`.
-- **API keys / passwords / secrets** → only in the server's `.env` (referenced by `token_env`); never in chat, in the repo, or hardcoded.
+- **Tools / integrations** → check `service_list`, register new HTTP APIs with `service_add` (as data), call via `call_service`. MQTT devices: `mqtt_add` / `mqtt_publish` / `mqtt_get`. Files: `ftp_add` / `ftp_upload`.
+- **API keys / passwords / secrets** → store them in the encrypted **vault** via `secret_set` (works from mobile); reference by name (`token_env` / `password_env`). **Never** ask the user to edit `.env`, never paste secrets in chat, never commit or hardcode them.
 - **Memory** → `memory_write` for durable facts; recall with `memory_list` / `memory_read` / `memory_search` before assuming.
 
 New capability = "learn it" (data + skill), no redeploy.
