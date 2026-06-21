@@ -147,7 +147,10 @@ What the connector **can't** do is run the model itself — a Claude run must be
 
 > The runner is the **only** piece that lives outside the connector — the model/agency runs in Anthropic's cloud and must be invoked. Everything it acts on (schedule, tools, memory, secrets) stays on the NAS.
 
-A ready-to-deploy reference runner (container + tick loop + orchestrator, with a swappable LLM backend) lives in [`runner/`](runner/README.md). The reference backend is Claude Code, which performs the connector's OAuth login itself — so no change to the connector's auth is needed.
+Two ready-to-deploy runners live in [`runner/`](runner/README.md), so the autonomy layer works with **any application LLM**:
+
+- **Claude Code backend** — performs the connector's OAuth login itself, so no connector change is needed (simplest for Claude users).
+- **Generic any-LLM backend** ([`runner/generic/`](runner/generic/README.md)) — drives the connector from **any** model via [LiteLLM](https://github.com/BerriAI/litellm) (GPT, Gemini, Ollama, Claude, …). It authenticates with a static **`RUNNER_TOKEN`** that the connector accepts **alongside** OIDC (FastMCP `MultiAuth`) — interactive apps keep using OIDC unchanged; only headless machine clients use the token.
 
 ## Requirements
 

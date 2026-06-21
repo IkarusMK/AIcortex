@@ -85,7 +85,29 @@ def _build_auth():
     storage = _client_storage()
     if storage is not None:
         kwargs["client_storage"] = storage
-    return OIDCProxy(**kwargs)
+    oidc = OIDCProxy(**kwargs)
+
+    # Optionally ALSO accept a static runner token for headless machine clients
+    # (the autonomy runner, any LLM). Interactive apps keep using OIDC unchanged;
+    # MultiAuth just adds the token as a second accepted credential. Backward
+    # compatible: with no RUNNER_TOKEN set, this is plain OIDC as before.
+    runner_token = os.environ.get("RUNNER_TOKEN")
+    if runner_token:
+        try:
+            from fastmcp.server.auth import MultiAuth
+            try:
+                from fastmcp.server.auth import StaticTokenVerifier
+            except Exception:
+                from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+            verifier = StaticTokenVerifier(
+                tokens={runner_token: {"client_id": "runner", "scopes": []}}
+            )
+            print("[LLMConnector] auth: OIDC + static runner token (MultiAuth)")
+            return MultiAuth(server=oidc, verifiers=[verifier])
+        except Exception as exc:
+            print(f"[LLMConnector] WARNING: RUNNER_TOKEN set but MultiAuth unavailable "
+                  f"({exc}); falling back to OIDC only")
+    return oidc
 
 
 auth = _build_auth()

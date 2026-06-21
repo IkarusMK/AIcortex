@@ -5,9 +5,17 @@ model itself. This runner is the small NAS-side piece that actually **fires**
 due jobs: a tick loop runs an LLM agent that calls `cron_due`, executes each due
 job through the connector, calls `cron_mark_run`, and reports the result.
 
-It is intentionally **decoupled and LLM-agnostic**: the reference backend is
-Claude Code (`claude`), but any headless agent CLI that can reach the connector
-works — just override `RUNNER_CMD`.
+It is intentionally **decoupled and LLM-agnostic**.
+
+## Two backends — pick one
+
+| Backend | Path | Auth to connector | LLM | Best for |
+|---------|------|-------------------|-----|----------|
+| **Claude Code** | this folder | the CLI does the connector **OAuth** itself (no token needed) | Claude (sub or API key) | Claude users; simplest, no connector change |
+| **Generic (any LLM)** | [`generic/`](generic/README.md) | static **`RUNNER_TOKEN`** (MultiAuth on the connector) | **any** via LiteLLM (GPT, Gemini, Ollama, Claude…) | non-Claude LLMs / one provider-agnostic agent |
+
+The rest of this file documents the **Claude Code** backend. For any other LLM,
+use [`generic/`](generic/README.md).
 
 ```
 system tick (loop, every RUNNER_INTERVAL)
