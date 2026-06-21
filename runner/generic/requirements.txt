@@ -1,2 +1,2 @@
 litellm>=1.50,<2
-fastmcp==2.14.7
+fastmcp>=3.4,<4
