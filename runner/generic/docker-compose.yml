@@ -1,0 +1,23 @@
+services:
+  llm-connector-runner-generic:
+    build: .
+    container_name: llm-connector-runner-generic
+    restart: unless-stopped
+    environment:
+      # Connector endpoint + the SAME static token you set on the connector.
+      CONNECTOR_URL: "${CONNECTOR_URL:-https://agent.example.com/mcp}"
+      RUNNER_TOKEN: "${RUNNER_TOKEN:?set RUNNER_TOKEN (must match the connector)}"
+      # Pick ANY model via LiteLLM, e.g. gpt-4o, anthropic/claude-3-5-sonnet-latest,
+      # gemini/gemini-1.5-pro, ollama/llama3.1
+      LLM_MODEL: "${LLM_MODEL:-gpt-4o-mini}"
+      RUNNER_INTERVAL: "${RUNNER_INTERVAL:-60}"
+      RUNNER_MAX_STEPS: "${RUNNER_MAX_STEPS:-25}"
+      # Provide the API key for YOUR chosen provider (leave the others empty):
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
