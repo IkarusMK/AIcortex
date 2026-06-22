@@ -2,7 +2,7 @@ name: build-and-push
 
 # Builds the container image and pushes it to GitHub Container Registry (GHCR)
 # on every push to main and on version tags (vX.Y.Z). The image name is derived
-# from the repo and lowercased automatically → ghcr.io/<owner>/llmconnector.
+# from the repo and lowercased automatically → ghcr.io/<owner>/aicortex.
 
 on:
   push:

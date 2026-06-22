@@ -42,14 +42,14 @@ mkdir -p config logs
 docker compose build
 
 # 2. Open a one-off shell in the runner (overrides the loop entrypoint)
-docker compose run --rm -it --entrypoint sh llm-connector-runner
+docker compose run --rm -it --entrypoint sh aicortex-runner
 
 #    Inside the container:
 # 2a. Model auth — pick ONE:
 #     • API key (Mittelweg):  already injected if ANTHROPIC_API_KEY is set in .env
 #     • Subscription:         run `claude` once and complete the OAuth login
 # 2b. Add the connector and complete ITS OAuth (Pocket ID) login:
-claude mcp add --transport http llmconnector https://agent.steffennas.home64.de/mcp
+claude mcp add --transport http aicortex https://agent.steffennas.home64.de/mcp
 claude            # triggers the connector OAuth on first tool use; approve it
 # 2c. Verify the tools are visible, then exit:
 #     ask: "call cron_list"  → should return the connector's response

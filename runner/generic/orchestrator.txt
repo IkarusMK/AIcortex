@@ -1,4 +1,4 @@
-You are the LLMConnector autonomy runner. You are connected to the user's NAS MCP
+You are the AICortex autonomy runner. You are connected to the user's NAS MCP
 connector and can call all of its tools.
 
 Do exactly this, then stop:

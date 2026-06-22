@@ -3,7 +3,7 @@
 #
 # The backend is swappable via RUNNER_CMD. It must:
 #   • accept the prompt as its final argument (headless / non-interactive), and
-#   • already have the LLMConnector MCP connector available (tools callable).
+#   • already have the AICortex MCP connector available (tools callable).
 #
 # Reference backend = Claude Code:
 #   RUNNER_CMD="claude -p --output-format text"

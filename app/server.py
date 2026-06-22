@@ -1,4 +1,4 @@
-"""LLMConnector — MCP server.
+"""AICortex — MCP server.
 
 A self-hosted MCP server you add to the Claude apps as a custom connector.
 
@@ -49,7 +49,7 @@ def _client_storage():
             store = FernetEncryptionWrapper(key_value=store, fernet=Fernet(enc_key))
         return store
     except Exception as exc:  # fall back to the (ephemeral) default
-        print(f"[LLMConnector] WARNING: disk client_storage unavailable ({exc}); using default")
+        print(f"[AICortex] WARNING: disk client_storage unavailable ({exc}); using default")
         return None
 
 
@@ -102,10 +102,10 @@ def _build_auth():
             verifier = StaticTokenVerifier(
                 tokens={runner_token: {"client_id": "runner", "scopes": []}}
             )
-            print("[LLMConnector] auth: OIDC + static runner token (MultiAuth)")
+            print("[AICortex] auth: OIDC + static runner token (MultiAuth)")
             return MultiAuth(server=oidc, verifiers=[verifier])
         except Exception as exc:
-            print(f"[LLMConnector] WARNING: RUNNER_TOKEN set but MultiAuth unavailable "
+            print(f"[AICortex] WARNING: RUNNER_TOKEN set but MultiAuth unavailable "
                   f"({exc}); falling back to OIDC only")
     return oidc
 
@@ -113,7 +113,7 @@ def _build_auth():
 auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
-mcp = FastMCP("LLMConnector", auth=auth, instructions=guide.GUIDE)
+mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
 
 
 @mcp.tool
@@ -161,15 +161,15 @@ if __name__ == "__main__":
     bind_host = HOST
     if auth is None:
         if os.environ.get("ALLOW_INSECURE") == "1":
-            print(f"[LLMConnector] WARNING: no OIDC — running OPEN (no auth) on "
+            print(f"[AICortex] WARNING: no OIDC — running OPEN (no auth) on "
                   f"{bind_host}:{PORT} because ALLOW_INSECURE=1. Do NOT expose this publicly.")
         else:
             bind_host = "127.0.0.1"
-            print(f"[LLMConnector] No OIDC configured → binding to 127.0.0.1:{PORT} "
+            print(f"[AICortex] No OIDC configured → binding to 127.0.0.1:{PORT} "
                   f"(local only). Set OIDC_* for real auth, or ALLOW_INSECURE=1 to force "
                   f"an open bind (not recommended).")
     else:
-        print(f"[LLMConnector] auth: OIDC proxy — binding {bind_host}:{PORT}")
+        print(f"[AICortex] auth: OIDC proxy — binding {bind_host}:{PORT}")
     # Streamable-HTTP transport — what Claude custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
     mcp.run(transport="http", host=bind_host, port=PORT)
