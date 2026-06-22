@@ -15,12 +15,12 @@ zu vergessen — erst durchsuchen, neues Wissen hier ablegen.
 
 DAUERHAFT & GERÄTEÜBERGREIFEND: Dieser Connector läuft 24/7 auf dem NAS. Memory,
 Skills, Services/Geräte, Secrets und Configs liegen PERSISTENT auf dem NAS und sind
-auf JEDEM Claude-Client gleich (Mac, Handy, geplante Läufe) — nicht einmalig,
+auf JEDEM LLM-Client gleich (Mac, Handy, geplante Läufe) — nicht einmalig,
 sondern immer. Was du hier ablegst (memory_write/skill_write/service_add/
 secret_set …), bleibt bestehen und steht künftig allen zur Verfügung.
 GRENZE (ehrlich): Der Connector ist immer verfügbarer Speicher + immer verfügbare
 Fähigkeiten — er HANDELT aber nur, wenn ein Client ihn aufruft. Die Agency liegt im
-Claude-Modell (Cloud) und muss angestoßen werden; der Connector startet sich NICHT
+LLM-Modell (Cloud oder lokal) und muss angestoßen werden; der Connector startet sich NICHT
 selbst. Für echt autonome Abläufe (z.B. „jede Nacht prüfen") braucht es einen
 geplanten Agenten, der den Connector ansteuert.
 
@@ -69,7 +69,7 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
 
-MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
+MULTI-AGENT (geteilter Koordinations-Layer für mehrere LLM-Agenten)
 - Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
 - Task-Board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
 - Registry: agent_register(name, role) zu Beginn / agent_list. So teilen Mac, Handy
@@ -113,11 +113,11 @@ vault, shared across the user's devices. Use it instead of guessing or forgettin
 
 PERSISTENT & CROSS-DEVICE: this connector runs 24/7 on the NAS. Memory, skills,
 services/devices, secrets and configs live PERSISTENTLY on the NAS and are the same
-on EVERY Claude client (desktop, mobile, scheduled runs) — not one-off, but always.
+on EVERY LLM client (desktop, mobile, scheduled runs) — not one-off, but always.
 Whatever you store here (memory_write/skill_write/service_add/secret_set …) stays
 and is available to all future sessions.
 BOUNDARY (honest): the connector is always-available STATE + CAPABILITIES — but it
-only ACTS when a client calls it. The agency lives in the Claude model (cloud) and
+only ACTS when a client calls it. The agency lives in the LLM model (cloud or local) and
 must be triggered; the connector does NOT run itself. For truly autonomous routines
 (e.g. "check every night") you need a scheduled agent that drives the connector.
 
@@ -164,7 +164,7 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
 
-MULTI-AGENT (shared coordination layer for several Claude agents)
+MULTI-AGENT (shared coordination layer for several LLM agents)
 - Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
 - Task board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
 - Registry: agent_register(name, role) at start / agent_list. Lets desktop, mobile

@@ -1,15 +1,15 @@
 # AICortex
 
-> A persistent, self-hosted brain for Claude — on your own NAS.
+> A private, self-hosted brain for your LLM — on your own NAS.
 
-Self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal Claude connector** — a persistent "brain" your assistant loads at the start of every session. It gives Claude a durable identity and real reach, running in **your** network and plugging straight into the Claude apps you already use.
+Self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal LLM connector** — a persistent "brain" your assistant loads at the start of every session. It gives any MCP-capable LLM (Claude, ChatGPT, local models …) a durable identity and real reach, running in **your** network and plugging straight into the LLM apps you already use. Your data stays on your hardware.
 
-Add it once as a *custom connector* and Claude gains:
+Add it once as a *custom connector / MCP server* and your LLM gains:
 
 - ⚡ **One-call onboarding** — a `bootstrap` tool any LLM calls first; in a single round-trip it loads the guide *and* a live catalog of everything on the brain (memory, skills, services, devices, scheduled jobs), so a fresh session on any device is never "blank"
 - 🧠 **Consistent memory** that lives on your NAS and follows you across every device
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
-- 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
+- 🗂️ **A skill router** — your skills live on your NAS; the LLM *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
 - 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
 - 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a printer or sensor on your LAN) in the same way — as data, no redeploy
 - 🖨️ **Printing** — register a LAN printer (`print_add`) and print PDFs/images straight to it over IPP/AirPrint (`print_document`), by file or inline base64 — hand the assistant a document and it prints at home
@@ -18,17 +18,17 @@ Add it once as a *custom connector* and Claude gains:
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
 - 🔁 **Cross-LLM session handoff** — `session_save`/`session_load` keep a compact, timestamped log of where work stands, so a different model or device (Claude, ChatGPT, a scheduled run) can resume exactly where another stopped; stale sessions auto-expire so the NAS doesn't bloat
-- ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers a Claude run when a job is due and reports the result back to you. The connector holds the schedule; a Claude runtime executes it.
+- ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers an LLM run when a job is due and reports the result back to you. The connector holds the schedule; an LLM runtime executes it.
 
-The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
+The model stays in its provider's cloud (or runs locally). **Your data, skills, and secrets stay on your NAS.** Your LLM talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: working.** One-call `bootstrap` onboarding, memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side Claude runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: working.** One-call `bootstrap` onboarding, memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
 ```
-Claude app (desktop / mobile)  ·  one or many agents
-        │  custom connector (HTTPS, from Anthropic's cloud)
+LLM app — any MCP client (desktop / mobile)  ·  one or many agents
+        │  custom connector / MCP server (HTTPS, from the model's cloud)
         ▼
 Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
         │
@@ -41,7 +41,7 @@ Memory · Skills · HTTP services · MQTT & FTP devices · IPP printing · MCP g
 
 Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
 `cron_due`, runs each due job through the connector, then notifies you
-(push / inbox). The connector stores the schedule; the runner is the Claude
+(push / inbox). The connector stores the schedule; the runner is the LLM
 runtime that actually fires it.
 ```
 
@@ -87,7 +87,7 @@ AICortex/
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
 ├── data/               # Persistent, human-readable state (git-ignored content)
-│   ├── memory/         #   memory files — what Claude remembers about you
+│   ├── memory/         #   memory files — what the LLM remembers about you
 │   ├── skills/         #   skill library — <skill>/SKILL.md the router searches
 │   ├── services/       #   HTTP service configs (integrations as data)
 │   ├── mqtt/           #   MQTT broker/device configs
@@ -101,7 +101,7 @@ AICortex/
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
 ├── secrets/            # Local credentials (.env) — never leave the NAS
 ├── logs/               # Container logs
-├── docs/               # Architecture & Claude project-instruction template
+├── docs/               # Architecture & client project-instruction template
 ├── Dockerfile          # Baked image (deps installed at build time)
 ├── entrypoint.sh       # Drops privileges to PUID:PGID at runtime (gosu)
 ├── docker-compose.yml
@@ -112,11 +112,11 @@ AICortex/
 
 ## Memory, skills & the skill router
 
-This is the heart of the project — making Claude *itself* portable, not just chat.
+This is the heart of the project — making the assistant *itself* portable, not just chat.
 
-- **Memory** lives as plain files under `data/memory`. Tools (`memory_read` / `memory_write` / `memory_list`) let Claude recall and update what it knows about you — the same on every device.
-- **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router tools — `skill_search` / `skill_load` / `skill_resource` — let Claude find the right skill for a request and pull in **only what it needs** (progressive disclosure, the same idea as tool search).
-- **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your Claude **Project** ("call the `bootstrap` tool first") — see [`docs/claude-project-instructions.md`](docs/claude-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
+- **Memory** lives as plain files under `data/memory`. Tools (`memory_read` / `memory_write` / `memory_list`) let the LLM recall and update what it knows about you — the same on every device.
+- **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router tools — `skill_search` / `skill_load` / `skill_resource` — let the LLM find the right skill for a request and pull in **only what it needs** (progressive disclosure, the same idea as tool search).
+- **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your client's **project / system prompt** ("call the `bootstrap` tool first") — see [`docs/claude-project-instructions.md`](docs/claude-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
 
 ## Tools & integrations (as data)
 
@@ -143,11 +143,11 @@ Sub-agent *spawning* stays client-side (the model lives in the cloud); the conne
 
 Schedules live on the NAS as **data** — create them from any device with `cron_add(name, schedule, prompt)` (5-field cron, server-local time); `cron_list` / `cron_delete` manage them. That part is built into the connector.
 
-What the connector **can't** do is run the model itself — a Claude run must be triggered. So the autonomy *engine* is a small **NAS-side runner**:
+What the connector **can't** do is run the model itself — an LLM run must be triggered. So the autonomy *engine* is a small **NAS-side runner**:
 
-1. System cron on the NAS runs a recurring `claude -p "<orchestrator>"` (e.g. every minute).
+1. System cron on the NAS runs a recurring agent invocation (e.g. `claude -p "<orchestrator>"`, or any LLM CLI/SDK) every minute.
 2. That run calls `cron_due` → executes each due job's prompt **through this connector** (so it has every tool) → `cron_mark_run`.
-3. It reports the result via your configured channel — or, if none is set, posts to the connector **inbox**, which you read in the Claude app.
+3. It reports the result via your configured channel — or, if none is set, posts to the connector **inbox**, which you read in your LLM app.
 
 **Runner runtime — two options:**
 
@@ -156,7 +156,7 @@ What the connector **can't** do is run the model itself — a Claude run must be
 | **Subscription** (`claude` CLI / OAuth) | none (uses your plan) | Consumer plans are meant for *interactive* use — unattended automation is a gray area with tight usage limits. Keep it to a few jobs/day. |
 | **API key** (Agent SDK) | pay-per-use (pennies for light daily jobs) | The sanctioned, stable path for unattended runs. Key stays in the vault. |
 
-> The runner is the **only** piece that lives outside the connector — the model/agency runs in Anthropic's cloud and must be invoked. Everything it acts on (schedule, tools, memory, secrets) stays on the NAS.
+> The runner is the **only** piece that lives outside the connector — the model/agency runs in its provider's cloud (or locally) and must be invoked. Everything it acts on (schedule, tools, memory, secrets) stays on the NAS.
 
 Two ready-to-deploy runners live in [`runner/`](runner/README.md), so the autonomy layer works with **any application LLM**:
 
@@ -166,9 +166,9 @@ Two ready-to-deploy runners live in [`runner/`](runner/README.md), so the autono
 ## Requirements
 
 - A NAS or server running **Docker** (Compose v2).
-- A **reverse proxy** that serves the container over public HTTPS — Claude connects from Anthropic's cloud, so the endpoint must be reachable from the internet.
+- A **reverse proxy** that serves the container over public HTTPS — cloud-hosted LLM clients connect from their provider's cloud, so the endpoint must be reachable from the internet. (A purely local client/runner can reach it on the LAN.)
 - A domain/subdomain pointing at your proxy.
-- A **Claude plan** that supports custom connectors (Free is limited to one; Pro/Max/Team/Enterprise support more).
+- An **MCP-capable client** that supports custom connectors / MCP servers (e.g. Claude, ChatGPT, or any MCP client; some plans cap how many you can add).
 
 ## Quick start
 
@@ -191,9 +191,9 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.
 2. Proxy that host to `http://<nas-ip>:8787` over HTTPS.
    - The upstream is **plain HTTP** — do *not* enable "TLS to upstream".
-   - If your proxy uses geo-blocking, **allow Anthropic's region (US)** for this host, or the connector cannot reach you.
-3. In the Claude app: **Settings → Connectors → Add custom connector** → URL `https://agent.example.com/mcp`.
-4. Test: ask Claude to call the `ping` tool.
+   - If your proxy uses geo-blocking, **allow your LLM provider's egress region** for this host (e.g. US for Anthropic-/OpenAI-hosted clients), or the connector cannot reach you.
+3. In your MCP client (e.g. Claude): **add a custom connector / MCP server** → URL `https://agent.example.com/mcp`.
+4. Test: ask the assistant to call the `ping` tool.
 
 ## Configuration
 
@@ -211,11 +211,11 @@ All config lives in `.env` (copy from `.env.example`):
 Protect the connector with OAuth before you expose it. It uses **your own OIDC
 identity provider** as the login backend — Pocket ID, Authentik, Keycloak, Auth0,
 anything with standard OIDC discovery. FastMCP's OIDC proxy handles the MCP-side
-OAuth 2.1 flow (Dynamic Client Registration + PKCE) that the Claude connector
+OAuth 2.1 flow (Dynamic Client Registration + PKCE) that the MCP client
 speaks; your provider just does the actual login.
 
 > ℹ️ **Don't** put browser/forward-auth (reverse-proxy SSO) in front of the
-> `/mcp` endpoint — the Claude connector is a *machine* client and can't follow an
+> `/mcp` endpoint — an MCP connector is a *machine* client and can't follow an
 > interactive login redirect. Authentication must happen at the MCP layer, which
 > is exactly what this does.
 
@@ -229,7 +229,7 @@ Enable it by setting these in `.env` (see `.env.example`):
 | `JWT_SIGNING_KEY` | `openssl rand -hex 32` |
 
 Register the OAuth client in your provider with redirect URI
-**`<BASE_URL>/auth/callback`**. Then (re-)add the custom connector in Claude — it
+**`<BASE_URL>/auth/callback`**. Then (re-)add the custom connector in your client — it
 will send you through your provider's login. **When the OIDC variables are unset,
 the server binds to `127.0.0.1` only** (local testing); set `ALLOW_INSECURE=1` to
 force an open bind without auth (not recommended).
@@ -267,10 +267,10 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 
 | Symptom | Cause & fix |
 |---------|-------------|
-| Login succeeds, but Claude says *"returned an error when connecting"*; logs show `Token verified successfully` then **`Token missing required scopes`** | The proxy-issued MCP token doesn't carry the upstream OIDC scopes as claims. **Don't set `required_scopes`** — a successful login is enough. (Already removed in `server.py`.) |
+| Login succeeds, but the client says *"returned an error when connecting"*; logs show `Token verified successfully` then **`Token missing required scopes`** | The proxy-issued MCP token doesn't carry the upstream OIDC scopes as claims. **Don't set `required_scopes`** — a successful login is enough. (Already removed in `server.py`.) |
 | Logs show `Issued new FastMCP tokens` immediately followed by **`Bearer token rejected`** (401 `invalid_token`) | Behind a TLS-terminating proxy, uvicorn ignored `X-Forwarded-Proto`, so the server computed an `http://` URL and rejected its own `https`-audience tokens. Set **`FORWARDED_ALLOW_IPS: "*"`** (already in `docker-compose.yml`). |
 | Log warns **`disk client_storage unavailable (Fernet key must be 32 url-safe base64-encoded bytes)`** | `STORAGE_ENCRYPTION_KEY` isn't a valid Fernet key (it's **not** the same as `JWT_SIGNING_KEY`). Generate: `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`. Or omit it for an unencrypted (still persistent) store. |
-| Worked once, then `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral and got wiped. Persistent `data/auth` (this repo) fixes it. To clear a stuck client on Claude's side: remove the connector, fully quit & reopen the app, re-add. |
+| Worked once, then `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral and got wiped. Persistent `data/auth` (this repo) fixes it. To clear a stuck client: remove the connector, fully quit & reopen the app, re-add. |
 | Connector can't connect at all; proxy returns a login **web page** | You put reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer (this server). |
 | OIDC provider's consent/"Sign in" button spins forever, no `POST …/authorize` ever reaches the IdP; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` request carried **no `scope`** (some IdP UIs, e.g. Pocket ID, crash on `scope=null`). Send one **without** re-introducing token-scope validation: `extra_authorize_params={"scope": "openid profile email"}` (already in `server.py`; override via `OIDC_SCOPE`). |
 | `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** (e.g. `192.168.178.0/24`) and restart. |
