@@ -44,6 +44,7 @@ services:
       SESSIONS_DIR: /data/sessions
       # Sessions not updated within this many days are auto-pruned (0 = keep forever).
       SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-90}"
+      PRINT_DIR: /data/printers
       SECRETS_DIR: /secrets
     # Optional: a fresh clone has only .env.example (real .env is git-ignored).
     # Marking it not-required lets `docker compose build`/`up` work out of the box;
@@ -64,6 +65,7 @@ services:
       - ./data/coordination:/data/coordination
       - ./data/cron:/data/cron
       - ./data/sessions:/data/sessions
+      - ./data/printers:/data/printers
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs

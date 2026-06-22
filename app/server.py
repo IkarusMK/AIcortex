@@ -25,6 +25,7 @@ import mcp_gateway
 import coordination
 import cron
 import sessions
+import print_tools
 import secrets_store
 import guide
 import bootstrap
@@ -157,6 +158,9 @@ cron.register(mcp)
 
 # Cross-LLM session handoff: session_save / session_list / session_load / session_delete / session_prune
 sessions.register(mcp)
+
+# IPP printing: print_add / print_list / print_delete / print_document (printers as data)
+print_tools.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
