@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 
 import guide
+import sessions
 
 MEMORY_DIR = Path(os.environ.get("MEMORY_DIR", "/data/memory"))
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
@@ -106,6 +107,24 @@ def _catalog() -> str:
                 mem_lines.append(f"  [{sc.name}]")
                 mem_lines.extend(entries)
 
+    # Where we left off: surface the most recent session so a fresh LLM (or a
+    # different model entirely) can continue exactly where another stopped.
+    resume = ""
+    try:
+        latest = sessions.latest_open()
+        if latest:
+            last = (latest.get("entries") or [{}])[-1]
+            resume = (
+                "===== RESUME — most recent session =====\n"
+                f"{sessions.summary_line(latest)}\n"
+                f"  last: {last.get('summary', '')}\n"
+                + (f"  NEXT: {last['next_steps']}\n" if last.get("next_steps") else "")
+                + "  → call session_load to see the full history; "
+                "session_save to add your own checkpoint."
+            )
+    except Exception:
+        resume = ""
+
     parts = [
         "===== LIVE BRAIN CATALOG (current NAS state) =====",
         _section("MEMORY (facts about the user & projects)", mem_lines,
@@ -124,13 +143,19 @@ def _catalog() -> str:
         _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
                  "none — add with cron_add"),
         _section("REGISTERED AGENTS", _agents(), "none registered"),
+        _section("WORK SESSIONS (cross-LLM handoff)",
+                 ["  - " + sessions.summary_line(s) for s in
+                  sorted(sessions._all(), key=lambda s: s.get("updated", ""), reverse=True)[:5]],
+                 "none — start one with session_save"),
         "",
         "NEXT: load the specifics you need (memory_read, skill_load, service_list …) "
         "and register yourself with agent_register if you'll coordinate. "
         "Store new durable knowledge back with memory_write / skill_write so the "
-        "brain grows instead of drifting.",
+        "brain grows instead of drifting. Save a session_save checkpoint before you "
+        "stop so the next LLM/device can resume.",
     ]
-    return "\n\n".join(parts)
+    body = "\n\n".join(parts)
+    return (resume + "\n\n" + body) if resume else body
 
 
 def register(mcp):

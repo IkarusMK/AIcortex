@@ -41,6 +41,9 @@ services:
       MCP_DIR: /data/mcp
       COORD_DIR: /data/coordination
       CRON_DIR: /data/cron
+      SESSIONS_DIR: /data/sessions
+      # Sessions not updated within this many days are auto-pruned (0 = keep forever).
+      SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-90}"
       SECRETS_DIR: /secrets
     # Optional: a fresh clone has only .env.example (real .env is git-ignored).
     # Marking it not-required lets `docker compose build`/`up` work out of the box;
@@ -60,6 +63,7 @@ services:
       - ./data/mcp:/data/mcp
       - ./data/coordination:/data/coordination
       - ./data/cron:/data/cron
+      - ./data/sessions:/data/sessions
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs
