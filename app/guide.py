@@ -73,13 +73,18 @@ MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
   und geplante Läufe Nachrichten & Aufgaben (Wissen weiter über Memory-Scopes).
 
 SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
-- session_save(summary, next_steps, model[, session_id, title]): BEVOR du aufhörst
-  einen Checkpoint ablegen — kurz: was passiert ist + nächste Schritte; model = wer
-  du bist (z.B. "claude", "chatgpt"). Ohne session_id startet eine neue Session.
+- session_save(summary, next_steps, model[, session_id, title]): einen Checkpoint
+  ablegen — kurz: was passiert ist + nächste Schritte; model = wer du bist (z.B.
+  "claude", "chatgpt"). Ohne session_id startet eine neue Session.
 - session_load([session_id]): genau dort weitermachen, wo zuletzt aufgehört wurde
   (ohne id = die zuletzt aktualisierte). session_list / session_delete / session_prune.
 - bootstrap zeigt die 5 letzten Sessions oben an. Alte Sessions verfallen
   automatisch (Default 90 Tage) — kein Daten-Wasserkopf.
+- AUTOSAVE (verbindlich): Speichere wie ein Auto-Save regelmäßig — nach JEDEM
+  größeren Meilenstein, spätestens BEVOR du aufhörst oder wenn die Session lang wird
+  bzw. das Nutzungslimit naht. IMMER dieselbe session_id aktualisieren (zu Beginn
+  einmal session_load → die laufende id übernehmen oder eine neue starten), nicht
+  ständig neue Sessions anlegen.
 
 AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
@@ -160,13 +165,17 @@ MULTI-AGENT (shared coordination layer for several Claude agents)
   and scheduled runs share messages & tasks (knowledge still via memory scopes).
 
 SESSION HANDOFF (resume seamlessly from any LLM/device)
-- session_save(summary, next_steps, model[, session_id, title]): BEFORE you stop,
-  drop a checkpoint — short: what happened + next steps; model = which LLM you are
-  (e.g. "claude", "chatgpt"). Omit session_id to start a new session.
+- session_save(summary, next_steps, model[, session_id, title]): drop a checkpoint —
+  short: what happened + next steps; model = which LLM you are (e.g. "claude",
+  "chatgpt"). Omit session_id to start a new session.
 - session_load([session_id]): continue exactly where it was left off (no id = the
   most recently updated). session_list / session_delete / session_prune.
 - bootstrap surfaces the 5 most recent sessions at the top. Old sessions
   auto-expire (default 90 days) — no data bloat.
+- AUTOSAVE (mandatory): save like an autosave — after EVERY meaningful milestone,
+  and at the latest BEFORE you stop or when the session gets long / the usage limit
+  is near. ALWAYS update the SAME session_id (load the running one at the start, or
+  start a new one once), don't keep creating new sessions.
 
 CLEANUP (full CRUD): every register has a matching delete — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
