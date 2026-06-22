@@ -42,8 +42,13 @@ services:
       COORD_DIR: /data/coordination
       CRON_DIR: /data/cron
       SECRETS_DIR: /secrets
+    # Optional: a fresh clone has only .env.example (real .env is git-ignored).
+    # Marking it not-required lets `docker compose build`/`up` work out of the box;
+    # every variable above already has a sensible default. Copy .env.example to
+    # .env to override (OIDC, secrets, CIDRs, …).
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
       - ./data/memory:/data/memory
       - ./data/skills:/data/skills
