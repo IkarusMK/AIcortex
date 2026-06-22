@@ -94,14 +94,18 @@ def _prune(max_age_days: int = None) -> int:
     return removed
 
 
-def latest_open():
-    """The most recently updated session (for bootstrap). None if none exist."""
+def recent(n: int = 5):
+    """The n most recently updated sessions (for bootstrap), newest first."""
     _prune()
     sessions = _all()
-    if not sessions:
-        return None
     sessions.sort(key=lambda s: s.get("updated", ""), reverse=True)
-    return sessions[0]
+    return sessions[:n]
+
+
+def latest_open():
+    """The single most recently updated session. None if none exist."""
+    items = recent(1)
+    return items[0] if items else None
 
 
 def summary_line(s: dict) -> str:

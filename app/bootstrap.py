@@ -107,21 +107,23 @@ def _catalog() -> str:
                 mem_lines.append(f"  [{sc.name}]")
                 mem_lines.extend(entries)
 
-    # Where we left off: surface the most recent session so a fresh LLM (or a
+    # Where we left off: surface the most recent sessions so a fresh LLM (or a
     # different model entirely) can continue exactly where another stopped.
     resume = ""
     try:
-        latest = sessions.latest_open()
-        if latest:
-            last = (latest.get("entries") or [{}])[-1]
-            resume = (
-                "===== RESUME — most recent session =====\n"
-                f"{sessions.summary_line(latest)}\n"
-                f"  last: {last.get('summary', '')}\n"
-                + (f"  NEXT: {last['next_steps']}\n" if last.get("next_steps") else "")
-                + "  → call session_load to see the full history; "
-                "session_save to add your own checkpoint."
-            )
+        recent = sessions.recent(5)
+        if recent:
+            blocks = ["===== RESUME — recent sessions (newest first) ====="]
+            for s in recent:
+                last = (s.get("entries") or [{}])[-1]
+                blocks.append(
+                    f"• {sessions.summary_line(s)}\n"
+                    f"    last: {last.get('summary', '')}"
+                    + (f"\n    NEXT: {last['next_steps']}" if last.get("next_steps") else "")
+                )
+            blocks.append("→ session_load(<id>) for full history (no id = the newest); "
+                          "session_save to add your own checkpoint.")
+            resume = "\n".join(blocks)
     except Exception:
         resume = ""
 
@@ -143,10 +145,6 @@ def _catalog() -> str:
         _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
                  "none — add with cron_add"),
         _section("REGISTERED AGENTS", _agents(), "none registered"),
-        _section("WORK SESSIONS (cross-LLM handoff)",
-                 ["  - " + sessions.summary_line(s) for s in
-                  sorted(sessions._all(), key=lambda s: s.get("updated", ""), reverse=True)[:5]],
-                 "none — start one with session_save"),
         "",
         "NEXT: load the specifics you need (memory_read, skill_load, service_list …) "
         "and register yourself with agent_register if you'll coordinate. "

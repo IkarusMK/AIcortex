@@ -78,8 +78,8 @@ SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
   du bist (z.B. "claude", "chatgpt"). Ohne session_id startet eine neue Session.
 - session_load([session_id]): genau dort weitermachen, wo zuletzt aufgehört wurde
   (ohne id = die zuletzt aktualisierte). session_list / session_delete / session_prune.
-- bootstrap zeigt die letzte Session oben an. Alte Sessions verfallen automatisch
-  (Default 90 Tage) — kein Daten-Wasserkopf.
+- bootstrap zeigt die 5 letzten Sessions oben an. Alte Sessions verfallen
+  automatisch (Default 90 Tage) — kein Daten-Wasserkopf.
 
 AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
@@ -165,8 +165,8 @@ SESSION HANDOFF (resume seamlessly from any LLM/device)
   (e.g. "claude", "chatgpt"). Omit session_id to start a new session.
 - session_load([session_id]): continue exactly where it was left off (no id = the
   most recently updated). session_list / session_delete / session_prune.
-- bootstrap surfaces the most recent session at the top. Old sessions auto-expire
-  (default 90 days) — no data bloat.
+- bootstrap surfaces the 5 most recent sessions at the top. Old sessions
+  auto-expire (default 90 days) — no data bloat.
 
 CLEANUP (full CRUD): every register has a matching delete — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,

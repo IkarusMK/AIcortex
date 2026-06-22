@@ -287,7 +287,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
 - [x] Scheduling: cron jobs as data (`cron_add` / `cron_list` / `cron_delete` + `cron_due` / `cron_mark_run`)
-- [x] Cross-LLM session handoff: timestamped, auto-expiring checkpoints (`session_save` / `session_list` / `session_load` / `session_delete` / `session_prune`) so any model/device resumes where another left off — surfaced at the top of `bootstrap`
+- [x] Cross-LLM session handoff: timestamped, auto-expiring checkpoints (`session_save` / `session_list` / `session_load` / `session_delete` / `session_prune`) so any model/device resumes where another left off — the 5 most recent surfaced at the top of `bootstrap`
 - [x] Autonomy runner: reference NAS-side runner with a swappable LLM backend ([`runner/`](runner/README.md)) — fires due jobs and notifies you
 - [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
 

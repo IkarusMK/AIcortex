@@ -7,6 +7,12 @@ data/skills/*
 data/services/*
 data/vault/*
 data/work/*
+data/mqtt/*
+data/ftp/*
+data/mcp/*
+data/coordination/*
+data/cron/*
+data/sessions/*
 data/auth/*
 logs/*
 secrets/*
