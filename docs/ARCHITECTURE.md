@@ -1,11 +1,11 @@
 # Architecture
 
-AICortex keeps the **model in Anthropic's cloud** and everything that
+AICortex keeps the **model in its provider's cloud (or local)** and everything that
 makes the assistant *yours* — memory, skills, tools, secrets — **on your NAS**.
-Claude reaches it through a single authenticated MCP custom connector.
+Your LLM reaches it through a single authenticated MCP custom connector.
 
 ```
-Claude (cloud model)  ──HTTPS connector──>  reverse proxy  ──>  this server (NAS)
+LLM (cloud or local model)  ──HTTPS connector──>  reverse proxy  ──>  this server (NAS)
                                                                    │
                                    ┌───────────────┬───────────────┼───────────────┐
                                    ▼               ▼               ▼               ▼
@@ -42,7 +42,7 @@ Tools:
 | `skill_load`     | Return the full `SKILL.md` for a chosen skill        |
 | `skill_resource` | Return a specific reference file from a skill        |
 
-The assistant is told (via the Claude project instructions) to call
+The assistant is told (via the client project instructions) to call
 `skill_search` before specialized tasks, then `skill_load` the best match. This
 is how the full skill library becomes usable from the desktop and mobile apps
 without bundling it into the client.

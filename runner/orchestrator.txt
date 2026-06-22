@@ -20,7 +20,7 @@ Do exactly this, then stop:
    Prefer a configured notification channel if one exists (e.g. a Home Assistant
    notify service via call_service, or a Telegram service). If no channel is
    configured, fall back to `inbox_post(to=<notify>, body=<summary>,
-   sender="cron-runner")` so the user sees it in the Claude app.
+   sender="cron-runner")` so the user sees it in their LLM app.
 
 Be concise. Never invent jobs — act only on what `cron_due` returned. If a tool
 call fails, note the error in the job's result and continue with the next job.

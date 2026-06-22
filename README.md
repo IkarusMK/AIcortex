@@ -116,7 +116,7 @@ This is the heart of the project — making the assistant *itself* portable, not
 
 - **Memory** lives as plain files under `data/memory`. Tools (`memory_read` / `memory_write` / `memory_list`) let the LLM recall and update what it knows about you — the same on every device.
 - **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router tools — `skill_search` / `skill_load` / `skill_resource` — let the LLM find the right skill for a request and pull in **only what it needs** (progressive disclosure, the same idea as tool search).
-- **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your client's **project / system prompt** ("call the `bootstrap` tool first") — see [`docs/claude-project-instructions.md`](docs/claude-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
+- **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your client's **project / system prompt** ("call the `bootstrap` tool first") — see [`docs/client-project-instructions.md`](docs/client-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
 
 ## Tools & integrations (as data)
 

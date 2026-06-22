@@ -1,7 +1,7 @@
 """Multi-agent coordination layer — shared inbox, task board & agent registry.
 
-The connector can't spawn agents (the model lives in the cloud), so this is the
-shared substrate several Claude agents/devices use to coordinate:
+The connector can't spawn agents (the model lives in the cloud or runs locally),
+so this is the shared substrate several LLM agents/devices use to coordinate:
   • an append-only INBOX (agent↔agent / agent↔user),
   • a claimable TASK board,
   • an AGENT registry.

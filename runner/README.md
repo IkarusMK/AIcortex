@@ -63,7 +63,7 @@ docker compose up -d
 docker compose logs -f          # watch the ticks
 ```
 
-Create a test job (from any Claude client on the connector):
+Create a test job (from any LLM client on the connector):
 
 ```
 cron_add  name="runner-selftest"

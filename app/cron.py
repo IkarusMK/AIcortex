@@ -1,11 +1,12 @@
-"""Schedule jobs as DATA — the NAS holds the cron, a runner triggers Claude.
+"""Schedule jobs as DATA — the NAS holds the cron, a runner triggers an LLM run.
 
-cron_add / cron_list / cron_delete let any Claude (desktop/mobile) create
+cron_add / cron_list / cron_delete let any LLM client (desktop/mobile) create
 scheduled jobs that live on the NAS. A small runner on the NAS (a recurring
-``claude -p`` invocation via system cron, every minute) calls ``cron_due`` each
-tick, runs each due job's prompt through this connector, then ``cron_mark_run``
-and notifies the user. The connector stores the SCHEDULE; the runner provides
-the actual Claude execution (the model can't self-trigger server-side).
+agent invocation — e.g. ``claude -p`` or any LLM CLI/SDK — via system cron,
+every minute) calls ``cron_due`` each tick, runs each due job's prompt through
+this connector, then ``cron_mark_run`` and notifies the user. The connector
+stores the SCHEDULE; the runner provides the actual LLM execution (the model
+can't self-trigger server-side).
 
 Schedules are standard 5-field cron expressions in the server's local time:
 ``minute hour day-of-month month day-of-week`` (``*`` , ``,`` lists, ``a-b``
@@ -91,7 +92,7 @@ def register(mcp):
                  enabled: bool = True) -> str:
         """Create/update a scheduled job (stored as DATA on the NAS).
         schedule = 5-field cron (e.g. "30 6 * * *" = 06:30 daily, server local
-        time). prompt = what the triggered Claude run should do. notify = inbox
+        time). prompt = what the triggered LLM run should do. notify = inbox
         recipient for the result (default "user"). The NAS runner executes it."""
         if len(schedule.split()) != 5:
             return "schedule must be a 5-field cron expression: 'min hour dom mon dow'."

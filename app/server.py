@@ -1,6 +1,6 @@
 """AICortex — MCP server.
 
-A self-hosted MCP server you add to the Claude apps as a custom connector.
+A self-hosted MCP server you add to any MCP-capable LLM app as a custom connector.
 
 Authentication is optional and turns on automatically when the OIDC_* environment
 variables are set: the server then acts as an OAuth 2.1 resource server via
@@ -186,6 +186,6 @@ if __name__ == "__main__":
                   f"an open bind (not recommended).")
     else:
         print(f"[AICortex] auth: OIDC proxy — binding {bind_host}:{PORT}")
-    # Streamable-HTTP transport — what Claude custom connectors speak.
+    # Streamable-HTTP transport — what MCP custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
     mcp.run(transport="http", host=bind_host, port=PORT)
