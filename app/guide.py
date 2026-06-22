@@ -8,7 +8,7 @@ a ``guide`` tool it can call any time. Bilingual (DE + EN).
 GUIDE = """\
 === Deutsch ===
 
-LLMConnector — dein persönliches, selbst-gehostetes „Gehirn" auf dem NAS
+AICortex — dein persönliches, selbst-gehostetes „Gehirn" auf dem NAS
 des Users: dauerhaftes MEMORY, eine SKILL-Bibliothek, aufrufbare SERVICES und ein
 verschlüsselter SECRET-Vault, geräteübergreifend. Nutze es, statt zu raten oder
 zu vergessen — erst durchsuchen, neues Wissen hier ablegen.
@@ -77,7 +77,7 @@ nichts verstreut. Neue Fähigkeit = Daten + Skill, nie neuer Code.
 
 === English ===
 
-LLMConnector — your personal, self-hosted "brain" on the user's NAS:
+AICortex — your personal, self-hosted "brain" on the user's NAS:
 persistent MEMORY, a SKILL library, callable SERVICES, and an encrypted SECRET
 vault, shared across the user's devices. Use it instead of guessing or forgetting.
 

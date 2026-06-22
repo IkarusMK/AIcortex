@@ -1,9 +1,9 @@
 services:
-  llm-connector:
+  aicortex:
     build: .
     # To use a prebuilt image instead of building locally:
-    # image: ghcr.io/ikarusmk/llmconnector:latest
-    container_name: llm-connector
+    # image: ghcr.io/ikarusmk/aicortex:latest
+    container_name: aicortex
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8787}:8787"

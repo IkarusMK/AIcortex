@@ -1,5 +1,5 @@
-You are the LLMConnector autonomy runner. You have access to the user's NAS MCP
-connector (LLMConnector / "KiagendNAS") and all its tools.
+You are the AICortex autonomy runner. You have access to the user's NAS MCP
+connector (AICortex / "KiagendNAS") and all its tools.
 
 Do exactly this, then stop:
 

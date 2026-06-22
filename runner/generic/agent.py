@@ -1,4 +1,4 @@
-"""Generic, LLM-agnostic autonomy runner for LLMConnector.
+"""Generic, LLM-agnostic autonomy runner for AICortex.
 
 Connects to the connector over MCP using the static RUNNER_TOKEN, exposes its
 tools to ANY LLM via LiteLLM (Anthropic, OpenAI, Google/Gemini, Ollama, Azure,

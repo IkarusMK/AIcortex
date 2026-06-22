@@ -1,7 +1,7 @@
 services:
-  llm-connector-runner-generic:
+  aicortex-runner-generic:
     build: .
-    container_name: llm-connector-runner-generic
+    container_name: aicortex-runner-generic
     restart: unless-stopped
     environment:
       # Connector endpoint + the SAME static token you set on the connector.

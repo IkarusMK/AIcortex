@@ -1,4 +1,4 @@
-# LLMConnector
+# AICortex
 
 > Give Claude a Hermes-style agent home — on your own NAS.
 
@@ -30,7 +30,7 @@ Claude app (desktop / mobile)  ·  one or many agents
 Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
         │
         ▼
-LLMConnector  (this container, on your NAS)
+AICortex  (this container, on your NAS)
         │  uses local files & secrets
         ▼
 Memory · Skills · HTTP services · MQTT & FTP devices · MCP gateway · Inbox/Tasks · Cron · Secret vault
@@ -63,7 +63,7 @@ New capabilities are added as **data** (a skill, a service config, a secret) —
 ## Project structure
 
 ```
-LLMConnector/
+AICortex/
 ├── app/                # Server code (FastMCP)
 │   ├── server.py       #   entrypoint — wires auth + registers tool modules
 │   ├── memory.py       #   memory tools
@@ -162,8 +162,8 @@ Two ready-to-deploy runners live in [`runner/`](runner/README.md), so the autono
 ## Quick start
 
 ```bash
-git clone git@github.com:IkarusMK/LLMConnector.git
-cd LLMConnector
+git clone git@github.com:IkarusMK/AICortex.git
+cd AICortex
 cp .env.example .env        # adjust PUID / PGID / HOST_PORT / TZ
 docker compose up -d --build
 ```
@@ -172,7 +172,7 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 
 > **Prebuilt image (no local build):** a multi-arch image is published to GHCR by
 > CI. In `docker-compose.yml`, comment out `build: .`, uncomment
-> `image: ghcr.io/ikarusmk/llmconnector:latest`, then `docker compose pull && docker compose up -d`.
+> `image: ghcr.io/ikarusmk/aicortex:latest`, then `docker compose pull && docker compose up -d`.
 > (Make the GHCR package **public** once, under the repo's *Packages* settings, so the NAS can pull it without a token.)
 
 ### Expose it & add the connector

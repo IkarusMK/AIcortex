@@ -1,6 +1,6 @@
 # Architecture
 
-LLMConnector keeps the **model in Anthropic's cloud** and everything that
+AICortex keeps the **model in Anthropic's cloud** and everything that
 makes the assistant *yours* — memory, skills, tools, secrets — **on your NAS**.
 Claude reaches it through a single authenticated MCP custom connector.
 

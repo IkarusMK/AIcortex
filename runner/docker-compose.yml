@@ -1,7 +1,7 @@
 services:
-  llm-connector-runner:
+  aicortex-runner:
     build: .
-    container_name: llm-connector-runner
+    container_name: aicortex-runner
     restart: unless-stopped
     environment:
       HOME: /config
