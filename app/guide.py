@@ -72,10 +72,19 @@ MULTI-AGENT (geteilter Koordinations-Layer für mehrere Claude-Agenten)
 - Registry: agent_register(name, role) zu Beginn / agent_list. So teilen Mac, Handy
   und geplante Läufe Nachrichten & Aufgaben (Wissen weiter über Memory-Scopes).
 
+SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
+- session_save(summary, next_steps, model[, session_id, title]): BEVOR du aufhörst
+  einen Checkpoint ablegen — kurz: was passiert ist + nächste Schritte; model = wer
+  du bist (z.B. "claude", "chatgpt"). Ohne session_id startet eine neue Session.
+- session_load([session_id]): genau dort weitermachen, wo zuletzt aufgehört wurde
+  (ohne id = die zuletzt aktualisierte). session_list / session_delete / session_prune.
+- bootstrap zeigt die letzte Session oben an. Alte Sessions verfallen automatisch
+  (Default 90 Tage) — kein Daten-Wasserkopf.
+
 AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
-inbox_delete (plus memory_delete / secret_delete). Was du registrierst, kannst du
-auch per Connector entfernen.
+inbox_delete, session_delete (plus memory_delete / secret_delete). Was du
+registrierst, kannst du auch per Connector entfernen.
 
 SECRETS — NUR Vault, NIEMALS .env
 - Alle API-Keys/Tokens/Passwörter ausschließlich per secret_set(name, value) in den
@@ -150,10 +159,19 @@ MULTI-AGENT (shared coordination layer for several Claude agents)
 - Registry: agent_register(name, role) at start / agent_list. Lets desktop, mobile
   and scheduled runs share messages & tasks (knowledge still via memory scopes).
 
+SESSION HANDOFF (resume seamlessly from any LLM/device)
+- session_save(summary, next_steps, model[, session_id, title]): BEFORE you stop,
+  drop a checkpoint — short: what happened + next steps; model = which LLM you are
+  (e.g. "claude", "chatgpt"). Omit session_id to start a new session.
+- session_load([session_id]): continue exactly where it was left off (no id = the
+  most recently updated). session_list / session_delete / session_prune.
+- bootstrap surfaces the most recent session at the top. Old sessions auto-expire
+  (default 90 days) — no data bloat.
+
 CLEANUP (full CRUD): every register has a matching delete — skill_delete,
 service_delete, mqtt_delete, ftp_delete, mcp_delete, task_delete, agent_remove,
-inbox_delete (plus memory_delete / secret_delete). Anything you register, you can
-also remove via the connector.
+inbox_delete, session_delete (plus memory_delete / secret_delete). Anything you
+register, you can also remove via the connector.
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via
 secret_set(name, value) into the encrypted vault — encrypted at rest, never shown

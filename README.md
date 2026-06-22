@@ -16,6 +16,7 @@ Add it once as a *custom connector* and Claude gains:
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
+- 🔁 **Cross-LLM session handoff** — `session_save`/`session_load` keep a compact, timestamped log of where work stands, so a different model or device (Claude, ChatGPT, a scheduled run) can resume exactly where another stopped; stale sessions auto-expire so the NAS doesn't bloat
 - ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers a Claude run when a job is due and reports the result back to you. The connector holds the schedule; a Claude runtime executes it.
 
 The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
@@ -56,6 +57,7 @@ runtime that actually fires it.
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. send a print job) |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
 | Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
+| Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
 | Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` | Cron jobs as data; a NAS runner triggers them |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
@@ -77,6 +79,7 @@ AICortex/
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── coordination.py #   multi-agent inbox / task board / agent registry
+│   ├── sessions.py     #   cross-LLM session handoff log (auto-expiring)
 │   ├── secrets_store.py#   encrypted secret vault
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
 │   └── requirements.txt
@@ -88,6 +91,7 @@ AICortex/
 │   ├── ftp/            #   FTP/FTPS endpoint configs
 │   ├── mcp/            #   upstream MCP server configs
 │   ├── coordination/   #   multi-agent inbox / tasks / agents
+│   ├── sessions/       #   cross-LLM session handoff logs (auto-expiring)
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
@@ -283,6 +287,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
 - [x] Scheduling: cron jobs as data (`cron_add` / `cron_list` / `cron_delete` + `cron_due` / `cron_mark_run`)
+- [x] Cross-LLM session handoff: timestamped, auto-expiring checkpoints (`session_save` / `session_list` / `session_load` / `session_delete` / `session_prune`) so any model/device resumes where another left off — surfaced at the top of `bootstrap`
 - [x] Autonomy runner: reference NAS-side runner with a swappable LLM backend ([`runner/`](runner/README.md)) — fires due jobs and notifies you
 - [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
 

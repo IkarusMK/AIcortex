@@ -24,6 +24,7 @@ import ftp_tools
 import mcp_gateway
 import coordination
 import cron
+import sessions
 import secrets_store
 import guide
 import bootstrap
@@ -153,6 +154,9 @@ coordination.register(mcp)
 
 # Scheduled jobs as data: cron_add / cron_list / cron_delete / cron_due / cron_mark_run
 cron.register(mcp)
+
+# Cross-LLM session handoff: session_save / session_list / session_load / session_delete / session_prune
+sessions.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
