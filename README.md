@@ -1,11 +1,12 @@
 # AICortex
 
-> Give Claude a Hermes-style agent home — on your own NAS.
+> A persistent, self-hosted brain for Claude — on your own NAS.
 
-Self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal Claude connector**. Like agent frameworks such as [Hermes](https://hermes-agent.nousresearch.com), it gives your assistant a persistent identity and real reach — but it runs in **your** network and plugs straight into the Claude apps you already use.
+Self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal Claude connector** — a persistent "brain" your assistant loads at the start of every session. It gives Claude a durable identity and real reach, running in **your** network and plugging straight into the Claude apps you already use.
 
 Add it once as a *custom connector* and Claude gains:
 
+- ⚡ **One-call onboarding** — a `bootstrap` tool any LLM calls first; in a single round-trip it loads the guide *and* a live catalog of everything on the brain (memory, skills, services, devices, scheduled jobs), so a fresh session on any device is never "blank"
 - 🧠 **Consistent memory** that lives on your NAS and follows you across every device
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
 - 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
@@ -13,7 +14,7 @@ Add it once as a *custom connector* and Claude gains:
 - 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a Bambu Lab printer in LAN mode) in the same way — as data, no redeploy
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
-- 🧭 **Self-describing** — any connecting LLM receives usage instructions + a `guide` tool, and is told to confirm before physical/outbound actions
+- 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
 - 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
 - ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers a Claude run when a job is due and reports the result back to you. The connector holds the schedule; a Claude runtime executes it.
 
@@ -46,6 +47,7 @@ runtime that actually fires it.
 
 | Group | Tools | What it does |
 |-------|-------|--------------|
+| Onboarding | `bootstrap` | **Start here** — one call returns the guide + a live catalog of the whole brain (memory, skills, services, devices, cron) |
 | Health | `ping` | Connectivity check |
 | Memory | `memory_write` · `memory_read` · `memory_list` · `memory_search` · `memory_delete` | Durable, scope-namespaced facts on the NAS |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
@@ -66,6 +68,7 @@ New capabilities are added as **data** (a skill, a service config, a secret) —
 AICortex/
 ├── app/                # Server code (FastMCP)
 │   ├── server.py       #   entrypoint — wires auth + registers tool modules
+│   ├── bootstrap.py    #   'start here' tool — loads guide + live brain catalog
 │   ├── memory.py       #   memory tools
 │   ├── skills.py       #   skill router
 │   ├── services.py     #   generic allow-listed HTTP service caller
@@ -105,7 +108,7 @@ This is the heart of the project — making Claude *itself* portable, not just c
 
 - **Memory** lives as plain files under `data/memory`. Tools (`memory_read` / `memory_write` / `memory_list`) let Claude recall and update what it knows about you — the same on every device.
 - **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router tools — `skill_search` / `skill_load` / `skill_resource` — let Claude find the right skill for a request and pull in **only what it needs** (progressive disclosure, the same idea as tool search).
-- **Wire it up once.** Add a short instruction to your Claude **Project** so the assistant always consults the router first — see [`docs/claude-project-instructions.md`](docs/claude-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
+- **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your Claude **Project** ("call the `bootstrap` tool first") — see [`docs/claude-project-instructions.md`](docs/claude-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
 
 ## Tools & integrations (as data)
 
@@ -124,7 +127,7 @@ The design lets several agents share one NAS brain without stepping on each othe
 - **Namespaced memory** — memory is addressed by scope, so agents share common knowledge while keeping private notes (`shared` vs. per-agent).
 - **Shared skill & tool registry** — every agent queries the same `skill_search` and tool set; add a capability once, all agents get it.
 - **Per-agent workspaces** — isolated working directories under `data/work` for parallel tasks.
-- **Agent inbox + task board** — `inbox_*` (append-only messages), `task_*` (claimable task board) and `agent_*` (registry) let several agents coordinate, à la Hermes.
+- **Agent inbox + task board** — `inbox_*` (append-only messages), `task_*` (claimable task board) and `agent_*` (registry) let several agents coordinate on one brain.
 
 Sub-agent *spawning* stays client-side (the model lives in the cloud); the connector is the shared coordination layer. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -273,6 +276,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Generic service caller (`call_service` / `service_add` / `service_list`) — integrations as data + skills, no redeploy
 - [x] Encrypted secret vault (`secret_set` / `secret_list` / `secret_delete`) — set secrets via the connector; values encrypted at rest, never returned
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
+- [x] One-call onboarding: a `bootstrap` 'start here' tool that loads the guide + a live brain catalog in a single call, so a fresh session on any device is never blank
 - [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP devices (e.g. Bambu Lab LAN) are data too
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
