@@ -11,7 +11,7 @@ Add it once as a *custom connector* and Claude gains:
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
 - 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
 - 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
-- 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a Bambu Lab printer in LAN mode) in the same way — as data, no redeploy
+- 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a printer or sensor on your LAN) in the same way — as data, no redeploy
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
@@ -21,7 +21,7 @@ Add it once as a *custom connector* and Claude gains:
 
 The model stays in Anthropic's cloud. **Your data, skills, and secrets stay on your NAS.** Claude talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: working.** Memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side Claude runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: working.** One-call `bootstrap` onboarding, memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side Claude runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -35,7 +35,7 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 AICortex  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory · Skills · HTTP services · MQTT & FTP devices · MCP gateway · Inbox/Tasks · Cron · Secret vault
+Memory · Skills · HTTP services · MQTT & FTP devices · MCP gateway · Inbox/Tasks · Sessions · Cron · Secret vault
        (every outbound call passes the SSRF egress guard)
 
 Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
@@ -53,8 +53,8 @@ runtime that actually fires it.
 | Memory | `memory_write` · `memory_read` · `memory_list` · `memory_search` · `memory_delete` | Durable, scope-namespaced facts on the NAS |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
 | Services (HTTP) | `service_add` · `service_list` · `call_service` | Register & call any HTTP API as data |
-| Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. Bambu LAN) as data |
-| Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. send a print job) |
+| Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
+| Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. push a file to a device) |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
 | Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
@@ -75,7 +75,7 @@ AICortex/
 │   ├── skills.py       #   skill router
 │   ├── services.py     #   generic allow-listed HTTP service caller
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
-│   ├── ftp_tools.py    #   generic FTP/FTPS transfer (e.g. send print jobs)
+│   ├── ftp_tools.py    #   generic FTP/FTPS transfer (push files to devices)
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── coordination.py #   multi-agent inbox / task board / agent registry
@@ -281,7 +281,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Encrypted secret vault (`secret_set` / `secret_list` / `secret_delete`) — set secrets via the connector; values encrypted at rest, never returned
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
 - [x] One-call onboarding: a `bootstrap` 'start here' tool that loads the guide + a live brain catalog in a single call, so a fresh session on any device is never blank
-- [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP devices (e.g. Bambu Lab LAN) are data too
+- [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP LAN devices (printers, sensors, actuators …) are data too
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
