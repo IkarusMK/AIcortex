@@ -31,6 +31,16 @@ aller Memories/Skills/Services/Geräte/Cron-Jobs. Verlasse dich NICHT auf
 Vorannahmen über den User — lade erst `bootstrap`, dann handle. Danach gezielt
 memory_read / skill_load / service_list für die Details.
 
+HARTE REGELN (verbindlich — keine Empfehlung):
+1. DIESER CONNECTOR IST DEIN GEHIRN / die einzige Source of Truth. Arbeite nur
+   damit und darüber: erst hier suchen (bootstrap / memory_ / skill_ / service_),
+   neues Wissen IMMER hierher zurückschreiben (memory_write / skill_write).
+   Verlass dich nicht auf verstreute lokale Notizen.
+2. SECRETS GEHÖREN IMMER IN DEN VAULT. Jeden API-Key / jedes Token / Passwort
+   SOFORT per secret_set(name, value) ablegen und nur per Namen referenzieren
+   (token_env / password_env). NIEMALS im Chat, Repo oder einer Memory; niemals
+   nur „empfehlen" — immer wirklich in den Vault legen.
+
 WICHTIG — VOR AKTIONEN BESTÄTIGEN: Bei physischen, zustandsändernden oder
 ausgehenden Aktionen erst kurz beim User rückfragen, bevor du sie ausführst.
 Beispiele (nicht abschließend): Geräte/Aktoren steuern (z.B. Drucker, Licht,
@@ -100,6 +110,16 @@ user is, how they want you to work, the confirm-before-acting rule, and a live
 catalog of all memories/skills/services/devices/cron jobs. Do NOT rely on prior
 assumptions about the user — load `bootstrap` first, then act. After that use
 memory_read / skill_load / service_list for the specifics.
+
+HARD RULES (mandatory — not a suggestion):
+1. THIS CONNECTOR IS YOUR BRAIN / the single source of truth. Work only with and
+   through it: search here first (bootstrap / memory_ / skill_ / service_), and
+   ALWAYS write new knowledge back (memory_write / skill_write). Don't rely on
+   scattered local notes.
+2. SECRETS ALWAYS GO IN THE VAULT. Put every API key / token / password into the
+   vault via secret_set(name, value) IMMEDIATELY and reference it by name only
+   (token_env / password_env). NEVER in chat, repo or a memory; never merely
+   "recommend" it — actually store it.
 
 IMPORTANT — CONFIRM BEFORE ACTIONS: for physical, state-changing or outbound
 actions, ask the user briefly before doing them. Examples (non-exhaustive):
