@@ -51,8 +51,9 @@ def register(mcp):
         token_env = the NAME of the secret holding the auth token (store it with
         secret_set). The token itself is never stored here.
         auth_header = which header carries the token (default "Authorization").
-        For APIs with a custom header (e.g. n8n) use auth_header="X-N8N-API-KEY"
-        and auth_scheme="" so the raw token is sent without a "Bearer " prefix."""
+        For APIs that use a custom header instead of Bearer auth, set auth_header
+        to that header name and auth_scheme="" so the raw token is sent without a
+        "Bearer " prefix."""
         try:
             SERVICES_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -123,7 +124,7 @@ def register(mcp):
             header_name = cfg.get("auth_header") or "Authorization"
             scheme = cfg.get("auth_scheme", "Bearer")
             # With a scheme (e.g. Bearer) send "<scheme> <token>"; without one
-            # (custom-header APIs like n8n) send the raw token value.
+            # (custom-header APIs) send the raw token value.
             headers[header_name] = f"{scheme} {token}".strip() if scheme else token
         try:
             r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)

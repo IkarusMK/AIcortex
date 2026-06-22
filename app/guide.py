@@ -49,8 +49,8 @@ SKILLS (wiederverwendbares Know-how)
 SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy)
 - HTTP-APIs: service_list / service_add(name, base_url, token_env[, auth_header]) /
   call_service(service, path, method, json_body). Nur registrierte erreichbar.
-- MQTT-Geräte (z.B. Bambu-Drucker): mqtt_add / mqtt_list / mqtt_publish (Befehl) /
-  mqtt_get (Status abonnieren).
+- MQTT-Geräte (z.B. Drucker, Sensoren, Aktoren): mqtt_add / mqtt_list /
+  mqtt_publish (Befehl) / mqtt_get (Status abonnieren).
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
@@ -117,8 +117,8 @@ data, not code.
 SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - HTTP APIs: service_list / service_add(name, base_url, token_env[, auth_header]) /
   call_service(service, path, method, json_body). Only registered ones reachable.
-- MQTT devices (e.g. Bambu printer): mqtt_add / mqtt_list / mqtt_publish (command) /
-  mqtt_get (subscribe for status).
+- MQTT devices (e.g. printers, sensors, actuators): mqtt_add / mqtt_list /
+  mqtt_publish (command) / mqtt_get (subscribe for status).
 - FTP/FTPS files: ftp_add / ftp_upload (source under /data) / ftp_list.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.

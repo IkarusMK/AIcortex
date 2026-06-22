@@ -1,7 +1,7 @@
 """Generic, allow-listed FTP/FTPS transfer — integrations as DATA.
 
-Lets any FTP/FTPS endpoint (e.g. a Bambu Lab printer's implicit-FTPS file store
-on port 990) be added at RUNTIME as a config (data) plus a secret — no new code,
+Lets any FTP/FTPS endpoint (including implicit-FTPS file stores on port 990, as
+some LAN devices use) be added at RUNTIME as a config (data) plus a secret — no new code,
 no redeploy. Upload sources are restricted to files under DATA_ROOT (the NAS
 workspace). Passwords are referenced by NAME and resolved server-side via
 ``secrets_store`` — never stored in data, never returned. Only registered
@@ -23,7 +23,7 @@ DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
 
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):
     """FTP_TLS variant that wraps the control socket in TLS immediately
-    (implicit FTPS on port 990) — what Bambu Lab printers use."""
+    (implicit FTPS, typically on port 990), as some LAN devices require."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -110,9 +110,9 @@ def register(mcp):
                 password_env: str = "", description: str = "") -> str:
         """Register/update an FTP/FTPS endpoint as DATA (no redeploy).
         tls: "none" | "explicit" | "implicit". password_env = NAME of the secret
-        (store it with secret_set). For a Bambu Lab printer in LAN mode:
-        host=<printer-ip>, port=990, tls="implicit", username="bblp",
-        password_env="BAMBU_ACCESS_CODE"."""
+        (store it with secret_set). Example for an implicit-FTPS LAN device:
+        host=<device-ip>, port=990, tls="implicit", username=<user>,
+        password_env=<secret-name>."""
         try:
             FTP_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {

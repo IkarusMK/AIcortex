@@ -14,7 +14,8 @@ by the model). Public addresses are allowed.
 Set ``INTERNAL_ALLOW_CIDRS`` to the internal ranges you actually use, e.g. your
 LAN and/or a VPN subnet:
 
-    INTERNAL_ALLOW_CIDRS=192.168.1.0/24,100.64.0.0/10
+    INTERNAL_ALLOW_CIDRS=<your-lan-cidr>,<your-vpn-cidr>
+    e.g. 192.168.0.0/16,10.0.0.0/8,100.64.0.0/10
 """
 import ipaddress
 import os

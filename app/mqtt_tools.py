@@ -1,8 +1,8 @@
 """Generic, allow-listed MQTT dispatcher — devices/integrations as DATA.
 
-Like ``services.py`` is for HTTP, this lets any MQTT device (e.g. a Bambu Lab
-printer in LAN mode) be added at RUNTIME as a *broker config* (data) plus a
-secret — no new code, no redeploy. ``mqtt_publish`` sends a command;
+Like ``services.py`` is for HTTP, this lets any MQTT device or broker be added
+at RUNTIME as a *broker config* (data) plus a secret — no new code, no redeploy.
+``mqtt_publish`` sends a command;
 ``mqtt_get`` subscribes briefly and returns what the device reports.
 
 Broker configs live under MQTT_DIR. The password is referenced by NAME
@@ -103,9 +103,9 @@ def register(mcp):
         """Register/update an MQTT broker or device as DATA (no redeploy).
 
         password_env = NAME of the secret holding the password (store it with
-        secret_set); never stored here. For a Bambu Lab printer in LAN mode:
-        host=<printer-ip>, port=8883, tls=true, tls_insecure=true,
-        username="bblp", password_env="BAMBU_ACCESS_CODE"."""
+        secret_set); never stored here. Example for a TLS MQTT device on a LAN:
+        host=<device-ip>, port=8883, tls=true, tls_insecure=true,
+        username=<user>, password_env=<secret-name>."""
         try:
             MQTT_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -183,9 +183,8 @@ def register(mcp):
                  request_payload: dict = None) -> str:
         """Subscribe to `topic` and return up to `max_messages` messages received
         within `timeout_s`. Optionally first publish `request_payload` (dict) to
-        `request_topic` to trigger a fresh report — e.g. Bambu pushall:
-        request_topic='device/<serial>/request',
-        request_payload={'pushing': {'command': 'pushall'}}."""
+        `request_topic` to trigger a fresh report from devices that report on
+        demand (a common request/report topic pattern)."""
         cfg = _load(broker)
         if not cfg:
             return f"Unknown broker '{broker}'. Use mqtt_list / mqtt_add."
