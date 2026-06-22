@@ -13,6 +13,7 @@ data/mcp/*
 data/coordination/*
 data/cron/*
 data/sessions/*
+data/printers/*
 data/auth/*
 logs/*
 secrets/*

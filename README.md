@@ -12,6 +12,7 @@ Add it once as a *custom connector* and Claude gains:
 - 🗂️ **A skill router** — your skills live on your NAS; Claude *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
 - 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
 - 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a printer or sensor on your LAN) in the same way — as data, no redeploy
+- 🖨️ **Printing** — register a LAN printer (`print_add`) and print PDFs/images straight to it over IPP/AirPrint (`print_document`), by file or inline base64 — hand the assistant a document and it prints at home
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
@@ -35,7 +36,7 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 AICortex  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory · Skills · HTTP services · MQTT & FTP devices · MCP gateway · Inbox/Tasks · Sessions · Cron · Secret vault
+Memory · Skills · HTTP services · MQTT & FTP devices · IPP printing · MCP gateway · Inbox/Tasks · Sessions · Cron · Secret vault
        (every outbound call passes the SSRF egress guard)
 
 Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
@@ -55,6 +56,7 @@ runtime that actually fires it.
 | Services (HTTP) | `service_add` · `service_list` · `call_service` | Register & call any HTTP API as data |
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. push a file to a device) |
+| Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint — by file or inline base64 |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
 | Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
@@ -76,6 +78,7 @@ AICortex/
 │   ├── services.py     #   generic allow-listed HTTP service caller
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
 │   ├── ftp_tools.py    #   generic FTP/FTPS transfer (push files to devices)
+│   ├── print_tools.py  #   IPP printing to LAN printers (printers as data)
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── coordination.py #   multi-agent inbox / task board / agent registry
@@ -92,6 +95,7 @@ AICortex/
 │   ├── mcp/            #   upstream MCP server configs
 │   ├── coordination/   #   multi-agent inbox / tasks / agents
 │   ├── sessions/       #   cross-LLM session handoff logs (auto-expiring)
+│   ├── printers/       #   IPP printer configs (printers as data)
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
 │   └── work/           #   file workflows / scratch (CAD, exports, large files)
@@ -282,6 +286,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
 - [x] One-call onboarding: a `bootstrap` 'start here' tool that loads the guide + a live brain catalog in a single call, so a fresh session on any device is never blank
 - [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP LAN devices (printers, sensors, actuators …) are data too
+- [x] IPP printing (`print_add` / `print_list` / `print_delete` / `print_document`) — print PDFs/images to a LAN printer via IPP/AirPrint, by file or inline base64
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
