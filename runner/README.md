@@ -49,7 +49,7 @@ docker compose run --rm -it --entrypoint sh aicortex-runner
 #     • API key (Mittelweg):  already injected if ANTHROPIC_API_KEY is set in .env
 #     • Subscription:         run `claude` once and complete the OAuth login
 # 2b. Add the connector and complete ITS OAuth (Pocket ID) login:
-claude mcp add --transport http aicortex https://agent.steffennas.home64.de/mcp
+claude mcp add --transport http aicortex https://agent.example.com/mcp
 claude            # triggers the connector OAuth on first tool use; approve it
 # 2c. Verify the tools are visible, then exit:
 #     ask: "call cron_list"  → should return the connector's response
@@ -63,7 +63,7 @@ docker compose up -d
 docker compose logs -f          # watch the ticks
 ```
 
-Create a test job (from any Claude client on the connector):
+Create a test job (from any LLM client on the connector):
 
 ```
 cron_add  name="runner-selftest"
