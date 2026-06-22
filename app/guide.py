@@ -24,9 +24,12 @@ Claude-Modell (Cloud) und muss angestoßen werden; der Connector startet sich NI
 selbst. Für echt autonome Abläufe (z.B. „jede Nacht prüfen") braucht es einen
 geplanten Agenten, der den Connector ansteuert.
 
-ZUERST: Lies die Memory „arbeitsweise-nas-und-infra" (memory_read), sie
-beschreibt, wie der User arbeiten will. Danach memory_list / memory_search für
-den Kontext.
+ERSTE AKTION, IMMER: Rufe als allererstes das Tool `bootstrap` auf — VOR jeder
+Antwort, zu Beginn JEDER Session. Es lädt in einem Call dieses Gehirn: Identität
+des Users, Arbeitsweise, die Bestätigen-vor-Aktionen-Regel und einen Live-Katalog
+aller Memories/Skills/Services/Geräte/Cron-Jobs. Verlasse dich NICHT auf
+Vorannahmen über den User — lade erst `bootstrap`, dann handle. Danach gezielt
+memory_read / skill_load / service_list für die Details.
 
 WICHTIG — VOR AKTIONEN BESTÄTIGEN: Bei physischen, zustandsändernden oder
 ausgehenden Aktionen erst kurz beim User rückfragen, bevor du sie ausführst.
@@ -91,8 +94,12 @@ only ACTS when a client calls it. The agency lives in the Claude model (cloud) a
 must be triggered; the connector does NOT run itself. For truly autonomous routines
 (e.g. "check every night") you need a scheduled agent that drives the connector.
 
-FIRST: read the memory "arbeitsweise-nas-und-infra" (memory_read) — it describes
-how the user wants you to work. Then memory_list / memory_search for context.
+FIRST ACTION, ALWAYS: call the `bootstrap` tool before anything else, at the
+start of EVERY session — before you answer. One call loads this brain: who the
+user is, how they want you to work, the confirm-before-acting rule, and a live
+catalog of all memories/skills/services/devices/cron jobs. Do NOT rely on prior
+assumptions about the user — load `bootstrap` first, then act. After that use
+memory_read / skill_load / service_list for the specifics.
 
 IMPORTANT — CONFIRM BEFORE ACTIONS: for physical, state-changing or outbound
 actions, ask the user briefly before doing them. Examples (non-exhaustive):

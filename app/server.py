@@ -26,6 +26,7 @@ import coordination
 import cron
 import secrets_store
 import guide
+import bootstrap
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -114,6 +115,13 @@ auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
 mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
+
+
+# 'START HERE' entrypoint — registered FIRST so it leads the tool list. Its
+# description tells a fresh LLM to call it before anything else; one call returns
+# the guide + a live catalog of the whole brain. This is the reliable trigger
+# that makes any client (phone, desktop) load the brain instead of starting blank.
+bootstrap.register(mcp)
 
 
 @mcp.tool
