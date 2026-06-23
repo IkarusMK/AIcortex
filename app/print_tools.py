@@ -174,12 +174,23 @@ def register(mcp):
         if not data:
             return "Empty document — nothing to print."
 
-        printer_uri = f"ipp://{host}:{port}{path}"
-        body = _build_print_job(printer_uri, job_name or "aicortex-job", document_format, data)
-        url = f"http://{host}:{port}{path}"
+        def _send(scheme: str, ipp_scheme: str):
+            # The IPP printer-uri inside the body should match the transport.
+            p_uri = f"{ipp_scheme}://{host}:{port}{path}"
+            body = _build_print_job(p_uri, job_name or "aicortex-job", document_format, data)
+            url = f"{scheme}://{host}:{port}{path}"
+            # verify=False: printers use self-signed certs; this is a LAN device the
+            # operator allow-listed, and IPP carries no credential here.
+            return httpx.post(url, content=body,
+                              headers={"Content-Type": "application/ipp"},
+                              timeout=60, verify=False)
+
         try:
-            r = httpx.post(url, content=body,
-                           headers={"Content-Type": "application/ipp"}, timeout=60)
+            r = _send("http", "ipp")
+            # HTTP 426 "Upgrade Required" = the printer demands TLS (IPPS).
+            # Many modern printers (e.g. Epson) require it — retry over HTTPS.
+            if r.status_code == 426:
+                r = _send("https", "ipps")
         except Exception as exc:
             return f"Print request failed: {exc}"
 
