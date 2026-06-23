@@ -189,7 +189,7 @@ def register(mcp):
         try:
             r = _send(scheme, ipp_scheme, document_format)
             # HTTP 426 "Upgrade Required" = the printer demands TLS (IPPS).
-            # Many modern printers (e.g. Epson) require it — retry over HTTPS.
+            # Many modern printers require it (common across vendors) — retry over HTTPS.
             if r.status_code == 426:
                 scheme, ipp_scheme = "https", "ipps"
                 r = _send(scheme, ipp_scheme, document_format)
