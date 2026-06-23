@@ -65,6 +65,9 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Drucker (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file ODER content_base64[, document_format]). Druckt PDFs
   direkt im LAN. Physische Ausgabe → vorher bestätigen.
+- Scanner (eSCL/AirScan): scan_add(name, host) / scan_list /
+  scan_document(scanner[, color, source, format, paperless]). Scannt direkt im LAN,
+  speichert nach /data/work, optional gleich nach Paperless (paperless=<Service-Name>).
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
@@ -90,9 +93,9 @@ SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
   ständig neue Sessions anlegen.
 
 AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
-service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, task_delete,
-agent_remove, inbox_delete, session_delete (plus memory_delete / secret_delete).
-Was du registrierst, kannst du auch per Connector entfernen.
+service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, scan_delete,
+task_delete, agent_remove, inbox_delete, session_delete (plus memory_delete /
+secret_delete). Was du registrierst, kannst du auch per Connector entfernen.
 
 SECRETS — NUR Vault, NIEMALS .env
 - Alle API-Keys/Tokens/Passwörter ausschließlich per secret_set(name, value) in den
@@ -160,6 +163,9 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Printers (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file OR content_base64[, document_format]). Prints PDFs
   directly on the LAN. Physical output → confirm first.
+- Scanners (eSCL/AirScan): scan_add(name, host) / scan_list /
+  scan_document(scanner[, color, source, format, paperless]). Scans on the LAN,
+  saves to /data/work, optionally straight into Paperless (paperless=<service name>).
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
@@ -184,9 +190,9 @@ SESSION HANDOFF (resume seamlessly from any LLM/device)
   start a new one once), don't keep creating new sessions.
 
 CLEANUP (full CRUD): every register has a matching delete — skill_delete,
-service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, task_delete,
-agent_remove, inbox_delete, session_delete (plus memory_delete / secret_delete).
-Anything you register, you can also remove via the connector.
+service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, scan_delete,
+task_delete, agent_remove, inbox_delete, session_delete (plus memory_delete /
+secret_delete). Anything you register, you can also remove via the connector.
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via
 secret_set(name, value) into the encrypted vault — encrypted at rest, never shown

@@ -27,6 +27,7 @@ FTP_DIR = Path(os.environ.get("FTP_DIR", "/data/ftp"))
 MCP_DIR = Path(os.environ.get("MCP_DIR", "/data/mcp"))
 CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
+SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 AGENTS_FILE = Path(os.environ.get("COORD_DIR", "/data/coordination")) / "agents.json"
 
 
@@ -145,6 +146,8 @@ def _catalog() -> str:
                  "none — add with mcp_add"),
         _section("PRINTERS (IPP)", _json_names(PRINT_DIR, fields=("host", "description")),
                  "none — add with print_add"),
+        _section("SCANNERS (eSCL)", _json_names(SCAN_DIR, fields=("host", "description")),
+                 "none — add with scan_add"),
         _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
                  "none — add with cron_add"),
         _section("REGISTERED AGENTS", _agents(), "none registered"),

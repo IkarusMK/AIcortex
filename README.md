@@ -13,6 +13,7 @@ Add it once as a *custom connector / MCP server* and your LLM gains:
 - 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
 - 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a printer or sensor on your LAN) in the same way — as data, no redeploy
 - 🖨️ **Printing** — register a LAN printer (`print_add`) and print PDFs/images straight to it over IPP/AirPrint (`print_document`), by file or inline base64 — hand the assistant a document and it prints at home
+- 📄 **Scanning** — scan on a LAN multifunction device over eSCL/AirScan (`scan_document`) and drop the result straight into Paperless-ngx — "scan this and file it" in one step
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
@@ -57,6 +58,7 @@ runtime that actually fires it.
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. push a file to a device) |
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint — by file or inline base64 |
+| Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device via eSCL/AirScan → `/data/work`, optionally straight into Paperless |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
 | Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
@@ -79,6 +81,7 @@ AICortex/
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
 │   ├── ftp_tools.py    #   generic FTP/FTPS transfer (push files to devices)
 │   ├── print_tools.py  #   IPP printing to LAN printers (printers as data)
+│   ├── scan_tools.py   #   eSCL scanning (scanners as data) → /data/work / Paperless
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── coordination.py #   multi-agent inbox / task board / agent registry
@@ -286,7 +289,8 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Self-describing: server `instructions` on connect + a `guide` tool, so any LLM immediately knows what the connector is and how to use it
 - [x] One-call onboarding: a `bootstrap` 'start here' tool that loads the guide + a live brain catalog in a single call, so a fresh session on any device is never blank
 - [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP LAN devices (printers, sensors, actuators …) are data too
-- [x] IPP printing (`print_add` / `print_list` / `print_delete` / `print_document`) — print PDFs/images to a LAN printer via IPP/AirPrint, by file or inline base64
+- [x] IPP printing (`print_add` / `print_list` / `print_delete` / `print_document`) — print PDFs/images to a LAN printer via IPP/AirPrint, by file or inline base64; auto-upgrades to TLS/IPPS and auto-falls-back to octet-stream
+- [x] eSCL scanning (`scan_add` / `scan_list` / `scan_delete` / `scan_document`) — scan on a LAN device via eSCL/AirScan to `/data/work`, optionally uploaded straight into Paperless-ngx
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)

@@ -174,10 +174,10 @@ def register(mcp):
         if not data:
             return "Empty document — nothing to print."
 
-        def _send(scheme: str, ipp_scheme: str):
+        def _send(scheme: str, ipp_scheme: str, fmt: str):
             # The IPP printer-uri inside the body should match the transport.
             p_uri = f"{ipp_scheme}://{host}:{port}{path}"
-            body = _build_print_job(p_uri, job_name or "aicortex-job", document_format, data)
+            body = _build_print_job(p_uri, job_name or "aicortex-job", fmt, data)
             url = f"{scheme}://{host}:{port}{path}"
             # verify=False: printers use self-signed certs; this is a LAN device the
             # operator allow-listed, and IPP carries no credential here.
@@ -185,12 +185,20 @@ def register(mcp):
                               headers={"Content-Type": "application/ipp"},
                               timeout=60, verify=False)
 
+        scheme, ipp_scheme = "http", "ipp"
         try:
-            r = _send("http", "ipp")
+            r = _send(scheme, ipp_scheme, document_format)
             # HTTP 426 "Upgrade Required" = the printer demands TLS (IPPS).
             # Many modern printers (e.g. Epson) require it — retry over HTTPS.
             if r.status_code == 426:
-                r = _send("https", "ipps")
+                scheme, ipp_scheme = "https", "ipps"
+                r = _send(scheme, ipp_scheme, document_format)
+            # IPP 0x040A = document-format-not-supported. Some printers reject an
+            # explicit application/pdf but accept auto-sensed octet-stream — so
+            # printing "just works" without the caller picking a format.
+            if (_ipp_status(r.content) == 0x040A
+                    and document_format != "application/octet-stream"):
+                r = _send(scheme, ipp_scheme, "application/octet-stream")
         except Exception as exc:
             return f"Print request failed: {exc}"
 
