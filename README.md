@@ -245,7 +245,7 @@ force an open bind without auth (not recommended).
 ## Security
 
 - **Auth fails closed.** Without OIDC the server binds to `127.0.0.1` only (override with `ALLOW_INSECURE=1`). With OIDC, **enable it before exposing the proxy** — anyone who reaches `/mcp` can otherwise call every tool.
-- **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are tools the *model* can call, so the list of registered targets is not a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only, not settable by the model). Set it to the LAN/VPN ranges you actually use — e.g. `192.168.178.0/24` — otherwise calls to your own devices are blocked too.
+- **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are tools the *model* can call, so the list of registered targets is not a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only, not settable by the model). Set it to the LAN/VPN ranges you actually use — e.g. `192.168.1.0/24` — otherwise calls to your own devices are blocked too.
 - **Encrypted vault, enforced.** Integration/device secrets go in the **vault** via `secret_set` (encrypted at rest in `data/vault`, referenced by name, never returned to the model, settable from mobile). `secret_set` **refuses to store plaintext** unless `STORAGE_ENCRYPTION_KEY` is set (or you opt in with `ALLOW_PLAINTEXT_VAULT=1`). `.env` is only for bootstrap config (OIDC secret, `JWT_SIGNING_KEY`) — don't ask the assistant to edit it for integration secrets.
 - **Forwarded headers.** `FORWARDED_ALLOW_IPS` defaults to `*` (fine on an isolated Docker network). If the container is directly reachable, scope it to your proxy's source IP/subnet.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
@@ -276,7 +276,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 | Worked once, then `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral and got wiped. Persistent `data/auth` (this repo) fixes it. To clear a stuck client: remove the connector, fully quit & reopen the app, re-add. |
 | Connector can't connect at all; proxy returns a login **web page** | You put reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer (this server). |
 | OIDC provider's consent/"Sign in" button spins forever, no `POST …/authorize` ever reaches the IdP; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` request carried **no `scope`** (some IdP UIs, e.g. Pocket ID, crash on `scope=null`). Send one **without** re-introducing token-scope validation: `extra_authorize_params={"scope": "openid profile email"}` (already in `server.py`; override via `OIDC_SCOPE`). |
-| `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** (e.g. `192.168.178.0/24`) and restart. |
+| `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** (e.g. `192.168.1.0/24`) and restart. |
 
 ## Roadmap
 
