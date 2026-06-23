@@ -33,15 +33,25 @@ def _parse(text: str):
     return (meta if isinstance(meta, dict) else {}), body
 
 
+def _category(meta: dict) -> str:
+    """A skill's category — from `category` or its synonym `cluster`."""
+    c = (meta.get("category") or meta.get("cluster") or "").strip()
+    return c or "uncategorized"
+
+
 def register(mcp):
     @mcp.tool
-    def skill_search(query: str) -> str:
+    def skill_search(query: str, category: str = "") -> str:
         """Find skills relevant to a task (ranked name — description). Call this
-        before specialized work, then skill_load the best match."""
+        before specialized work, then skill_load the best match. Optionally narrow
+        to one category (see skill_list for the categories)."""
         q = (query or "").lower()
+        cat = (category or "").strip().lower()
         results = []
         for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
             meta, body = _parse(sk.read_text(encoding="utf-8"))
+            if cat and _category(meta).lower() != cat:
+                continue
             hay = f"{sk.parent.name} {meta.get('name','')} {meta.get('description','')} {meta.get('tags','')} {body}".lower()
             score = sum(1 for w in q.split() if w in hay)
             if score:
@@ -52,16 +62,30 @@ def register(mcp):
         return "\n".join(f"- {n} — {d}" for _, n, d in results[:10])
 
     @mcp.tool
-    def skill_list() -> str:
-        """List all available skills (name — description)."""
+    def skill_list(category: str = "") -> str:
+        """Without a category: list the CATEGORIES with a skill count each (compact,
+        scales to hundreds of skills). With a category: list the skills in it
+        (name — description). Use skill_search to find a skill across all categories."""
         items = sorted(SKILLS_DIR.glob("*/SKILL.md"))
         if not items:
             return "No skills yet. Use skill_write to add one."
+        cat = (category or "").strip().lower()
+        if not cat:
+            counts: dict[str, int] = {}
+            for sk in items:
+                meta, _ = _parse(sk.read_text(encoding="utf-8"))
+                counts[_category(meta)] = counts.get(_category(meta), 0) + 1
+            lines = [f"- {c} — {n} skill(s)"
+                     for c, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+            return (f"{len(items)} skills in {len(counts)} categories — "
+                    f"call skill_list(\"<category>\") to see one, or skill_search(query):\n"
+                    + "\n".join(lines))
         out = []
         for sk in items:
             meta, _ = _parse(sk.read_text(encoding="utf-8"))
-            out.append(f"- {sk.parent.name} — {meta.get('description', '')}")
-        return "\n".join(out)
+            if _category(meta).lower() == cat:
+                out.append(f"- {sk.parent.name} — {meta.get('description', '')}")
+        return "\n".join(out) if out else f"No skills in category '{category}'."
 
     @mcp.tool
     def skill_load(name: str) -> str:
@@ -81,13 +105,17 @@ def register(mcp):
         return path.read_text(encoding="utf-8")
 
     @mcp.tool
-    def skill_write(name: str, description: str, instructions: str, tags: str = "") -> str:
-        """Create or update a skill: writes <name>/SKILL.md with frontmatter."""
+    def skill_write(name: str, description: str, instructions: str, tags: str = "",
+                    category: str = "") -> str:
+        """Create or update a skill: writes <name>/SKILL.md with frontmatter.
+        Pass a category to keep the library organized (so skill_list/bootstrap stay
+        compact as the library grows) — reuse an existing one from skill_list."""
         folder = SKILLS_DIR / _slug(name)
         folder.mkdir(parents=True, exist_ok=True)
-        fm = f"---\nname: {name}\ndescription: {description}\ntags: {tags}\n---\n\n"
+        cat_line = f"category: {category}\n" if category else ""
+        fm = f"---\nname: {name}\ndescription: {description}\n{cat_line}tags: {tags}\n---\n\n"
         (folder / "SKILL.md").write_text(fm + (instructions or "").rstrip() + "\n", encoding="utf-8")
-        return f"Saved skill '{folder.name}'."
+        return f"Saved skill '{folder.name}'{f' [{category}]' if category else ''}."
 
     @mcp.tool
     def skill_delete(name: str) -> str:

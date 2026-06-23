@@ -61,20 +61,34 @@ def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[
 
 
 def _skill_list() -> list[str]:
-    out = []
-    for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
-        desc = ""
+    """Compact skill overview that scales: list names while the library is small,
+    collapse to per-category counts once it grows (so bootstrap stays cheap even
+    with hundreds of skills). Categories come from the `category`/`cluster` field."""
+    skills = sorted(SKILLS_DIR.glob("*/SKILL.md"))
+    if not skills:
+        return []
+    counts: dict[str, int] = {}
+    for sk in skills:
+        cat = "uncategorized"
         try:
             text = sk.read_text(encoding="utf-8")
             if text.startswith("---"):
                 parts = text.split("---", 2)
                 if len(parts) == 3:
-                    m = re.search(r"^description:\s*(.+)$", parts[1], re.MULTILINE)
-                    desc = (" — " + m.group(1).strip()) if m else ""
+                    m = re.search(r'^(?:category|cluster):\s*"?([^"\n]+)"?',
+                                  parts[1], re.MULTILINE)
+                    if m:
+                        cat = m.group(1).strip()
         except Exception:
             pass
-        out.append(f"  - {sk.parent.name}{desc}")
-    return out
+        counts[cat] = counts.get(cat, 0) + 1
+    if len(skills) <= 12:
+        return [f"  - {sk.parent.name}" for sk in skills]
+    lines = [f"  {c}: {n}" for c, n in
+             sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    lines.append(f"  → {len(skills)} skills total · "
+                 f"skill_list(\"<category>\") or skill_search(query) to drill in")
+    return lines
 
 
 def _agents() -> list[str]:
