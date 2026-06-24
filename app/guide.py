@@ -62,6 +62,9 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - MQTT-Geräte (z.B. Drucker, Sensoren, Aktoren): mqtt_add / mqtt_list /
   mqtt_publish (Befehl) / mqtt_get (Status abonnieren).
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
+- WebDAV/Cloud (z.B. Nextcloud): webdav_add(name, base_url, username, password_env) /
+  webdav_list / webdav_upload (Quelle /data → Cloud) / webdav_download (→ /data/work) /
+  webdav_mkdir. Für große Dateien NAS↔Cloud (App-Passwort, nicht Login-Passwort).
 - Drucker (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file ODER content_base64[, document_format]). Druckt PDFs
   direkt im LAN. Physische Ausgabe → vorher bestätigen.
@@ -160,6 +163,9 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - MQTT devices (e.g. printers, sensors, actuators): mqtt_add / mqtt_list /
   mqtt_publish (command) / mqtt_get (subscribe for status).
 - FTP/FTPS files: ftp_add / ftp_upload (source under /data) / ftp_list.
+- WebDAV/cloud (e.g. Nextcloud): webdav_add(name, base_url, username, password_env) /
+  webdav_list / webdav_upload (source /data → cloud) / webdav_download (→ /data/work) /
+  webdav_mkdir. For large files NAS↔cloud (use an app password, not the login one).
 - Printers (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file OR content_base64[, document_format]). Prints PDFs
   directly on the LAN. Physical output → confirm first.

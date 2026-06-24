@@ -46,6 +46,7 @@ services:
       SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-90}"
       PRINT_DIR: /data/printers
       SCAN_DIR: /data/scanners
+      WEBDAV_DIR: /data/webdav
       SECRETS_DIR: /secrets
     # Optional: a fresh clone has only .env.example (real .env is git-ignored).
     # Marking it not-required lets `docker compose build`/`up` work out of the box;
@@ -68,6 +69,7 @@ services:
       - ./data/sessions:/data/sessions
       - ./data/printers:/data/printers
       - ./data/scanners:/data/scanners
+      - ./data/webdav:/data/webdav
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs
