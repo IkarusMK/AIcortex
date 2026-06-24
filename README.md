@@ -58,6 +58,9 @@ runtime that actually fires it.
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS (e.g. push a file to a device) |
 | Cloud (WebDAV) | `webdav_add` · `webdav_list` · `webdav_upload` · `webdav_download` · `webdav_mkdir` · `webdav_delete` | Move large files NAS↔cloud (Nextcloud/ownCloud) — streamed, app-password auth |
+| Workspace files | `fs_list` · `fs_read` · `fs_write` · `fs_move` · `fs_delete` · `fs_info` | See & tidy the `/data/work` file hub (sandboxed to the workspace) |
+| SSH / SFTP | `ssh_add` · `ssh_run` · `ssh_upload` · `ssh_download` · `ssh_list_dir` | Run remote commands & transfer files over SSH (hosts as data, vault creds) |
+| Email (SMTP) | `mail_add` · `mail_list` · `mail_send` | Send mail/notifications with optional attachment (accounts as data) |
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint — by file or inline base64 |
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device via eSCL/AirScan → `/data/work`, optionally straight into Paperless |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |

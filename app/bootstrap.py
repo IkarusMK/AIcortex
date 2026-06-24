@@ -29,6 +29,8 @@ CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
 SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 WEBDAV_DIR = Path(os.environ.get("WEBDAV_DIR", "/data/webdav"))
+SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
+MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
 AGENTS_FILE = Path(os.environ.get("COORD_DIR", "/data/coordination")) / "agents.json"
 
 
@@ -159,6 +161,10 @@ def _catalog() -> str:
                  "none — add with ftp_add"),
         _section("WEBDAV ENDPOINTS", _json_names(WEBDAV_DIR, fields=("base_url", "description")),
                  "none — add with webdav_add"),
+        _section("SSH HOSTS", _json_names(SSH_DIR, fields=("host", "description")),
+                 "none — add with ssh_add"),
+        _section("SMTP ACCOUNTS", _json_names(MAIL_DIR, fields=("from_addr", "host")),
+                 "none — add with mail_add"),
         _section("MCP SERVERS (gateway)", _json_names(MCP_DIR, fields=("url", "description")),
                  "none — add with mcp_add"),
         _section("PRINTERS (IPP)", _json_names(PRINT_DIR, fields=("host", "description")),

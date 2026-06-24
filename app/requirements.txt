@@ -1,5 +1,7 @@
 fastmcp>=3.4,<4
 paho-mqtt>=2.1,<3
+# SSH / SFTP for ssh_tools (remote commands + file transfer)
+paramiko>=3.4,<4
 # Keep the explicit DiskStore client_storage working on FastMCP 3 (v3's default
 # moved to FileTreeStore due to a diskcache CVE; the disk extra is the
 # sanctioned way to keep DiskStore — ours is Fernet-encrypted, self-data only).
