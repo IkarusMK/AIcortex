@@ -46,14 +46,19 @@ def register(mcp):
     @mcp.tool
     def service_add(name: str, base_url: str, token_env: str = "",
                     auth_scheme: str = "Bearer", description: str = "",
-                    auth_header: str = "Authorization") -> str:
+                    auth_header: str = "Authorization",
+                    write_only: bool = False) -> str:
         """Register/update a callable service (stored as DATA — no redeploy).
         token_env = the NAME of the secret holding the auth token (store it with
         secret_set). The token itself is never stored here.
         auth_header = which header carries the token (default "Authorization").
         For APIs that use a custom header instead of Bearer auth, set auth_header
         to that header name and auth_scheme="" so the raw token is sent without a
-        "Bearer " prefix."""
+        "Bearer " prefix.
+        write_only = a hard, server-side INGEST-ONLY lock: call_service REFUSES this
+        service entirely so nothing can ever be read back out of it (for sensitive
+        sinks like a document archive). Data can still be deposited through dedicated
+        ingest tools that don't use call_service (e.g. scan_document → Paperless)."""
         try:
             SERVICES_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -63,6 +68,7 @@ def register(mcp):
                 "auth_scheme": auth_scheme,
                 "auth_header": auth_header or "Authorization",
                 "description": description,
+                "write_only": bool(write_only),
             }
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             note = ""
@@ -84,7 +90,8 @@ def register(mcp):
         for p in items:
             try:
                 c = json.loads(p.read_text(encoding="utf-8"))
-                out.append(f"- {p.stem} — {c.get('base_url', '')} — {c.get('description', '')}")
+                lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
+                out.append(f"- {p.stem} — {c.get('base_url', '')} — {c.get('description', '')}{lock}")
             except Exception:
                 out.append(f"- {p.stem} — (unreadable config)")
         return "\n".join(out)
@@ -106,6 +113,11 @@ def register(mcp):
         cfg = _load(service)
         if not cfg:
             return f"Unknown service '{service}'. Use service_list / service_add."
+        if cfg.get("write_only"):
+            return (f"Refused: service '{service}' is INGEST-ONLY (write_only) — reading "
+                    f"from it via call_service is blocked by policy, for every client, "
+                    f"and this cannot be overridden from here. Data can only be deposited "
+                    f"through dedicated ingest tools (e.g. scan_document), never read back.")
         m = (method or "GET").upper()
         if m not in _ALLOWED_METHODS:
             return f"Method '{method}' not allowed."
