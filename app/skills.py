@@ -39,6 +39,35 @@ def _category(meta: dict) -> str:
     return c or "uncategorized"
 
 
+def _existing_categories() -> list[str]:
+    """The distinct categories currently in the library (sorted), excluding the
+    'uncategorized' fallback — used to nudge authors to reuse an existing one."""
+    cats = set()
+    for sk in SKILLS_DIR.glob("*/SKILL.md"):
+        try:
+            meta, _ = _parse(sk.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        c = _category(meta)
+        if c and c != "uncategorized":
+            cats.add(c)
+    return sorted(cats)
+
+
+def _canonical_category(category: str) -> str:
+    """Normalize a category and snap it onto an existing one if it matches
+    case-insensitively — so 'Trading', 'trading' and ' trading ' never split the
+    library into near-duplicate buckets."""
+    cat = re.sub(r"\s+", " ", (category or "")).strip()
+    if not cat:
+        return ""
+    low = cat.lower()
+    for existing in _existing_categories():
+        if existing.lower() == low:
+            return existing  # reuse the spelling already in the library
+    return cat
+
+
 def register(mcp):
     @mcp.tool
     def skill_search(query: str, category: str = "") -> str:
@@ -107,15 +136,31 @@ def register(mcp):
     @mcp.tool
     def skill_write(name: str, description: str, instructions: str, tags: str = "",
                     category: str = "") -> str:
-        """Create or update a skill: writes <name>/SKILL.md with frontmatter.
-        Pass a category to keep the library organized (so skill_list/bootstrap stay
-        compact as the library grows) — reuse an existing one from skill_list."""
+        """Create or update a skill: writes <name>/SKILL.md with frontmatter
+        (name, description, category, tags + Markdown instructions).
+
+        HOUSE RULE — every skill MUST have a category. This keeps the shared
+        library organized and keeps skill_list/bootstrap compact as it grows to
+        hundreds of skills. REUSE an existing category (call skill_list first to see
+        them); only invent a new one when nothing fits. A missing category is
+        REFUSED — re-call with category="…". Categories are matched case-
+        insensitively, so you can't accidentally split one into near-duplicates."""
+        category = _canonical_category(category)
+        if not category:
+            existing = _existing_categories()
+            hint = ("Reuse one of these existing categories: "
+                    + ", ".join(existing)) if existing else (
+                    "No categories yet — start a clear one, e.g. 'trading', "
+                    "'home-automation', 'devops', 'documents'.")
+            return ("Refused: a skill MUST be categorized (house rule — keeps the "
+                    "library tidy and bootstrap compact). Re-call skill_write with "
+                    f"category=\"…\". {hint}")
         folder = SKILLS_DIR / _slug(name)
         folder.mkdir(parents=True, exist_ok=True)
-        cat_line = f"category: {category}\n" if category else ""
-        fm = f"---\nname: {name}\ndescription: {description}\n{cat_line}tags: {tags}\n---\n\n"
+        fm = (f"---\nname: {name}\ndescription: {description}\n"
+              f"category: {category}\ntags: {tags}\n---\n\n")
         (folder / "SKILL.md").write_text(fm + (instructions or "").rstrip() + "\n", encoding="utf-8")
-        return f"Saved skill '{folder.name}'{f' [{category}]' if category else ''}."
+        return f"Saved skill '{folder.name}' [{category}]."
 
     @mcp.tool
     def skill_delete(name: str) -> str:
