@@ -15,6 +15,7 @@ data/cron/*
 data/sessions/*
 data/printers/*
 data/scanners/*
+data/webdav/*
 data/auth/*
 logs/*
 secrets/*

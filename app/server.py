@@ -27,6 +27,7 @@ import cron
 import sessions
 import print_tools
 import scan_tools
+import webdav_tools
 import secrets_store
 import guide
 import bootstrap
@@ -165,6 +166,9 @@ print_tools.register(mcp)
 
 # eSCL scanning: scan_add / scan_list / scan_delete / scan_document (scanners as data, → Paperless)
 scan_tools.register(mcp)
+
+# WebDAV transfer: webdav_add / list / upload / download / mkdir / delete (cloud drives as data, e.g. Nextcloud)
+webdav_tools.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
