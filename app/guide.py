@@ -71,6 +71,12 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Scanner (eSCL/AirScan): scan_add(name, host) / scan_list /
   scan_document(scanner[, color, source, format, paperless]). Scannt direkt im LAN,
   speichert nach /data/work, optional gleich nach Paperless (paperless=<Service-Name>).
+- Workspace-Dateien (/data/work): fs_list / fs_read / fs_write / fs_move / fs_delete /
+  fs_info. Die Datei-Drehscheibe (Scans/Downloads/Druck-Vorlagen) ansehen & ordnen.
+- SSH/SFTP-Server: ssh_add(name, host, username[, password_env|key_env]) / ssh_run
+  (Befehl, zustandsändernd → bestätigen) / ssh_upload / ssh_download / ssh_list_dir.
+- E-Mail senden (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
+  mail_send(account, to, subject, body[, attachment]). Ausgehend → vorher bestätigen.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
@@ -172,6 +178,12 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Scanners (eSCL/AirScan): scan_add(name, host) / scan_list /
   scan_document(scanner[, color, source, format, paperless]). Scans on the LAN,
   saves to /data/work, optionally straight into Paperless (paperless=<service name>).
+- Workspace files (/data/work): fs_list / fs_read / fs_write / fs_move / fs_delete /
+  fs_info. See & tidy the file hub (scans, downloads, print sources).
+- SSH/SFTP hosts: ssh_add(name, host, username[, password_env|key_env]) / ssh_run
+  (command, state-changing → confirm) / ssh_upload / ssh_download / ssh_list_dir.
+- Send email (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
+  mail_send(account, to, subject, body[, attachment]). Outbound → confirm first.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.

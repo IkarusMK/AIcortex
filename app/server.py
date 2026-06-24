@@ -28,6 +28,9 @@ import sessions
 import print_tools
 import scan_tools
 import webdav_tools
+import fs_tools
+import ssh_tools
+import mail_tools
 import secrets_store
 import guide
 import bootstrap
@@ -169,6 +172,15 @@ scan_tools.register(mcp)
 
 # WebDAV transfer: webdav_add / list / upload / download / mkdir / delete (cloud drives as data, e.g. Nextcloud)
 webdav_tools.register(mcp)
+
+# Workspace files: fs_list / fs_read / fs_write / fs_move / fs_delete / fs_info (/data/work, sandboxed)
+fs_tools.register(mcp)
+
+# SSH: ssh_add / ssh_run / ssh_upload / ssh_download / ssh_list_dir (remote commands + SFTP, hosts as data)
+ssh_tools.register(mcp)
+
+# SMTP: mail_add / mail_list / mail_send (send email/notifications, accounts as data)
+mail_tools.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)

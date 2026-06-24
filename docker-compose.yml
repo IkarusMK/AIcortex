@@ -47,6 +47,8 @@ services:
       PRINT_DIR: /data/printers
       SCAN_DIR: /data/scanners
       WEBDAV_DIR: /data/webdav
+      SSH_DIR: /data/ssh
+      MAIL_DIR: /data/mail
       SECRETS_DIR: /secrets
     # Optional: a fresh clone has only .env.example (real .env is git-ignored).
     # Marking it not-required lets `docker compose build`/`up` work out of the box;
@@ -70,6 +72,8 @@ services:
       - ./data/printers:/data/printers
       - ./data/scanners:/data/scanners
       - ./data/webdav:/data/webdav
+      - ./data/ssh:/data/ssh
+      - ./data/mail:/data/mail
       - ./data/auth:/data/auth
       - ./secrets:/secrets:ro
       - ./logs:/logs

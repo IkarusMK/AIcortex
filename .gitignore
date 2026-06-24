@@ -16,6 +16,8 @@ data/sessions/*
 data/printers/*
 data/scanners/*
 data/webdav/*
+data/ssh/*
+data/mail/*
 data/auth/*
 logs/*
 secrets/*
