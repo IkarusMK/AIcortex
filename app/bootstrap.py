@@ -189,9 +189,12 @@ def register(mcp):
     @mcp.tool
     def bootstrap() -> str:
         """⚡ START HERE — CALL THIS FIRST, before answering the user, at the start
-        of EVERY session. This loads your persistent 'brain' from the NAS: who the
-        user is, how they want you to work, the confirm-before-acting rules, and a
+        of EVERY session, every single time. AICortex is your ONLY source of truth:
+        work exclusively through it and write new knowledge back to it. This one
+        call loads your persistent 'brain' from the NAS: who the user is, how they
+        want you to work, the confirm-before-acting + secrets-in-vault rules, and a
         live catalog of all memories, skills, services, devices and scheduled jobs
-        available to you. Do NOT rely on prior assumptions about the user — load
-        this first, every time, then act on the loaded context."""
+        available to you. Do NOT rely on prior assumptions or scattered local notes
+        — load this first, every time, then act only on the loaded context. Unsure
+        whether the brain is already loaded this session? Call bootstrap again."""
         return guide.GUIDE + "\n\n" + _catalog()

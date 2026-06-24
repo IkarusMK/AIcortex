@@ -23,7 +23,7 @@ Add it once as a *custom connector / MCP server* and your LLM gains:
 
 The model stays in its provider's cloud (or runs locally). **Your data, skills, and secrets stay on your NAS.** Your LLM talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: working.** One-call `bootstrap` onboarding, memory, the skill router, HTTP/MQTT/FTP dispatchers, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing*. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: v1.0 — stable.** One-call `bootstrap` onboarding, memory, the skill router (categorized), HTTP/MQTT/FTP/WebDAV/SSH/SMTP dispatchers, a sandboxed workspace file hub, IPP printing & eSCL scanning, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing* (it sends its usage guide on connect and tells every LLM to call `bootstrap` first and work exclusively through it). New capabilities are added as **data** — no redeploy. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -37,8 +37,9 @@ Reverse proxy (Zoraxy / Caddy / nginx / Traefik …)
 AICortex  (this container, on your NAS)
         │  uses local files & secrets
         ▼
-Memory · Skills · HTTP services · MQTT & FTP devices · IPP printing · MCP gateway · Inbox/Tasks · Sessions · Cron · Secret vault
-       (every outbound call passes the SSRF egress guard)
+Memory · Skills · HTTP services · MQTT & FTP devices · WebDAV cloud · Workspace files
+   · SSH/SFTP · SMTP email · IPP printing · eSCL scanning · MCP gateway · Inbox/Tasks
+   · Sessions · Cron · Secret vault   (every outbound call passes the SSRF egress guard)
 
 Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
 `cron_due`, runs each due job through the connector, then notifies you
@@ -84,11 +85,16 @@ AICortex/
 │   ├── services.py     #   generic allow-listed HTTP service caller
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
 │   ├── ftp_tools.py    #   generic FTP/FTPS transfer (push files to devices)
+│   ├── webdav_tools.py #   WebDAV transfer (cloud drives as data, e.g. Nextcloud)
+│   ├── fs_tools.py     #   workspace file hub (/data/work, sandboxed)
+│   ├── ssh_tools.py    #   SSH commands + SFTP transfer (hosts as data)
+│   ├── mail_tools.py   #   SMTP email/notifications (accounts as data)
 │   ├── print_tools.py  #   IPP printing to LAN printers (printers as data)
 │   ├── scan_tools.py   #   eSCL scanning (scanners as data) → /data/work / Paperless
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
 │   ├── coordination.py #   multi-agent inbox / task board / agent registry
+│   ├── cron.py         #   scheduled jobs as data (a NAS runner fires them)
 │   ├── sessions.py     #   cross-LLM session handoff log (auto-expiring)
 │   ├── secrets_store.py#   encrypted secret vault
 │   ├── guide.py        #   self-describing usage guide (DE/EN)
@@ -100,12 +106,17 @@ AICortex/
 │   ├── mqtt/           #   MQTT broker/device configs
 │   ├── ftp/            #   FTP/FTPS endpoint configs
 │   ├── mcp/            #   upstream MCP server configs
+│   ├── webdav/         #   WebDAV endpoint configs (cloud drives)
+│   ├── ssh/            #   SSH host configs
+│   ├── mail/           #   SMTP account configs
 │   ├── coordination/   #   multi-agent inbox / tasks / agents
+│   ├── cron/           #   scheduled job configs (cron as data)
 │   ├── sessions/       #   cross-LLM session handoff logs (auto-expiring)
 │   ├── printers/       #   IPP printer configs (printers as data)
+│   ├── scanners/       #   eSCL scanner configs (scanners as data)
 │   ├── vault/          #   encrypted secrets (secret_set)
 │   ├── auth/           #   OAuth client registrations (persisted)
-│   └── work/           #   file workflows / scratch (CAD, exports, large files)
+│   └── work/           #   workspace file hub — scans, downloads, print sources (fs_*)
 ├── secrets/            # Local credentials (.env) — never leave the NAS
 ├── logs/               # Container logs
 ├── docs/               # Architecture & client project-instruction template
@@ -123,7 +134,7 @@ This is the heart of the project — making the assistant *itself* portable, not
 
 - **Memory** lives as plain files under `data/memory`. Tools (`memory_read` / `memory_write` / `memory_list`) let the LLM recall and update what it knows about you — the same on every device.
 - **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router tools — `skill_search` / `skill_load` / `skill_resource` — let the LLM find the right skill for a request and pull in **only what it needs** (progressive disclosure, the same idea as tool search).
-- **Categories keep it cheap.** Skills carry a `category` (a synonym `cluster` is also read); `skill_list()` returns categories + counts and `skill_list("<category>")` drills in, and `bootstrap` collapses the skill section to per-category counts once the library grows — so a 300-skill library stays a dozen lines, not a token dump. A small set of original starter skills lives in [`examples/skills/`](examples/skills/README.md) — copy them into `data/skills` to seed.
+- **Categories keep it cheap — and are mandatory.** Every skill carries a `category` (a synonym `cluster` is also read); `skill_write` **refuses an uncategorized skill** and snaps near-duplicate spellings (`Trading`/`trading`) onto the existing one, so the library can't drift. `skill_list()` returns categories + counts, `skill_list("<category>")` drills in, and `bootstrap` collapses the skill section to per-category counts once the library grows — so a 300-skill library stays a dozen lines, not a token dump. A small set of original starter skills lives in [`examples/skills/`](examples/skills/README.md) — copy them into `data/skills` to seed.
 - **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your client's **project / system prompt** ("call the `bootstrap` tool first") — see [`docs/client-project-instructions.md`](docs/client-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
 
 ## Tools & integrations (as data)
@@ -296,6 +307,10 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Generic device dispatchers — **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`), so non-HTTP LAN devices (printers, sensors, actuators …) are data too
 - [x] IPP printing (`print_add` / `print_list` / `print_delete` / `print_document`) — print PDFs/images to a LAN printer via IPP/AirPrint, by file or inline base64; auto-upgrades to TLS/IPPS and auto-falls-back to octet-stream
 - [x] eSCL scanning (`scan_add` / `scan_list` / `scan_delete` / `scan_document`) — scan on a LAN device via eSCL/AirScan to `/data/work`, optionally uploaded straight into Paperless-ngx
+- [x] WebDAV transfer (`webdav_add` / `webdav_list` / `webdav_upload` / `webdav_download` / `webdav_mkdir` / `webdav_delete`) — stream large files NAS↔cloud (Nextcloud/ownCloud), app-password auth
+- [x] Workspace file hub (`fs_list` / `fs_read` / `fs_write` / `fs_move` / `fs_delete` / `fs_info`) — see & tidy `/data/work`, hard-sandboxed to the workspace
+- [x] SSH/SFTP (`ssh_add` / `ssh_run` / `ssh_upload` / `ssh_download` / `ssh_list_dir`) — remote commands & file transfer, hosts as data, vault creds
+- [x] SMTP email (`mail_add` / `mail_list` / `mail_send`) — send mail/notifications with optional attachment, accounts as data
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
