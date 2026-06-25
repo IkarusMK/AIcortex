@@ -9,6 +9,7 @@ Add it once as a *custom connector / MCP server* and your LLM gains:
 - ⚡ **One-call onboarding** — a `bootstrap` tool any LLM calls first; in a single round-trip it loads the guide *and* a live catalog of everything on the brain (memory, skills, services, devices, scheduled jobs), so a fresh session on any device is never "blank"
 - 🧠 **Consistent memory** that lives on your NAS and follows you across every device
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
+- 🦙 **Runs with a local model** — drive the whole brain from a fully local LLM (Ollama) via Open WebUI's native MCP; no cloud required, model *and* data stay on your hardware ([guide](docs/local-llm-openwebui.md))
 - 🗂️ **A skill router** — your skills live on your NAS; the LLM *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
 - 🛠️ **Tools as data** — register any HTTP API with `service_add`, call it via `call_service`; new integrations need no code and no redeploy
 - 🔌 **Devices as data** — generic **MQTT** (`mqtt_*`) and **FTP/FTPS** (`ftp_*`) dispatchers bring non-HTTP devices (e.g. a printer or sensor on your LAN) in the same way — as data, no redeploy
@@ -46,6 +47,14 @@ Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
 (push / inbox). The connector stores the schedule; the runner is the LLM
 runtime that actually fires it.
 ```
+
+## Run it with a local model (Ollama)
+
+AICortex is model-agnostic — and that includes **fully local** models. Point [Open WebUI](https://github.com/open-webui/open-webui) at the connector over its native MCP transport (Streamable-HTTP) and a local [Ollama](https://ollama.com) model gets the same memory, skills and tools as any cloud assistant. No connector changes, no cloud dependency: the model runs on your hardware, the brain on your NAS — nothing leaves your network.
+
+This is where a self-hosted brain pays off most: a private assistant that *remembers*, *learns skills* and *acts on your devices*, end to end on your own infrastructure. Tool-calling quality depends on the local model you pick (bigger, tool-aware models are far more reliable); for heavy multi-step chains a strong cloud model still has the edge — and Open WebUI lets you switch per chat.
+
+**→ Full guide: [docs/local-llm-openwebui.md](docs/local-llm-openwebui.md)**
 
 ## Capabilities (tools at a glance)
 
@@ -319,6 +328,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Cross-LLM session handoff: timestamped, auto-expiring checkpoints (`session_save` / `session_list` / `session_load` / `session_delete` / `session_prune`) so any model/device resumes where another left off — the 5 most recent surfaced at the top of `bootstrap`
 - [x] Autonomy runner: reference NAS-side runner with a swappable LLM backend ([`runner/`](runner/README.md)) — fires due jobs and notifies you
 - [x] Prebuilt image on GHCR — multi-arch (amd64/arm64) build & push via GitHub Actions
+- [x] Local-LLM client guide — drive AICortex from a local model (Ollama) via Open WebUI's native MCP + the `RUNNER_TOKEN` ([docs](docs/local-llm-openwebui.md))
 
 ## License
 
