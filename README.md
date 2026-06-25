@@ -247,7 +247,6 @@ All config lives in `.env` (copy from `.env.example`):
 | `PUID`      | `1000`  | User ID the process runs as (file ownership) |
 | `PGID`      | `1000`  | Group ID the process runs as |
 | `TZ`        | `UTC`   | Container timezone |
-| `WORK_HOST_PATH` | `./data/work` | Host path for the bulk file hub (scans, downloads, print sources). Point it at an HDD to offload large files; hot state stays under `./data`. |
 
 ## Authentication
 

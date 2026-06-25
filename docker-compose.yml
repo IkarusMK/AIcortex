@@ -58,19 +58,10 @@ services:
       - path: .env
         required: false
     volumes:
-      # HOT state on fast storage (SSD): small, latency-sensitive files the
-      # assistant touches constantly — memory, skills, sessions, coordination,
-      # all device/service configs, vault, auth. ONE mount: the app creates every
-      # subfolder itself (incl. new ones like memory/candidates), so a new feature
-      # needs NO compose change. Existing ./data/* are the same files, one level up.
-      - ./data:/data
-      # COLD/bulk file hub (scans, downloads, print sources): large and
-      # throughput-bound, not latency-sensitive — the one thing worth putting on an
-      # HDD. Defaults under ./data; set WORK_HOST_PATH to offload it, e.g.
-      # WORK_HOST_PATH=/volume1/cold/aicortex-work
-      - ${WORK_HOST_PATH:-./data/work}:/data/work
-      - ./secrets:/secrets:ro   # kept separate: read-only secret boundary
-      - ./logs:/logs            # already separate (append-heavy, HDD-friendly)
+      - ./data:/data            # all persistent state — the app creates subfolders itself
+      - ./data/work:/data/work  # bulk file hub (scans, downloads) — point at an HDD if you like
+      - ./secrets:/secrets:ro   # read-only secret boundary
+      - ./logs:/logs
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(0 if s.connect_ex(('127.0.0.1',8787))==0 else 1)"]
       interval: 30s
