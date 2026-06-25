@@ -12,9 +12,9 @@ so autonomy can never pollute the curated brain.
 DESIGN SAFETY:
 - Fail-open: any error in the middleware is swallowed; it never blocks or alters
   a tool call. The connector keeps working even if this whole layer misbehaves.
-- Off by default: set LEARN_AUTOCAPTURE=1 to enable. Most structural facts are
-  already visible in the bootstrap catalog, so auto-staging them is opt-in to
-  avoid review-fatigue. The plumbing is always present; the nagging is a choice.
+- On by default: set LEARN_AUTOCAPTURE=0 to disable. Safe to leave on because
+  captures are STAGED as candidates (never written to live memory), so they can't
+  pollute the curated brain — you just review and promote/reject them.
 - No new process / no new container: this is a class added to the existing
   FastMCP instance, exactly like a tool registration.
 """
@@ -42,7 +42,10 @@ _CONTEXT_KEYS = ("base_url", "host", "url", "from_addr", "schedule", "descriptio
 
 
 def _enabled() -> bool:
-    return os.environ.get("LEARN_AUTOCAPTURE", "0").strip().lower() in ("1", "true", "yes")
+    # On by default — candidates are STAGED for review, never written live, so
+    # auto-capture can't pollute the curated brain. Set LEARN_AUTOCAPTURE=0 to
+    # turn it off.
+    return os.environ.get("LEARN_AUTOCAPTURE", "1").strip().lower() in ("1", "true", "yes")
 
 
 def _stage(tool_name: str, args: dict) -> None:

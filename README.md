@@ -155,7 +155,7 @@ Most assistants forget the moment a chat ends. AICortex closes that loop: the br
 - **Learns in-session, at zero extra cost.** The model that's *already* talking to you distills the durable facts before the session ends and writes them back — no second model, no background loop, no metering. A short discipline baked into the connector's guide makes this automatic.
 - **Dedup-first.** A write searches for overlapping entries and flags them, so related facts get merged into one file instead of multiplying into near-duplicates. Same title = merge.
 - **A review queue, so autonomy never pollutes the brain.** Anything captured automatically — or staged with `memory_note` when the assistant is unsure — lands as a **candidate**, not live memory. `bootstrap` surfaces the count; you (or the assistant) `memory_promote` the keepers and `memory_reject` the rest. Curated memory stays clean by design.
-- **Optional deterministic capture.** A single, fail-open, server-side hook can auto-stage candidates when durable things happen (a new service, device or scheduled job). It's **off by default** (`LEARN_AUTOCAPTURE=1` to enable), never touches secrets, and — because a failure there can never block a tool call or the boot — it's safe to leave on.
+- **Deterministic capture, on by default.** A single, fail-open, server-side hook auto-stages candidates when durable things happen (a new service, device or scheduled job). It's safe to leave on because captures are *staged*, never written live — and a failure there can never block a tool call or the boot. Set `LEARN_AUTOCAPTURE=0` to turn it off.
 
 Old memories written before the type system are still read correctly; there's nothing to migrate.
 
@@ -247,6 +247,7 @@ All config lives in `.env` (copy from `.env.example`):
 | `PUID`      | `1000`  | User ID the process runs as (file ownership) |
 | `PGID`      | `1000`  | Group ID the process runs as |
 | `TZ`        | `UTC`   | Container timezone |
+| `WORK_HOST_PATH` | `./data/work` | Host path for the bulk file hub (scans, downloads, print sources). Point it at an HDD to offload large files; hot state stays under `./data`. |
 
 ## Authentication
 

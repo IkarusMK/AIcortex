@@ -128,8 +128,8 @@ mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
 # Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
 # memory candidates from durable tool calls. Guarded so a middleware API mismatch
 # can never stop the server from booting — on any failure we simply run without
-# auto-capture (Tier A in-session learning still works). Off unless
-# LEARN_AUTOCAPTURE=1; see learn.py.
+# auto-capture (Tier A in-session learning still works). On by default
+# (LEARN_AUTOCAPTURE=0 to disable); see learn.py.
 try:
     _learn_mw = learn.build_middleware()
     if _learn_mw is not None:
