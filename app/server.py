@@ -34,6 +34,7 @@ import mail_tools
 import secrets_store
 import guide
 import bootstrap
+import learn
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -122,6 +123,23 @@ auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
 mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
+
+
+# Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
+# memory candidates from durable tool calls. Guarded so a middleware API mismatch
+# can never stop the server from booting — on any failure we simply run without
+# auto-capture (Tier A in-session learning still works). Off unless
+# LEARN_AUTOCAPTURE=1; see learn.py.
+try:
+    _learn_mw = learn.build_middleware()
+    if _learn_mw is not None:
+        mcp.add_middleware(_learn_mw)
+        print("[AICortex] auto-memory: candidate-capture middleware active "
+              f"(LEARN_AUTOCAPTURE={'on' if learn._enabled() else 'off'})")
+    else:
+        print("[AICortex] auto-memory: middleware unavailable — Tier A only")
+except Exception as exc:
+    print(f"[AICortex] auto-memory: middleware skipped ({exc}) — Tier A only")
 
 
 # 'START HERE' entrypoint — registered FIRST so it leads the tool list. Its

@@ -18,6 +18,8 @@ from pathlib import Path
 
 import guide
 import sessions
+import memory
+import coordination
 
 MEMORY_DIR = Path(os.environ.get("MEMORY_DIR", "/data/memory"))
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
@@ -31,20 +33,6 @@ SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 WEBDAV_DIR = Path(os.environ.get("WEBDAV_DIR", "/data/webdav"))
 SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
 MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
-AGENTS_FILE = Path(os.environ.get("COORD_DIR", "/data/coordination")) / "agents.json"
-
-
-def _md_titles(scope_dir: Path) -> list[str]:
-    """Memory entries in a scope: '<name> — <title>' from each .md's first line."""
-    out = []
-    for p in sorted(scope_dir.glob("*.md")):
-        try:
-            first = p.read_text(encoding="utf-8").splitlines()
-            title = first[0].lstrip("# ").strip() if first else p.stem
-        except Exception:
-            title = p.stem
-        out.append(f"  - {p.stem} — {title}")
-    return out
 
 
 def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[str]:
@@ -96,15 +84,16 @@ def _skill_list() -> list[str]:
 
 def _agents() -> list[str]:
     try:
-        data = json.loads(AGENTS_FILE.read_text(encoding="utf-8"))
+        return coordination.agent_rows()
     except Exception:
         return []
-    rows = data.values() if isinstance(data, dict) else data
-    out = []
-    for a in rows or []:
-        if isinstance(a, dict):
-            out.append(f"  - {a.get('name', '?')} — {a.get('role', '')}")
-    return out
+
+
+def _board() -> list[str]:
+    try:
+        return coordination.board_overview()
+    except Exception:
+        return []
 
 
 def _section(title: str, lines: list[str], empty: str) -> str:
@@ -113,18 +102,30 @@ def _section(title: str, lines: list[str], empty: str) -> str:
 
 def _catalog() -> str:
     """A live snapshot of everything currently on the NAS brain."""
-    # All memory scopes, shared first.
+    # All memory scopes, shared first. The reserved 'candidates' scope is NOT
+    # listed here (it's not live memory) — it's surfaced separately below.
     mem_lines: list[str] = []
     if MEMORY_DIR.exists():
         scopes = sorted(
-            (d for d in MEMORY_DIR.iterdir() if d.is_dir()),
+            (d for d in MEMORY_DIR.iterdir()
+             if d.is_dir() and d.name != memory.CANDIDATES_SCOPE),
             key=lambda d: (d.name != "shared", d.name),
         )
         for sc in scopes:
-            entries = _md_titles(sc)
+            entries = memory.scope_title_lines(sc)
             if entries:
                 mem_lines.append(f"  [{sc.name}]")
                 mem_lines.extend(entries)
+
+    # Auto-memory: surface candidates awaiting review so any session closes the
+    # learning loop (promote/reject) without needing a background process.
+    try:
+        n_cand = memory.candidate_count()
+    except Exception:
+        n_cand = 0
+    if n_cand:
+        mem_lines.append(f"  📥 {n_cand} candidate(s) awaiting review → "
+                         f"memory_candidates() · memory_promote/memory_reject")
 
     # Where we left off: surface the most recent sessions so a fresh LLM (or a
     # different model entirely) can continue exactly where another stopped.
@@ -173,12 +174,18 @@ def _catalog() -> str:
                  "none — add with scan_add"),
         _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
                  "none — add with cron_add"),
-        _section("REGISTERED AGENTS", _agents(), "none registered"),
+        _section("TEAM (agents — live presence, online first)", _agents(),
+                 "none registered — agent_register(name, role, capabilities)"),
+        _section("TASK BOARD (shared work — claim/handoff)", _board(),
+                 "no active tasks — task_add to create; task_next to pull work"),
         "",
         "NEXT: load the specifics you need (memory_read, skill_load, service_list …) "
         "and register yourself with agent_register if you'll coordinate. "
-        "Store new durable knowledge back with memory_write / skill_write so the "
-        "brain grows instead of drifting. Save a session_save checkpoint before you "
+        "LEARN AS YOU GO: when you discover a durable fact about the user, a "
+        "correction in how they want you to work, or project status, write it back "
+        "TYPED with memory_write(type=user|feedback|project|reference) — search "
+        "first and merge instead of duplicating. Review any candidates above "
+        "(memory_promote/memory_reject). Save a session_save checkpoint before you "
         "stop so the next LLM/device can resume.",
     ]
     body = "\n\n".join(parts)
