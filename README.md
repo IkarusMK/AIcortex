@@ -7,7 +7,7 @@ Self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS in
 Add it once as a *custom connector / MCP server* and your LLM gains:
 
 - ⚡ **One-call onboarding** — a `bootstrap` tool any LLM calls first; in a single round-trip it loads the guide *and* a live catalog of everything on the brain (memory, skills, services, devices, scheduled jobs), so a fresh session on any device is never "blank"
-- 🧠 **Consistent memory** that lives on your NAS and follows you across every device
+- 🧠 **Self-learning memory** — typed, deduplicated facts that live on your NAS and follow you everywhere; the assistant writes back what it learns each session, with a review queue so autonomy never pollutes the brain ([more](#auto-memory--a-brain-that-learns-by-itself))
 - 📱 **Work from anywhere** — the *same* brain on desktop **and** mobile, one account, one state
 - 🦙 **Runs with a local model** — drive the whole brain from a fully local LLM (Ollama) via Open WebUI's native MCP; no cloud required, model *and* data stay on your hardware ([guide](docs/local-llm-openwebui.md))
 - 🗂️ **A skill router** — your skills live on your NAS; the LLM *searches* them, loads the right one (progressive disclosure), and *learns* new ones at runtime (`skill_write`)
@@ -18,13 +18,13 @@ Add it once as a *custom connector / MCP server* and your LLM gains:
 - 🔐 **Encrypted secret vault** — store API keys/tokens through the connector (works from mobile); encrypted at rest, never shown back
 - 🛡️ **Safe by default** — fail-closed auth, an enforced-encryption vault, and an SSRF egress guard (private/metadata IPs blocked unless you allow-list them)
 - 🧭 **Self-describing** — any connecting LLM receives usage instructions on connect + `bootstrap`/`guide` tools, and is told to confirm before physical/outbound actions
-- 🤝 **Multi-agent ready** — shared memory + registry so several agents can share one brain
+- 🤝 **Presence-aware multi-agent board** — desktop, a NAS-local model and your phone act as one team: live presence, capability-routed task *pull*, and context-preserving handoffs with the work session attached ([more](#multi-agent--one-brain-many-agents))
 - 🔁 **Cross-LLM session handoff** — `session_save`/`session_load` keep a compact, timestamped log of where work stands, so a different model or device (Claude, ChatGPT, a scheduled run) can resume exactly where another stopped; stale sessions auto-expire so the NAS doesn't bloat
 - ⏰ **Scheduling & autonomy** — define cron jobs *as data* (`cron_add`) from any device; a small NAS-side runner triggers an LLM run when a job is due and reports the result back to you. The connector holds the schedule; an LLM runtime executes it.
 
 The model stays in its provider's cloud (or runs locally). **Your data, skills, and secrets stay on your NAS.** Your LLM talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: v1.0 — stable.** One-call `bootstrap` onboarding, memory, the skill router (categorized), HTTP/MQTT/FTP/WebDAV/SSH/SMTP dispatchers, a sandboxed workspace file hub, IPP printing & eSCL scanning, an MCP gateway, multi-agent coordination, cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing* (it sends its usage guide on connect and tells every LLM to call `bootstrap` first and work exclusively through it). New capabilities are added as **data** — no redeploy. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: v1.0 — stable.** One-call `bootstrap` onboarding, self-learning **typed memory** (with a candidate review queue), the skill router (categorized), HTTP/MQTT/FTP/WebDAV/SSH/SMTP dispatchers, a sandboxed workspace file hub, IPP printing & eSCL scanning, an MCP gateway, **presence-aware multi-agent coordination** (capability-routed pull + context-preserving handoff), cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing* (it sends its usage guide on connect and tells every LLM to call `bootstrap` first and work exclusively through it). New capabilities are added as **data** — no redeploy. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -62,7 +62,7 @@ This is where a self-hosted brain pays off most: a private assistant that *remem
 |-------|-------|--------------|
 | Onboarding | `bootstrap` | **Start here** — one call returns the guide + a live catalog of the whole brain (memory, skills, services, devices, cron) |
 | Health | `ping` | Connectivity check |
-| Memory | `memory_write` · `memory_read` · `memory_list` · `memory_search` · `memory_delete` | Durable, scope-namespaced facts on the NAS |
+| Memory | `memory_write` (typed) · `memory_read`/`list`/`search`/`delete` · `memory_note` · `memory_candidates` · `memory_promote`/`memory_reject` | Self-learning, **typed** facts on the NAS with dedup + a candidate review queue |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
 | Services (HTTP) | `service_add` · `service_list` · `call_service` | Register & call any HTTP API as data |
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
@@ -74,7 +74,7 @@ This is where a self-hosted brain pays off most: a private assistant that *remem
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint — by file or inline base64 |
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device via eSCL/AirScan → `/data/work`, optionally straight into Paperless |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
-| Multi-agent | `inbox_post`/`read`/`ack` · `task_add`/`list`/`claim`/`update` · `agent_register`/`list` | Shared inbox, task board & agent registry |
+| Multi-agent | `inbox_*` · `task_add`/`list`/`claim`/`update` · `task_next` · `task_handoff` · `agent_register`/`list` | **Presence-aware** team: capability-routed task *pull* & context-preserving handoff |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
 | Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` | Cron jobs as data; a NAS runner triggers them |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
@@ -89,7 +89,8 @@ AICortex/
 ├── app/                # Server code (FastMCP)
 │   ├── server.py       #   entrypoint — wires auth + registers tool modules
 │   ├── bootstrap.py    #   'start here' tool — loads guide + live brain catalog
-│   ├── memory.py       #   memory tools
+│   ├── memory.py       #   memory tools — typed, dedup, candidate review (auto-memory)
+│   ├── learn.py        #   auto-memory: fail-open candidate-capture middleware (Tier B)
 │   ├── skills.py       #   skill router
 │   ├── services.py     #   generic allow-listed HTTP service caller
 │   ├── mqtt_tools.py   #   generic MQTT dispatcher (devices as data)
@@ -102,7 +103,7 @@ AICortex/
 │   ├── scan_tools.py   #   eSCL scanning (scanners as data) → /data/work / Paperless
 │   ├── netguard.py     #   SSRF egress guard (allow-list internal ranges)
 │   ├── mcp_gateway.py  #   gateway to other MCP servers (servers as data)
-│   ├── coordination.py #   multi-agent inbox / task board / agent registry
+│   ├── coordination.py #   multi-agent — presence, task routing/handoff, inbox/registry
 │   ├── cron.py         #   scheduled jobs as data (a NAS runner fires them)
 │   ├── sessions.py     #   cross-LLM session handoff log (auto-expiring)
 │   ├── secrets_store.py#   encrypted secret vault
@@ -146,6 +147,18 @@ This is the heart of the project — making the assistant *itself* portable, not
 - **Categories keep it cheap — and are mandatory.** Every skill carries a `category` (a synonym `cluster` is also read); `skill_write` **refuses an uncategorized skill** and snaps near-duplicate spellings (`Trading`/`trading`) onto the existing one, so the library can't drift. `skill_list()` returns categories + counts, `skill_list("<category>")` drills in, and `bootstrap` collapses the skill section to per-category counts once the library grows — so a 300-skill library stays a dozen lines, not a token dump. A small set of original starter skills lives in [`examples/skills/`](examples/skills/README.md) — copy them into `data/skills` to seed.
 - **Call `bootstrap` first.** Its tool description tells any LLM to call it at the start of every session — one call loads the guide and a live catalog of the whole brain, so the assistant is oriented before it answers. For clients that don't call tools on their own, add a one-line instruction to your client's **project / system prompt** ("call the `bootstrap` tool first") — see [`docs/client-project-instructions.md`](docs/client-project-instructions.md). After that, "find the right skill / tool and apply it" just happens, from any device.
 
+## Auto-memory — a brain that learns by itself
+
+Most assistants forget the moment a chat ends. AICortex closes that loop: the brain **learns as you work** — and keeps itself tidy while doing it, so it grows instead of drifting into a junk drawer.
+
+- **Typed, on purpose.** Every memory is one of four kinds — `user` (who you are / preferences), `feedback` (how you want the assistant to work), `project` (ongoing goals & status), `reference` (pointers to resources). `memory_write` **refuses an untyped memory** — the same house rule that keeps the skill library tidy — so the brain stays sorted by intent.
+- **Learns in-session, at zero extra cost.** The model that's *already* talking to you distills the durable facts before the session ends and writes them back — no second model, no background loop, no metering. A short discipline baked into the connector's guide makes this automatic.
+- **Dedup-first.** A write searches for overlapping entries and flags them, so related facts get merged into one file instead of multiplying into near-duplicates. Same title = merge.
+- **A review queue, so autonomy never pollutes the brain.** Anything captured automatically — or staged with `memory_note` when the assistant is unsure — lands as a **candidate**, not live memory. `bootstrap` surfaces the count; you (or the assistant) `memory_promote` the keepers and `memory_reject` the rest. Curated memory stays clean by design.
+- **Optional deterministic capture.** A single, fail-open, server-side hook can auto-stage candidates when durable things happen (a new service, device or scheduled job). It's **off by default** (`LEARN_AUTOCAPTURE=1` to enable), never touches secrets, and — because a failure there can never block a tool call or the boot — it's safe to leave on.
+
+Old memories written before the type system are still read correctly; there's nothing to migrate.
+
 ## Tools & integrations (as data)
 
 New integrations don't need new code. A **service** is a small config you register
@@ -156,16 +169,17 @@ encrypted vault or via `.env`), never stored in service data or returned to the
 model. Pair a service with a `skill_write` skill that explains how
 to use it, and a new capability is live **without a redeploy**.
 
-## Multi-agent ready
+## Multi-agent — one brain, many agents
 
-The design lets several agents share one NAS brain without stepping on each other:
+Run your assistants as a **team**: Claude on the desktop, a local model on the NAS, your phone — all sharing one brain and one task board, coordinating without stepping on each other.
 
-- **Namespaced memory** — memory is addressed by scope, so agents share common knowledge while keeping private notes (`shared` vs. per-agent).
-- **Shared skill & tool registry** — every agent queries the same `skill_search` and tool set; add a capability once, all agents get it.
-- **Per-agent workspaces** — isolated working directories under `data/work` for parallel tasks.
-- **Agent inbox + task board** — `inbox_*` (append-only messages), `task_*` (claimable task board) and `agent_*` (registry) let several agents coordinate on one brain.
+- **Live presence.** `agent_register` doubles as a heartbeat, so `agent_list` shows who's **online / idle / away** right now (and `bootstrap` surfaces the team at the top). You always know who's available to take work.
+- **Pull work, don't hunt for it.** `task_next(owner)` recommends the best open task for an agent — ranked *assigned-to-you → matches your capabilities → unassigned* — then `task_claim` takes it. Tasks carry capability tags (`needs`) so the right job reaches the right agent.
+- **Hand off with full context.** `task_handoff(id, to)` reassigns a task, drops the recipient an inbox message, and **attaches the work session** (`session_id`) — they `session_load` and pick up exactly where the other stopped. Pass an empty target to release it back to the pool.
+- **Namespaced memory.** Shared knowledge in `shared`, private notes in `agents/<name>` — agents collaborate without overwriting each other (and auto-memory keeps both tidy).
+- **Shared inbox & registry.** `inbox_*` for messages, `agent_*` for the registry; task status flows `open → claimed → blocked → done`.
 
-Sub-agent *spawning* stays client-side (the model lives in the cloud); the connector is the shared coordination layer. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Sub-agent *spawning* stays client-side (the model lives in the cloud or on local hardware); the connector is the shared coordination layer they meet on. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Autonomy & scheduling
 
@@ -308,6 +322,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Walking skeleton: `ping` tool + remote MCP over HTTPS
 - [x] Authentication: OAuth 2.1 via your own OIDC provider (Pocket ID, Authentik, Keycloak, Auth0, …)
 - [x] Memory tools (`memory_write` / `memory_read` / `memory_list` / `memory_search` / `memory_delete`), scope-namespaced for multi-agent
+- [x] Auto-memory: **typed** memories (`user`/`feedback`/`project`/`reference`, enforced) with dedup, a candidate review queue (`memory_note` / `memory_candidates` / `memory_promote` / `memory_reject`) and an optional fail-open auto-capture hook — the brain learns each session without polluting itself
 - [x] Skill router (`skill_search` / `skill_list` / `skill_load` / `skill_resource` / `skill_write`)
 - [x] Generic service caller (`call_service` / `service_add` / `service_list`) — integrations as data + skills, no redeploy
 - [x] Encrypted secret vault (`secret_set` / `secret_list` / `secret_delete`) — set secrets via the connector; values encrypted at rest, never returned
@@ -323,7 +338,7 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
-- [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — sub-agent *spawning* stays client-side
+- [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — now **presence-aware** (`agent_list` online/idle/away), with capability-routed pull (`task_next`) and context-preserving, session-linked handoff (`task_handoff`); sub-agent *spawning* stays client-side
 - [x] Scheduling: cron jobs as data (`cron_add` / `cron_list` / `cron_delete` + `cron_due` / `cron_mark_run`)
 - [x] Cross-LLM session handoff: timestamped, auto-expiring checkpoints (`session_save` / `session_list` / `session_load` / `session_delete` / `session_prune`) so any model/device resumes where another left off — the 5 most recent surfaced at the top of `bootstrap`
 - [x] Autonomy runner: reference NAS-side runner with a swappable LLM backend ([`runner/`](runner/README.md)) — fires due jobs and notifies you

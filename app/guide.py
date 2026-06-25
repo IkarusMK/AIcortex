@@ -80,9 +80,25 @@ Beispiele (nicht abschließend): Geräte/Aktoren steuern (z.B. Drucker, Licht,
 Schalter, Heizung), Nachrichten senden, Orders/Trades, Zahlungen,
 Löschen/Überschreiben. Lesen/Abfragen ist ohne Rückfrage ok.
 
-MEMORY (Fakten über User & Projekte)
+MEMORY (Fakten über User & Projekte) — LERN-PFLICHT (Auto-Memory)
 - Zu Beginn memory_list / memory_search. Nichts annehmen — erst prüfen.
-- Dauerhafte Fakten mit memory_write(title, content) speichern, kurz & konkret.
+- Das Gehirn lernt durch DICH: Sobald du etwas Dauerhaftes erfährst (wer der User
+  ist / eine Präferenz, eine Korrektur an deiner Arbeitsweise, ein Projektstatus,
+  ein Verweis auf eine Ressource), schreib es SOFORT zurück — spätestens BEVOR du
+  die Session beendest. Nicht warten, bis man dich bittet.
+- TYP-PFLICHT: memory_write(title, content, type=...) braucht IMMER einen der vier
+  Typen — user · feedback · project · reference. Ohne Typ LEHNT memory_write ab
+  (gleiche Ordnung wie bei skill_write). feedback/project: kurz das „Warum"
+  dazuschreiben; project bekommt ein review-Datum.
+- FILTER (nur rein, wenn ALLES zutrifft): (1) dauerhaft, nicht Session-Geplauder ·
+  (2) künftig wiederverwendbar · (3) nicht eh im Code/Git auffindbar ·
+  (4) KEIN Secret (das in den Vault, nie in Memory) · (5) stabil, oder mit Datum.
+- DEDUP-FIRST: erst memory_search, dann schreiben. Gleicher Titel = Merge.
+  Verwandtes lieber in EINE Datei zusammenführen statt Beinah-Duplikate anzulegen
+  (memory_write warnt bei Überschneidung).
+- UNSICHER? → memory_note(...) legt einen KANDIDATEN ab (nicht live), den du oder
+  der User später prüft. Wartende Kandidaten: memory_candidates → memory_promote
+  (übernehmen) / memory_reject (verwerfen). bootstrap zeigt die Anzahl oben an.
 
 SKILLS (wiederverwendbares Know-how)
 - Vor Spezial-Aufgaben skill_search(query), dann skill_load(name) und befolgen.
@@ -122,11 +138,20 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
 
-MULTI-AGENT (geteilter Koordinations-Layer für mehrere LLM-Agenten)
-- Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
-- Task-Board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
-- Registry: agent_register(name, role) zu Beginn / agent_list. So teilen Mac, Handy
-  und geplante Läufe Nachrichten & Aufgaben (Wissen weiter über Memory-Scopes).
+MULTI-AGENT (geteilter Koordinations-Layer — Mac, NAS-Ollama, Handy als EIN Team)
+- ANMELDEN = Präsenz-Herzschlag: agent_register(name, role, capabilities[, status])
+  zu Beginn JEDER Session und beim Wiederaufnehmen. capabilities = Tags zum Routen
+  (z.B. "mql5, build, vision"). agent_list zeigt, wer gerade online/idle/away ist.
+- ARBEIT ZIEHEN statt suchen: task_next(owner[, caps]) empfiehlt die passendste
+  offene Aufgabe (dir zugewiesen → Capability-Treffer → frei), dann task_claim(id, owner).
+- AUFGABEN ANLEGEN: task_add(title[, needs, for_agent, session_id]). needs = nötige
+  Capability, for_agent = direkt zuweisen, session_id = Arbeits-Session verknüpfen.
+- ÜBERGEBEN MIT KONTEXT: task_handoff(id, to[, note]) reicht eine Aufgabe weiter,
+  benachrichtigt den Empfänger per Inbox und hängt die session_id an → der Übernehmer
+  macht session_load und ist sofort im Bild. to="" gibt sie wieder frei.
+- Status: open/claimed/blocked/done via task_update. Inbox: inbox_post(to, body,
+  sender) / inbox_read(agent) / inbox_ack(id). Wissen weiter über Memory-Scopes
+  (shared bzw. agents/<name>). bootstrap zeigt Team-Präsenz + Board oben an.
 
 SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
 - session_save(summary, next_steps, model[, session_id, title]): einen Checkpoint
@@ -197,8 +222,24 @@ controlling devices/actuators (e.g. printer, lights, switches, heating), sending
 messages, orders/trades, payments, deleting/overwriting. Reading/querying is fine
 without asking.
 
-MEMORY: at task start call memory_list / memory_search; don't assume. Save durable
-facts with memory_write(title, content).
+MEMORY (facts about user & projects) — LEARN AS YOU GO (auto-memory)
+- At task start call memory_list / memory_search; don't assume.
+- The brain learns through YOU: the moment you discover something durable (who the
+  user is / a preference, a correction to how you should work, project status, a
+  pointer to a resource), write it back IMMEDIATELY — at the latest BEFORE you end
+  the session. Don't wait to be asked.
+- TYPE REQUIRED: memory_write(title, content, type=...) always needs one of four
+  types — user · feedback · project · reference. Without a type memory_write
+  REFUSES (same house rule as skill_write). For feedback/project add the short
+  "why"; give project a review date.
+- FILTER (store only if ALL hold): (1) durable, not session chatter · (2) reusable
+  in future · (3) not already discoverable in code/git · (4) NOT a secret (vault,
+  never memory) · (5) stable, or dated.
+- DEDUP-FIRST: memory_search before writing. Same title = merge. Fold related
+  facts into ONE file instead of near-duplicates (memory_write flags overlaps).
+- UNSURE? → memory_note(...) stages a CANDIDATE (not live) for later review.
+  Pending candidates: memory_candidates → memory_promote (keep) / memory_reject
+  (drop). bootstrap shows the count at the top.
 
 SKILLS: before specialized work, skill_search(query) then skill_load(name) and
 follow it. To "learn", call skill_write(name, description, instructions, category,
@@ -236,11 +277,20 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
 
-MULTI-AGENT (shared coordination layer for several LLM agents)
-- Inbox: inbox_post(to, body, sender) / inbox_read(agent) / inbox_ack(id).
-- Task board: task_add / task_list / task_claim(id, owner) / task_update(id, status).
-- Registry: agent_register(name, role) at start / agent_list. Lets desktop, mobile
-  and scheduled runs share messages & tasks (knowledge still via memory scopes).
+MULTI-AGENT (shared coordination layer — desktop, NAS-Ollama, mobile as ONE team)
+- REGISTER = presence heartbeat: agent_register(name, role, capabilities[, status])
+  at the start of EVERY session and when you resume. capabilities = tags for routing
+  (e.g. "mql5, build, vision"). agent_list shows who is online/idle/away right now.
+- PULL work instead of hunting: task_next(owner[, caps]) recommends the best open
+  task (assigned to you → capability match → unassigned), then task_claim(id, owner).
+- CREATE tasks: task_add(title[, needs, for_agent, session_id]). needs = required
+  capability, for_agent = direct assignment, session_id = link a work session.
+- HAND OFF WITH CONTEXT: task_handoff(id, to[, note]) passes a task on, notifies the
+  recipient via inbox and attaches the session_id → they session_load and are
+  instantly up to speed. to="" releases it back to open.
+- Status: open/claimed/blocked/done via task_update. Inbox: inbox_post(to, body,
+  sender) / inbox_read(agent) / inbox_ack(id). Knowledge still flows via memory
+  scopes (shared or agents/<name>). bootstrap shows team presence + board at the top.
 
 SESSION HANDOFF (resume seamlessly from any LLM/device)
 - session_save(summary, next_steps, model[, session_id, title]): drop a checkpoint —
