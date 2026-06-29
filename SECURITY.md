@@ -33,9 +33,12 @@ through an authenticated HTTPS endpoint.
   (private/loopback/link-local/metadata IPs blocked unless allow-listed), and
   **secrets live in an encrypted vault**, injected server-side and never returned.
 - **Authentication is required before exposure.** Without OIDC the server binds to
-  localhost only. *Note:* authentication is not fine-grained authorization — any
-  identity that can log in currently gets the full tool set (a per-credential
-  authorization layer is on the roadmap; see below).
+  localhost only. An **authorization layer (on by default; `AUTH_ENFORCE=0` to
+  disable)** adds least-privilege on top: roles (admin / user / viewer),
+  deny-by-default tool permissions (registration/secrets/identity tools are
+  admin-only), per-credential identity binding and an audit log. The shared
+  `RUNNER_TOKEN` is a non-admin "user"; an interactive OIDC operator is "admin".
+  Roles can also be driven from an IdP role/group claim (`AUTH_ROLE_CLAIM`).
 - **State-changing / physical / outbound actions** (device control, sending mail,
   deletes) are expected to be confirmed with the user before execution.
 
@@ -57,5 +60,9 @@ TLS-verification defaults (FTP/MQTT/WebDAV), SSH host-key pinning, resource
 limits, and **connect-time DNS-rebinding protection** (the egress IP policy is
 re-applied at connect, not just at preflight) — see the
 [release notes](https://github.com/IkarusMK/AIcortex/releases).
-**Tracked for a later release:** a per-credential authorization layer (tool
-allow-lists / read-only mode / operator-only admin tools).
+**v1.3** adds the **authorization layer**, on by default (roles, deny-by-default
+tool permissions, audit log, per-credential identity binding, optional IdP
+role/group claim; `AUTH_ENFORCE=0` to disable) plus a `mail_send` recipient
+allow-list. **Tracked for a later release (v2.x):** full multi-user accounts,
+groups, and per-user API keys / token rotation — including forwarding the IdP
+group claim through the OIDC proxy so it can drive roles end-to-end.

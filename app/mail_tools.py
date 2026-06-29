@@ -24,6 +24,24 @@ _TYPES = {"pdf": ("application", "pdf"), "png": ("image", "png"),
           "jpg": ("image", "jpeg"), "jpeg": ("image", "jpeg"),
           "txt": ("text", "plain"), "csv": ("text", "csv")}
 
+# Max attachment size accepted (default 25 MB).
+_MAX_ATTACH = int(os.environ.get("MAIL_MAX_ATTACH_BYTES", str(25_000_000)))
+
+
+def _recipient_allowed(rcpt: str, allow: list) -> bool:
+    """A recipient is allowed if it matches an allow entry: exact address,
+    a '@domain' suffix, or a bare 'domain'."""
+    r = rcpt.lower()
+    for a in allow:
+        a = a.lower()
+        if a == r:
+            return True
+        if a.startswith("@") and r.endswith(a):
+            return True
+        if "@" not in a and r.endswith("@" + a):
+            return True
+    return False
+
 
 def _slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
@@ -118,10 +136,20 @@ def register(mcp):
                 return "Attachment must be under /data."
             if not ap.is_file():
                 return f"No attachment file at '{ap}'."
+            if ap.stat().st_size > _MAX_ATTACH:
+                return f"Refused: attachment is {ap.stat().st_size} bytes, over the {_MAX_ATTACH}-byte limit."
             maintype, subtype = _TYPES.get(ap.suffix.lower().lstrip("."), ("application", "octet-stream"))
             msg.add_attachment(ap.read_bytes(), maintype=maintype, subtype=subtype, filename=ap.name)
 
         rcpts = [a.strip() for a in (to + ("," + cc if cc else "")).split(",") if a.strip()]
+        # #11: optional recipient allow-list (server-side policy). Unset = unrestricted.
+        raw_allow = os.environ.get("MAIL_ALLOWED_RECIPIENTS", "").strip()
+        if raw_allow:
+            allow = [x for x in re.split(r"[,\s]+", raw_allow) if x]
+            bad = [r for r in rcpts if not _recipient_allowed(r, allow)]
+            if bad:
+                return ("Refused: recipient(s) not allowed by MAIL_ALLOWED_RECIPIENTS — "
+                        f"{', '.join(bad)}. Ask the operator to permit them.")
         sec = cfg.get("security", "starttls")
         port = int(cfg.get("port", 587))
         try:
