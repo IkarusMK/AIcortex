@@ -19,6 +19,7 @@ import netguard
 import secrets_store
 
 SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
+SSH_KNOWN_HOSTS = SSH_DIR / "known_hosts"
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
 WORK_DIR = Path(os.environ.get("WORK_DIR", "/data/work"))
 
@@ -63,7 +64,22 @@ def _connect(cfg: dict):
     except Exception:
         return None, "paramiko not installed in the image."
     cli = paramiko.SSHClient()
-    cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # Persisted known_hosts → host keys are PINNED on first use: if a host's key
+    # later changes (MITM / impersonation), paramiko raises BadHostKeyException
+    # instead of silently trusting it (the old AutoAddPolicy-without-known_hosts
+    # re-trusted blindly every time). Set SSH_STRICT_HOST_KEYS=1 to reject unknown
+    # hosts entirely (no trust-on-first-use; pre-populate data/ssh/known_hosts).
+    try:
+        SSH_DIR.mkdir(parents=True, exist_ok=True)
+        if not SSH_KNOWN_HOSTS.exists():
+            SSH_KNOWN_HOSTS.touch()
+        cli.load_host_keys(str(SSH_KNOWN_HOSTS))  # also sets the save path for TOFU
+    except Exception:
+        pass
+    if os.environ.get("SSH_STRICT_HOST_KEYS") == "1":
+        cli.set_missing_host_key_policy(paramiko.RejectPolicy())
+    else:
+        cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     kwargs = dict(hostname=host, port=int(cfg.get("port", 22)),
                   username=cfg.get("username"), timeout=30,
                   allow_agent=False, look_for_keys=False)

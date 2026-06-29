@@ -14,7 +14,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 WORK_DIR = Path(os.environ.get("WORK_DIR", "/data/work")).resolve()
-_MAX_READ = 200_000  # bytes returned by fs_read (text)
+_MAX_READ = 200_000        # default bytes returned by fs_read (text)
+_READ_CEILING = 5_000_000  # hard cap a caller may request, even with a big max_bytes
+_MAX_WRITE = int(os.environ.get("FS_MAX_WRITE_BYTES", str(5_000_000)))  # per fs_write
+# Total workspace size cap (default 2 GB). Set FS_WORKSPACE_QUOTA_BYTES to tune.
+_WORKSPACE_QUOTA = int(os.environ.get("FS_WORKSPACE_QUOTA_BYTES", str(2_000_000_000)))
+
+
+def _usage() -> int:
+    """Total bytes currently used under WORK_DIR (best effort)."""
+    total = 0
+    for root, _dirs, files in os.walk(WORK_DIR):
+        for fn in files:
+            try:
+                total += (Path(root) / fn).stat().st_size
+            except Exception:
+                pass
+    return total
 
 
 def _resolve(rel: str):
@@ -70,12 +86,17 @@ def register(mcp):
             return "Path escapes the workspace."
         if not p.is_file():
             return f"No file at '{path}'."
+        # Read only up to the cap from disk (don't load a multi-GB file into RAM
+        # just to slice it afterwards). max_bytes is itself capped at _READ_CEILING.
+        n = max(1, min(int(max_bytes), _READ_CEILING))
         try:
-            data = p.read_bytes()[:max(1, int(max_bytes))]
+            with p.open("rb") as fh:
+                data = fh.read(n)
             text = data.decode("utf-8", errors="replace")
         except Exception as exc:
             return f"Could not read: {exc}"
-        more = "" if p.stat().st_size <= len(data) else f"\n…(truncated; {_size(p.stat().st_size)} total)"
+        total = p.stat().st_size
+        more = "" if total <= len(data) else f"\n…(truncated; returned {_size(len(data))} of {_size(total)})"
         return text + more
 
     @mcp.tool
@@ -84,10 +105,20 @@ def register(mcp):
         p = _resolve(path)
         if p is None:
             return "Path escapes the workspace."
+        content = content or ""
+        nbytes = len(content.encode("utf-8"))
+        if nbytes > _MAX_WRITE:
+            return (f"Refused: content is {_size(nbytes)}, over the {_size(_MAX_WRITE)} "
+                    "per-write limit (use the transfer tools for large files).")
+        # Reject before touching disk if it would blow the workspace quota.
+        existing = p.stat().st_size if (append and p.is_file()) else 0
+        if _usage() - existing + nbytes > _WORKSPACE_QUOTA:
+            return (f"Refused: workspace is {_size(_usage())} of the {_size(_WORKSPACE_QUOTA)} "
+                    "quota — this write would exceed it. Tidy /data/work (fs_delete) first.")
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
             with open(p, "a" if append else "w", encoding="utf-8") as f:
-                f.write(content or "")
+                f.write(content)
         except Exception as exc:
             return f"Could not write: {exc}"
         return f"{'Appended to' if append else 'Wrote'} '{path}' ({_size(p.stat().st_size)})."
@@ -108,8 +139,10 @@ def register(mcp):
         return f"Moved '{source}' → '{dest}'."
 
     @mcp.tool
-    def fs_delete(path: str) -> str:
-        """Delete a file or folder in the workspace. STATE-CHANGING — confirm first."""
+    def fs_delete(path: str, confirm: bool = False) -> str:
+        """Delete a file or folder in the workspace. STATE-CHANGING — confirm first.
+        Deleting a NON-EMPTY folder (recursive) requires confirm=true as a guard
+        against wiping the whole hub by accident."""
         p = _resolve(path)
         if p is None or p == WORK_DIR:
             return "Refused (path escapes the workspace or is the root)."
@@ -117,6 +150,9 @@ def register(mcp):
             return f"No such path '{path}'."
         try:
             if p.is_dir():
+                if any(p.iterdir()) and not confirm:
+                    return (f"Refused: '{path}' is a non-empty folder. Re-call with "
+                            "confirm=true to delete it and ALL its contents.")
                 shutil.rmtree(p)
             else:
                 p.unlink()

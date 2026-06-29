@@ -67,7 +67,7 @@ def _connect(cfg):
     port = int(cfg.get("port") or 21)
     mode = (cfg.get("tls") or "none").lower()  # none | explicit | implicit
     ctx = ssl.create_default_context()
-    if cfg.get("tls_insecure", True):
+    if cfg.get("tls_insecure", False):  # default: verify (only self-signed LAN devices opt out)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
@@ -106,13 +106,14 @@ def _safe_source(nas_path: str):
 def register(mcp):
     @mcp.tool
     def ftp_add(name: str, host: str, port: int = 21, tls: str = "none",
-                tls_insecure: bool = True, username: str = "",
+                tls_insecure: bool = False, username: str = "",
                 password_env: str = "", description: str = "") -> str:
         """Register/update an FTP/FTPS endpoint as DATA (no redeploy).
         tls: "none" | "explicit" | "implicit". password_env = NAME of the secret
-        (store it with secret_set). Example for an implicit-FTPS LAN device:
-        host=<device-ip>, port=990, tls="implicit", username=<user>,
-        password_env=<secret-name>."""
+        (store it with secret_set). TLS certificates are VERIFIED by default; only
+        set tls_insecure=true for a self-signed LAN device (e.g. a 3D printer's SD
+        card over implicit FTPS). Example: host=<device-ip>, port=990,
+        tls="implicit", tls_insecure=true, username=<user>, password_env=<secret>."""
         try:
             FTP_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {

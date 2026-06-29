@@ -9,10 +9,18 @@ precedence over the vault.
 """
 import json
 import os
+import shutil
 from pathlib import Path
 
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
 VAULT_FILE = VAULT_DIR / "secrets.enc"
+VAULT_BAK = VAULT_DIR / "secrets.enc.bak"
+
+
+class VaultUnreadable(Exception):
+    """The vault file exists but could not be decrypted/parsed. Distinct from an
+    empty/missing vault — we must NEVER treat this as empty and overwrite it,
+    or a wrong STORAGE_ENCRYPTION_KEY / corruption would destroy all secrets."""
 
 
 def _fernet():
@@ -24,23 +32,43 @@ def _fernet():
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 
-def _read_all() -> dict:
+def _read_all(strict: bool = False) -> dict:
+    """Read the vault. Missing file → {} (genuinely empty). Existing-but-unreadable
+    file → raise VaultUnreadable when strict (used before any write), else {} for
+    best-effort reads (get_secret). This fail-closed split is what prevents a
+    silent wipe on the next write when the key is wrong or the file is corrupt."""
     if not VAULT_FILE.exists():
         return {}
-    raw = VAULT_FILE.read_bytes()
-    f = _fernet()
     try:
+        raw = VAULT_FILE.read_bytes()
+        f = _fernet()
         data = f.decrypt(raw) if f else raw
-        return json.loads(data)
-    except Exception:
+        obj = json.loads(data)
+        if not isinstance(obj, dict):
+            raise ValueError("vault content is not a JSON object")
+        return obj
+    except Exception as exc:
+        if strict:
+            raise VaultUnreadable(str(exc)) from exc
         return {}
 
 
 def _write_all(d: dict) -> None:
+    """Atomic write with a one-generation backup: write a temp file, snapshot the
+    current vault to .bak, then os.replace (atomic) so a crash mid-write can't
+    leave a truncated vault."""
     VAULT_DIR.mkdir(parents=True, exist_ok=True)
     blob = json.dumps(d).encode()
     f = _fernet()
-    VAULT_FILE.write_bytes(f.encrypt(blob) if f else blob)
+    out = f.encrypt(blob) if f else blob
+    tmp = VAULT_DIR / "secrets.enc.tmp"
+    tmp.write_bytes(out)
+    if VAULT_FILE.exists():
+        try:
+            shutil.copy2(VAULT_FILE, VAULT_BAK)
+        except Exception:
+            pass
+    os.replace(tmp, VAULT_FILE)
 
 
 def get_secret(name: str):
@@ -63,7 +91,14 @@ def register(mcp):
                     "print(Fernet.generate_key().decode())\"`, set it as "
                     "STORAGE_ENCRYPTION_KEY and restart — or set ALLOW_PLAINTEXT_VAULT=1 "
                     "to override (NOT recommended).")
-        d = _read_all()
+        try:
+            d = _read_all(strict=True)
+        except VaultUnreadable as exc:
+            return ("Refusing to write: the existing vault exists but could NOT be "
+                    f"decrypted/parsed ({exc}). This usually means STORAGE_ENCRYPTION_KEY "
+                    "changed or the file is corrupt. Writing now would DESTROY the stored "
+                    "secrets. Fix the key (or restore data/vault/secrets.enc from "
+                    "secrets.enc.bak), then retry — nothing was changed.")
         d[name] = value
         _write_all(d)
         return f"Stored secret '{name}' (encrypted on the NAS). It will not be shown again."
@@ -77,7 +112,12 @@ def register(mcp):
     @mcp.tool
     def secret_delete(name: str) -> str:
         """Delete a stored secret by name."""
-        d = _read_all()
+        try:
+            d = _read_all(strict=True)
+        except VaultUnreadable as exc:
+            return ("Refusing to modify: the vault could not be decrypted/parsed "
+                    f"({exc}) — changing it now would destroy the other secrets. Fix "
+                    "STORAGE_ENCRYPTION_KEY (or restore secrets.enc.bak) and retry.")
         if name in d:
             del d[name]
             _write_all(d)

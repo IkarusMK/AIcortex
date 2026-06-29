@@ -289,6 +289,8 @@ force an open bind without auth (not recommended).
 - **Forwarded headers.** `FORWARDED_ALLOW_IPS` defaults to `*` (fine on an isolated Docker network). If the container is directly reachable, scope it to your proxy's source IP/subnet.
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
+**Hardening (v1.2).** Following an external security review, v1.2 adds: a **fail-closed vault** (an unreadable/wrong-key vault is never silently overwritten — writes refuse and a `.bak` is kept), **TLS verification on by default** for FTP/MQTT/WebDAV (self-signed LAN devices opt out per-endpoint with `tls_insecure=true`), **SSH host-key pinning** via a persisted `known_hosts` (a changed key is rejected; `SSH_STRICT_HOST_KEYS=1` for no trust-on-first-use), and **resource limits** on the workspace file tools and printing (size caps + a workspace quota; recursive folder delete needs `confirm`). Remaining items from the review — a per-credential authorization layer and DNS-pinning — are tracked for a later release.
+
 ## Deploying on a VPS or over a VPN
 
 The connector is just an HTTPS MCP endpoint, so it runs anywhere Docker does — your NAS, a VPS, or a cloud box — and reaches devices over whatever network you give it. The SSRF guard makes that safe:
@@ -347,4 +349,4 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 
 ## License
 
-[MIT](LICENSE) © 2026 IkarusMK
+[Apache License 2.0](LICENSE) © 2026 IkarusMK

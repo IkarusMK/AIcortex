@@ -25,6 +25,9 @@ import netguard
 
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
+# Max document size accepted for a single print job (default 20 MB). Guards
+# against loading a huge payload into memory and printer-spool abuse.
+_MAX_DOC = int(os.environ.get("PRINT_MAX_BYTES", str(20_000_000)))
 
 # IPP value tags (RFC 8011 §5.1.x)
 _TAG_CHARSET = 0x47
@@ -156,6 +159,8 @@ def register(mcp):
                 data = base64.b64decode(content_base64)
             except Exception:
                 return "content_base64 is not valid base64."
+            if len(data) > _MAX_DOC:
+                return f"Refused: document is {len(data)} bytes, over the {_MAX_DOC}-byte print limit."
         elif file:
             p = Path(file)
             if not p.is_absolute():
@@ -165,6 +170,9 @@ def register(mcp):
                 return "File must be under /data."
             if not p.is_file():
                 return f"No file at '{p}'."
+            # Check size before reading so a huge file can't exhaust memory.
+            if p.stat().st_size > _MAX_DOC:
+                return f"Refused: '{p.name}' is {p.stat().st_size} bytes, over the {_MAX_DOC}-byte print limit."
             data = p.read_bytes()
             if not job_name:
                 job_name = p.name

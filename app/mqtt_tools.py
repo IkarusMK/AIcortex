@@ -97,14 +97,15 @@ def _new_client(cfg):
 def register(mcp):
     @mcp.tool
     def mqtt_add(name: str, host: str, port: int = 8883, tls: bool = True,
-                 tls_insecure: bool = True, username: str = "",
+                 tls_insecure: bool = False, username: str = "",
                  password_env: str = "", client_id: str = "",
                  description: str = "") -> str:
         """Register/update an MQTT broker or device as DATA (no redeploy).
 
         password_env = NAME of the secret holding the password (store it with
-        secret_set); never stored here. Example for a TLS MQTT device on a LAN:
-        host=<device-ip>, port=8883, tls=true, tls_insecure=true,
+        secret_set); never stored here. TLS certificates are VERIFIED by default;
+        only set tls_insecure=true for a self-signed LAN device. Example for such a
+        device: host=<device-ip>, port=8883, tls=true, tls_insecure=true,
         username=<user>, password_env=<secret-name>."""
         try:
             MQTT_DIR.mkdir(parents=True, exist_ok=True)
