@@ -1,4 +1,14 @@
-# AICortex
+<p align="center">
+  <img src="assets/banner.svg" alt="AICortex — your self-hosted LLM brain, on your own NAS" width="100%">
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache_2.0-3dd6b5"></a>
+  <a href="https://github.com/IkarusMK/AIcortex/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/IkarusMK/AIcortex?sort=semver&color=818cf8"></a>
+  <a href="https://github.com/IkarusMK/AIcortex/actions/workflows/build.yml"><img alt="Build" src="https://github.com/IkarusMK/AIcortex/actions/workflows/build.yml/badge.svg"></a>
+  <img alt="Protocol: MCP" src="https://img.shields.io/badge/protocol-MCP-7c3aed">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2ea043">
+</p>
 
 > A private, self-hosted brain for your LLM — on your own NAS.
 
@@ -47,6 +57,16 @@ Autonomy (optional): a NAS-side runner — a scheduled `claude -p` — polls
 (push / inbox). The connector stores the schedule; the runner is the LLM
 runtime that actually fires it.
 ```
+
+## How AICortex differs
+
+The "LLM brain" space has some great projects — AICortex deliberately sits in a different spot:
+
+- **[GBrain](https://github.com/garrytan/gbrain)** is a *memory engine* — markdown-first, Postgres/PGLite-backed, with a self-wiring knowledge graph and hybrid/vector search. Deep retrieval, one concern.
+- **[CortexPrism](https://cortexprism.io/)** is a full *agent operating system* — its own runtime, ~30 LLM providers, a plugin marketplace, sandboxed code execution and multi-user teams. Batteries included, heavyweight.
+- **AICortex** is a single, lightweight *MCP connector*: one container on your NAS that gives any MCP client (Claude, ChatGPT, a local model) a persistent brain — memory **and** skills, devices, sessions, secrets and scheduling — where new integrations are added as **data, no redeploy**. No database, no graph, no marketplace; you bring your own LLM client.
+
+Rule of thumb: want a dedicated memory/graph engine → GBrain; want a batteries-included agent OS → CortexPrism; want a minimal self-hosted connector that plugs your existing LLM app into your own stuff → AICortex.
 
 ## Run it with a local model (Ollama)
 
