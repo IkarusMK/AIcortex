@@ -97,7 +97,9 @@ def _connect(cfg: dict):
             return None, f"Needs secret '{cfg['password_env']}'. Use secret_set."
         kwargs["password"] = pw
     try:
-        cli.connect(**kwargs)
+        # guard(host): enforce the egress IP policy at CONNECT time (anti rebinding)
+        with netguard.guard(host):
+            cli.connect(**kwargs)
     except Exception as exc:
         return None, f"SSH connect failed: {exc}"
     return cli, None

@@ -73,21 +73,21 @@ def _connect(cfg):
 
     if mode == "implicit":
         ftp = _ImplicitFTP_TLS(context=ctx)
-        ftp.connect(host, port, timeout=30)
     elif mode == "explicit":
         ftp = ftplib.FTP_TLS(context=ctx)
-        ftp.connect(host, port, timeout=30)
     else:
         ftp = ftplib.FTP()
-        ftp.connect(host, port, timeout=30)
 
-    username = cfg.get("username") or "anonymous"
-    password = ""
-    if cfg.get("password_env"):
-        password = secrets_store.get_secret(cfg["password_env"]) or ""
-    ftp.login(username, password)
-    if mode in ("implicit", "explicit"):
-        ftp.prot_p()  # encrypt the data channel too
+    # guard(host): enforce the egress IP policy at CONNECT time (anti DNS-rebinding)
+    with netguard.guard(host):
+        ftp.connect(host, port, timeout=30)
+        username = cfg.get("username") or "anonymous"
+        password = ""
+        if cfg.get("password_env"):
+            password = secrets_store.get_secret(cfg["password_env"]) or ""
+        ftp.login(username, password)
+        if mode in ("implicit", "explicit"):
+            ftp.prot_p()  # encrypt the data channel too
     return ftp
 
 
