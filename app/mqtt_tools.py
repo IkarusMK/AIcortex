@@ -82,7 +82,9 @@ def _new_client(cfg):
 
     client.on_connect = on_connect
     port = int(cfg.get("port") or (8883 if cfg.get("tls") else 1883))
-    client.connect(cfg["host"], port, keepalive=30)
+    # guard(host): enforce the egress IP policy at CONNECT time (anti DNS-rebinding)
+    with netguard.guard(cfg.get("host", "")):
+        client.connect(cfg["host"], port, keepalive=30)
     client.loop_start()
     if not connected.wait(timeout=10):
         client.loop_stop()

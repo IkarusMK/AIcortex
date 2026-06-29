@@ -130,7 +130,7 @@ def register(mcp):
             return base
         url = base + (path or "").lstrip("/")
         try:
-            with client:
+            with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("PROPFIND", url, headers={"Depth": "1"})
         except Exception as exc:
             return f"List failed: {exc}"
@@ -171,7 +171,7 @@ def register(mcp):
             return base
         url = base + dest.lstrip("/")
         try:
-            with client, open(src, "rb") as f:
+            with netguard.guard(urlparse(base).hostname or ""), client, open(src, "rb") as f:
                 r = client.put(url, content=f)
         except Exception as exc:
             return f"Upload failed: {exc}"
@@ -194,7 +194,7 @@ def register(mcp):
         name = re.sub(r"[^A-Za-z0-9._-]+", "_", dest or path.rstrip("/").split("/")[-1] or "download")
         out_path = WORK_DIR / name
         try:
-            with client:
+            with netguard.guard(urlparse(base).hostname or ""), client:
                 with client.stream("GET", url) as r:
                     if r.status_code != 200:
                         return f"Download returned HTTP {r.status_code}. Check the path."
@@ -216,7 +216,7 @@ def register(mcp):
             return base
         url = base + path.strip("/") + "/"
         try:
-            with client:
+            with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("MKCOL", url)
         except Exception as exc:
             return f"mkdir failed: {exc}"
@@ -235,7 +235,7 @@ def register(mcp):
             return base
         url = base + path.lstrip("/")
         try:
-            with client:
+            with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("DELETE", url)
         except Exception as exc:
             return f"Delete failed: {exc}"

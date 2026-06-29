@@ -12,6 +12,7 @@ import json
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
@@ -139,7 +140,8 @@ def register(mcp):
             # (custom-header APIs) send the raw token value.
             headers[header_name] = f"{scheme} {token}".strip() if scheme else token
         try:
-            r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)
+            with netguard.guard(urlparse(url).hostname or ""):
+                r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)
             body = r.text
             if len(body) > 4000:
                 body = body[:4000] + "\n…(truncated)"

@@ -16,6 +16,7 @@ import json
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import netguard
 import secrets_store
@@ -146,8 +147,9 @@ def register(mcp):
             return f"Blocked by network policy — {reason}"
         try:
             client = _make_client(cfg)
-            async with client:
-                tools = await client.list_tools()
+            with netguard.guard(urlparse(cfg.get("url", "")).hostname or ""):
+                async with client:
+                    tools = await client.list_tools()
         except Exception as exc:
             return f"Could not reach '{server}': {exc}"
         if not tools:
@@ -170,8 +172,9 @@ def register(mcp):
             return f"Blocked by network policy — {reason}"
         try:
             client = _make_client(cfg)
-            async with client:
-                result = await client.call_tool(tool, args or {})
+            with netguard.guard(urlparse(cfg.get("url", "")).hostname or ""):
+                async with client:
+                    result = await client.call_tool(tool, args or {})
             return _format_result(result)
         except Exception as exc:
             return f"Call failed: {exc}"

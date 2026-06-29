@@ -17,9 +17,11 @@ LAN and/or a VPN subnet:
     INTERNAL_ALLOW_CIDRS=<your-lan-cidr>,<your-vpn-cidr>
     e.g. 192.168.0.0/16,10.0.0.0/8,100.64.0.0/10
 """
+import contextlib
 import ipaddress
 import os
 import socket
+import threading
 from urllib.parse import urlparse
 
 
@@ -78,3 +80,72 @@ def check_url(url: str):
     """check_host for an http(s) URL — extracts and validates the hostname."""
     host = urlparse(url).hostname
     return check_host(host)
+
+
+def _ip_allowed(ip, nets) -> bool:
+    """Egress policy for one IP: public is fine; private/link-local/etc only if
+    inside an operator allow-listed CIDR."""
+    return ip.is_global or any(ip in n for n in nets)
+
+
+# ── DNS-rebinding guard (close the check→connect TOCTOU) ───────────────────
+# check_host() validates at preflight, but the client libraries (httpx, ftplib,
+# paramiko, paho) resolve again at CONNECT time — a hostname that answered with a
+# public IP during the check can answer with an internal IP at connect (DNS
+# rebinding). guard(host) wraps the actual network call: while active it filters
+# socket.getaddrinfo so the policy is re-applied to the connect-time addresses,
+# dropping any disallowed IP. TLS/SNI is unaffected (the hostname is unchanged),
+# so certificate verification keeps working. Refcounted + thread-safe so
+# concurrent calls to different hosts coexist; only guarded hosts are filtered,
+# everything else resolves normally.
+_guard_lock = threading.Lock()
+_guarded: dict = {}
+_orig_getaddrinfo = None
+
+
+def _filtered_getaddrinfo(host, *args, **kwargs):
+    res = _orig_getaddrinfo(host, *args, **kwargs)
+    key = (host or "").strip().strip("[]").lower()
+    with _guard_lock:
+        guarded = key in _guarded
+    if not guarded:
+        return res
+    nets = _allowed_cidrs()
+    allowed = []
+    for entry in res:
+        try:
+            ip = ipaddress.ip_address(entry[4][0].split("%")[0])
+        except (ValueError, IndexError):
+            continue
+        if _ip_allowed(ip, nets):
+            allowed.append(entry)
+    if not allowed:
+        raise socket.gaierror(
+            f"netguard: every address for '{host}' is internal/blocked at connect "
+            f"time (possible DNS rebinding); none in INTERNAL_ALLOW_CIDRS")
+    return allowed
+
+
+@contextlib.contextmanager
+def guard(host: str):
+    """Enforce the egress IP policy at CONNECT time for `host` (anti-rebinding).
+    Wrap the network call: `with netguard.guard(host): client.request(...)`."""
+    global _orig_getaddrinfo
+    key = (host or "").strip().strip("[]").lower()
+    with _guard_lock:
+        _guarded[key] = _guarded.get(key, 0) + 1
+        if _orig_getaddrinfo is None:
+            _orig_getaddrinfo = socket.getaddrinfo
+            socket.getaddrinfo = _filtered_getaddrinfo
+    try:
+        yield
+    finally:
+        with _guard_lock:
+            n = _guarded.get(key, 0) - 1
+            if n <= 0:
+                _guarded.pop(key, None)
+            else:
+                _guarded[key] = n
+            if not _guarded and _orig_getaddrinfo is not None:
+                socket.getaddrinfo = _orig_getaddrinfo
+                _orig_getaddrinfo = None
