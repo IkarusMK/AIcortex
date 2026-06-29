@@ -53,8 +53,9 @@ dispatchers.
 ## Hardening status
 
 Following an external review, **v1.2** hardened the vault (fail-closed),
-TLS-verification defaults (FTP/MQTT/WebDAV), SSH host-key pinning, and resource
-limits — see the [release notes](https://github.com/IkarusMK/AIcortex/releases).
+TLS-verification defaults (FTP/MQTT/WebDAV), SSH host-key pinning, resource
+limits, and **connect-time DNS-rebinding protection** (the egress IP policy is
+re-applied at connect, not just at preflight) — see the
+[release notes](https://github.com/IkarusMK/AIcortex/releases).
 **Tracked for a later release:** a per-credential authorization layer (tool
-allow-lists / read-only mode / operator-only admin tools) and DNS-rebinding
-pinning.
+allow-lists / read-only mode / operator-only admin tools).
