@@ -35,6 +35,7 @@ import secrets_store
 import guide
 import bootstrap
 import learn
+import authz
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -123,6 +124,23 @@ auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
 mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
+
+
+# Authorization (Welle 3): central, FAIL-OPEN policy gate. OFF unless
+# AUTH_ENFORCE=1; when on, the RUNNER_TOKEN defaults to a non-admin role so
+# admin-only tools (service_add/mcp_add/cron_add/secret_set/…) are blocked for it,
+# while an interactive OIDC operator stays admin. Added first so it gates before
+# any other middleware. Guarded so a middleware issue can never stop boot.
+try:
+    _authz_mw = authz.build_middleware()
+    if _authz_mw is not None:
+        mcp.add_middleware(_authz_mw)
+        print(f"[AICortex] authorization: policy gate active "
+              f"(AUTH_ENFORCE={'on' if authz.enabled() else 'off'})")
+    else:
+        print("[AICortex] authorization: middleware unavailable — not enforced")
+except Exception as exc:
+    print(f"[AICortex] authorization: middleware skipped ({exc}) — not enforced")
 
 
 # Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
