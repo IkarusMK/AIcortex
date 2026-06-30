@@ -63,6 +63,7 @@ re-applied at connect, not just at preflight) — see the
 **v1.3** adds the **authorization layer**, on by default (roles, deny-by-default
 tool permissions, audit log, per-credential identity binding, optional IdP
 role/group claim; `AUTH_ENFORCE=0` to disable) plus a `mail_send` recipient
-allow-list. **Tracked for a later release (v2.x):** full multi-user accounts,
-groups, and per-user API keys / token rotation — including forwarding the IdP
-group claim through the OIDC proxy so it can drive roles end-to-end.
+allow-list. **v1.4** adds a PocketID-aware proxy that forwards the upstream
+identity (`sub`/`groups`) so Pocket ID groups drive roles end-to-end. **Tracked
+for a later release (v2.x):** full multi-user accounts with per-user data
+isolation (own memory scope + vault namespace) and per-user API keys / rotation.
