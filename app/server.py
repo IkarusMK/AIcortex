@@ -36,6 +36,7 @@ import guide
 import bootstrap
 import learn
 import authz
+import tenancy
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -230,6 +231,11 @@ mail_tools.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)
+
+# Per-user data areas (multi-tenant control plane): tenancy_set / show / list /
+# unset / status — admin tools to configure who sees which data (memory now,
+# vault next). Enforcement of memory isolation lives in the authz middleware.
+tenancy.register(mcp)
 
 # Self-describing usage guide (also sent as server `instructions` on connect)
 guide.register(mcp)

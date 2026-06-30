@@ -34,7 +34,7 @@ Add it once as a *custom connector / MCP server* and your LLM gains:
 
 The model stays in its provider's cloud (or runs locally). **Your data, skills, and secrets stay on your NAS.** Your LLM talks to this server over an HTTPS connector; the server uses your local credentials internally and never hands them to the model.
 
-> ✅ **Status: v1.2 — stable.** One-call `bootstrap` onboarding, self-learning **typed memory** (with a candidate review queue), the skill router (categorized), HTTP/MQTT/FTP/WebDAV/SSH/SMTP dispatchers, a sandboxed workspace file hub, IPP printing & eSCL scanning, an MCP gateway, **presence-aware multi-agent coordination** (capability-routed pull + context-preserving handoff), cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider) and an SSRF egress guard are all live — and the connector is *self-describing* (it sends its usage guide on connect and tells every LLM to call `bootstrap` first and work exclusively through it). New capabilities are added as **data** — no redeploy. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
+> ✅ **Status: v1.4 — stable.** One-call `bootstrap` onboarding, self-learning **typed memory** (with a candidate review queue), the skill router (categorized), HTTP/MQTT/FTP/WebDAV/SSH/SMTP dispatchers, a sandboxed workspace file hub, IPP printing & eSCL scanning, an MCP gateway, **presence-aware multi-agent coordination** (capability-routed pull + context-preserving handoff), cross-LLM session handoff, cron-as-data scheduling, an encrypted secret vault, OAuth (via your own OIDC provider), an **authorization layer** (roles, on by default; optional per-user memory + vault isolation) and an SSRF egress guard are all live — and the connector is *self-describing* (it sends its usage guide on connect and tells every LLM to call `bootstrap` first and work exclusively through it). New capabilities are added as **data** — no redeploy. The autonomy *runner* (the NAS-side LLM runtime that fires scheduled jobs) is the one piece set up outside the connector — see [Autonomy & scheduling](#autonomy--scheduling). **Don't expose it publicly without [Authentication](#authentication).**
 
 ## How it works
 
@@ -98,6 +98,7 @@ This is where a self-hosted brain pays off most: a private assistant that *remem
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log — resume work from any model/device; auto-expires |
 | Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` | Cron jobs as data; a NAS runner triggers them |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
+| Tenancy (admin) | `tenancy_set` · `tenancy_show` · `tenancy_list` · `tenancy_unset` · `tenancy_status` | Configure per-user data areas (who sees which memory) — the multi-user control plane, as data |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
 
 New capabilities are added as **data** (a skill, a service config, a secret) — not code, no redeploy. Full CRUD: every config module also has a delete (`skill_delete`, `service_delete`, `mqtt_delete`, `ftp_delete`, `mcp_delete`, `task_delete`, `agent_remove`, `inbox_delete`, plus `memory_delete` / `secret_delete`), so anything you can register you can also remove via the connector.
@@ -268,6 +269,23 @@ All config lives in `.env` (copy from `.env.example`):
 | `PGID`      | `1000`  | Group ID the process runs as |
 | `TZ`        | `UTC`   | Container timezone |
 
+## Two ways to run it — homelab or multi-user
+
+AICortex scales from "just me" to "a few people sharing one brain" with **env switches**, not a different build. Same image, same data layout — you pick the posture:
+
+| | 🏠 **Solo / Homelab** | 🏢 **Multi-user / Enterprise** |
+|---|---|---|
+| **Who** | one trusted operator (you) | several people on one NAS brain |
+| **Login** | your own OIDC (or localhost) | your own OIDC + **Pocket ID groups → roles** |
+| **Tool access** | everyone authenticated gets everything | **roles** (admin / user / viewer), deny-by-default admin tools |
+| **Data** | one shared brain (all memory + vault) | **per-user memory scope + vault namespace** (service/skill areas next) |
+| **Switches** | `AUTH_ENFORCE=0` *(opt out of roles)* | `AUTH_ENFORCE=1` (default) · `TENANCY_ISOLATE=1` (per-user data) |
+
+- **Homelab is one switch away.** It's a single trusted brain — if roles only add friction for you, set **`AUTH_ENFORCE=0`** and every authenticated caller gets all tools (the original all-access behaviour). Authentication (OIDC) still guards the door; you've simply turned off the *internal* role gate.
+- **Enterprise is the secure default.** Out of the box the **authorization layer is on** (`AUTH_ENFORCE=1`): the headless runner is a non-admin `user`, an interactive operator is `admin`, and Pocket ID groups can drive roles. Turn on **`TENANCY_ISOLATE=1`** and each non-admin person is confined to their **own memory scope** (`users/<id>`) plus a **private vault namespace** — two people on one brain never read or overwrite each other's notes, and an admin can hand a user their *own* secret for a shared service (users consume vault access, they don't create it). Per-user areas are configured as data in `data/auth/policy.json` (or via the `tenancy_*` admin tools), and admins keep full access. (Fine-grained per-user service/skill areas are the next slice.)
+
+Nothing to migrate either way: isolation is **opt-in and fails open**, so flipping it on never strands the operator. **Details: [docs/authorization.md](docs/authorization.md).**
+
 ## Authentication
 
 Protect the connector with OAuth before you expose it. It uses **your own OIDC
@@ -296,10 +314,12 @@ will send you through your provider's login. **When the OIDC variables are unset
 the server binds to `127.0.0.1` only** (local testing); set `ALLOW_INSECURE=1` to
 force an open bind without auth (not recommended).
 
-> ⚠️ **Authentication ≠ authorization.** Any account that can log in to your IdP
-> gets **full** access to every tool and all data — there is no per-user/role
-> check. Point this at a **single-user or dedicated** provider; don't reuse a
-> shared family/company IdP without restricting which subjects may log in.
+> ℹ️ **Authentication vs. authorization.** Authentication (OIDC) controls *who gets
+> in*; the **authorization layer** (on by default) controls *what each caller may
+> do* — roles, deny-by-default admin tools, and optional per-user data isolation
+> (`TENANCY_ISOLATE=1`). See [Two ways to run it](#two-ways-to-run-it--homelab-or-multi-user)
+> and [docs/authorization.md](docs/authorization.md). Either way, only let people
+> you trust into the IdP — a shared brain is still a shared brain.
 
 ## Security
 
@@ -360,6 +380,10 @@ FASTMCP_LOG_LEVEL: "DEBUG"
 - [x] SSH/SFTP (`ssh_add` / `ssh_run` / `ssh_upload` / `ssh_download` / `ssh_list_dir`) — remote commands & file transfer, hosts as data, vault creds
 - [x] SMTP email (`mail_add` / `mail_list` / `mail_send`) — send mail/notifications with optional attachment, accounts as data
 - [x] Hardening — fail-closed auth, enforced-encryption vault, SSRF egress guard (`INTERNAL_ALLOW_CIDRS`); VPS/VPN-friendly
+- [x] Authorization layer — roles (admin/user/viewer), deny-by-default admin tools, audit log, per-credential identity binding; IdP group→role via a PocketID-aware proxy that forwards the upstream `sub`/`groups` (`AUTH_ENFORCE`, on by default)
+- [x] Per-user memory isolation — confine non-admin callers to their own memory scope `users/<id>` (`TENANCY_ISOLATE`, opt-in; fail-open)
+- [x] Per-user vault namespaces — admins provision secrets into a user's private namespace (`secret_set owner=…`); a user's service calls resolve their own secret first, then the shared one; users can't create secrets themselves. Admin control plane: `tenancy_set` / `tenancy_show` / `tenancy_list` / `tenancy_unset` / `tenancy_status`
+- [ ] Fine-grained per-user service/skill/device areas (which integrations each user may use)
 - [x] MCP gateway — connect to other MCP servers as data (`mcp_add` / `mcp_list` / `mcp_tools` / `mcp_call`)
 - [ ] Bundled service configs & skills (Home Assistant, Mealie, …)
 - [x] Multi-agent coordination: shared inbox, task board & agent registry (`inbox_*` / `task_*` / `agent_*`) — now **presence-aware** (`agent_list` online/idle/away), with capability-routed pull (`task_next`) and context-preserving, session-linked handoff (`task_handoff`); sub-agent *spawning* stays client-side
