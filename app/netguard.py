@@ -82,6 +82,29 @@ def check_url(url: str):
     return check_host(host)
 
 
+def tls_verify(cfg: dict):
+    """Resolve the TLS ``verify`` value for an httpx client from a device/endpoint
+    config. SECURE BY DEFAULT (#10): certificate verification is ON unless the
+    operator explicitly opts out. Precedence:
+
+    - ``ca_bundle`` set (a path) → verify against that CA bundle / pinned cert
+      (the right way to trust a self-signed LAN device),
+    - ``tls_insecure`` true → verification OFF — the operator's explicit choice
+      for a self-signed device. These configs are written only by the admin-only
+      registration tools (scan_add / webdav_add), so a normal/non-admin caller
+      can't disable verification.
+    - otherwise → ``True`` (verify).
+
+    Returns a value suitable for httpx's ``verify=`` (bool or a path string).
+    """
+    if not isinstance(cfg, dict):
+        return True
+    ca = cfg.get("ca_bundle")
+    if ca:
+        return str(ca)
+    return not bool(cfg.get("tls_insecure", False))
+
+
 def _ip_allowed(ip, nets) -> bool:
     """Egress policy for one IP: public is fine; private/link-local/etc only if
     inside an operator allow-listed CIDR."""

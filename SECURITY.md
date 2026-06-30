@@ -64,6 +64,14 @@ re-applied at connect, not just at preflight) — see the
 tool permissions, audit log, per-credential identity binding, optional IdP
 role/group claim; `AUTH_ENFORCE=0` to disable) plus a `mail_send` recipient
 allow-list. **v1.4** adds a PocketID-aware proxy that forwards the upstream
-identity (`sub`/`groups`) so Pocket ID groups drive roles end-to-end. **Tracked
-for a later release (v2.x):** full multi-user accounts with per-user data
-isolation (own memory scope + vault namespace) and per-user API keys / rotation.
+identity (`sub`/`groups`) so Pocket ID groups drive roles end-to-end. **v1.5**
+adds opt-in **per-user data isolation** (`TENANCY_ISOLATE=1`): each non-admin
+caller is confined to their own memory scope and vault namespace (admins
+provision per-user secrets; users can't create them). **v1.5.2** closes the
+scanner/WebDAV **TLS gap**: scanner (eSCL) requests now **verify certificates by
+default** instead of unconditionally skipping verification — a self-signed device
+uses an operator-supplied CA bundle (`ca_bundle`) or an explicit, admin-only
+`tls_insecure` opt-out; WebDAV uses the same secure-by-default resolver, and both
+registration tools are admin-only so a normal caller can't relax TLS. **Tracked
+for a later release:** per-user API keys / rotation and fine-grained per-user
+service/skill/device areas.

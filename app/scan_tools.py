@@ -98,17 +98,27 @@ def _candidates(cfg: dict):
 def register(mcp):
     @mcp.tool
     def scan_add(name: str, host: str, port: int = 0, base: str = "/eSCL",
-                 tls: str = "auto", description: str = "") -> str:
+                 tls: str = "auto", ca_bundle: str = "", tls_insecure: bool = False,
+                 description: str = "") -> str:
         """Register/update a network scanner as DATA (no redeploy). host = the
         device's LAN IP (same as the printer for a multifunction). Leave port=0 /
         tls="auto" to auto-detect (tries https:443 then http:80, eSCL base /eSCL).
-        The IP must be inside INTERNAL_ALLOW_CIDRS."""
+        The IP must be inside INTERNAL_ALLOW_CIDRS.
+
+        TLS is VERIFIED by default. For a self-signed device, either point
+        `ca_bundle` at its CA/cert file (the safe way), or set `tls_insecure=true`
+        to skip verification (this admin-only choice is stored on the scanner; a
+        self-signed https-only device needs one of these or it falls back to http)."""
         try:
             SCAN_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port),
-                   "base": base or "/eSCL", "tls": tls, "description": description}
+                   "base": base or "/eSCL", "tls": tls,
+                   "ca_bundle": ca_bundle, "tls_insecure": bool(tls_insecure),
+                   "description": description}
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-            return f"Registered scanner '{_slug(name)}' ({host}, base {cfg['base']})."
+            mode = ("CA bundle" if ca_bundle else
+                    ("verify OFF" if tls_insecure else "verified TLS"))
+            return f"Registered scanner '{_slug(name)}' ({host}, base {cfg['base']}, {mode})."
         except Exception as exc:
             return f"Could not register scanner: {exc}"
 
@@ -165,7 +175,7 @@ def register(mcp):
             try:
                 r = httpx.post(url, content=xml.encode("utf-8"),
                                headers={"Content-Type": "text/xml"},
-                               timeout=120, verify=False)
+                               timeout=120, verify=netguard.tls_verify(cfg))
             except Exception as exc:
                 last = f"{scheme}:{port} {exc}"
                 continue
@@ -185,7 +195,8 @@ def register(mcp):
         doc = None
         for _ in range(3):
             try:
-                rd = httpx.get(f"{job_url.rstrip('/')}/NextDocument", timeout=180, verify=False)
+                rd = httpx.get(f"{job_url.rstrip('/')}/NextDocument", timeout=180,
+                               verify=netguard.tls_verify(cfg))
             except Exception as exc:
                 return f"Scan started but fetching the page failed: {exc}"
             if rd.status_code == 200 and rd.content:

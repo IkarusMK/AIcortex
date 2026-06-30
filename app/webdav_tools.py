@@ -61,7 +61,7 @@ def _client(cfg: dict):
         if pw_env and not pw:
             return None, f"Endpoint needs secret '{pw_env}'. Store it with secret_set."
         auth = (user, pw or "")
-    verify = not cfg.get("tls_insecure", False)
+    verify = netguard.tls_verify(cfg)
     return httpx.Client(auth=auth, verify=verify, timeout=300, follow_redirects=True), base
 
 
@@ -77,16 +77,21 @@ def register(mcp):
     @mcp.tool
     def webdav_add(name: str, base_url: str, username: str = "",
                    password_env: str = "", tls_insecure: bool = False,
-                   description: str = "") -> str:
+                   ca_bundle: str = "", description: str = "") -> str:
         """Register/update a WebDAV endpoint as DATA (no redeploy). base_url = the
         WebDAV root, e.g. Nextcloud https://<host>/remote.php/dav/files/<user>/ .
         password_env = NAME of the secret holding the app password (store it with
-        secret_set). Paths in the other tools are relative to base_url."""
+        secret_set). Paths in the other tools are relative to base_url.
+
+        TLS is VERIFIED by default. For a self-signed endpoint, point `ca_bundle`
+        at its CA/cert file (preferred), or set `tls_insecure=true` to skip
+        verification. This tool is admin-only, so only an operator can relax TLS."""
         try:
             WEBDAV_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "base_url": base_url.rstrip("/") + "/",
                    "username": username, "password_env": password_env,
-                   "tls_insecure": bool(tls_insecure), "description": description}
+                   "tls_insecure": bool(tls_insecure), "ca_bundle": ca_bundle,
+                   "description": description}
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
