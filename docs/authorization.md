@@ -91,6 +91,69 @@ that group to a role here via `groups` in `policy.json` (or name the group
 > The proxy is fail-safe: if the upstream token can't be read it simply omits the
 > claims (behaves like the stock proxy), so the login path is never at risk.
 
+## Per-user data isolation (multi-tenant)
+
+Roles decide *which tools* a caller may use. **Data isolation** decides *which data*
+they see within those tools — so two people sharing one brain don't read or
+overwrite each other's memory.
+
+It is **opt-in** (off by default, so a single-operator setup is untouched):
+
+```bash
+# in .env
+TENANCY_ISOLATE=1
+```
+
+With it on:
+
+- Each **non-admin** identity is confined to its **own memory scope** `users/<sub>`.
+  Every `memory_*` call is rewritten to that scope — they can't read `shared` or
+  another user's notes. The identity is the forwarded Pocket ID `sub`, so it's
+  per-**person**, not per-OAuth-client.
+- **Admins** are never confined (full access to `shared` and every scope).
+- It is **fail-open**: if the caller's identity can't be resolved, no confinement
+  is applied — a glitch degrades to "full access", never to "locked out".
+
+Manage areas the easy way — **admin connector tools** (the assistant is the
+dashboard, works from any device; stored as data, no redeploy):
+
+| Tool | Does |
+|------|------|
+| `tenancy_status` | is isolation on? how many users are configured? |
+| `tenancy_set(identity, memory='own'|'all', vault=…, note=…)` | create/update a user's area |
+| `tenancy_show(identity)` / `tenancy_list` | inspect resolved areas |
+| `tenancy_unset(identity)` | revert a user to the default |
+
+`identity` is the person's Pocket ID `sub`. These are **admin-only**. Under the
+hood they edit `data/auth/policy.json` (which you can also hand-edit):
+
+```json
+{
+  "users": {
+    "a1b2c3-pocketid-sub": { "memory": "own" },   // confined (default for non-admins)
+    "trusted-colleague":   { "memory": "all" }    // full access, like an admin
+  }
+}
+```
+
+### Per-user vault
+
+With isolation on, each non-admin caller also gets a **private vault namespace**.
+The model is *admin provisions, user consumes* — users can't create secrets:
+
+- `secret_set(name, value, owner="<sub>")` (admin-only) stores a secret in that
+  user's namespace; without `owner` it's a shared secret.
+- At call time, `get_secret` resolves the **caller's own** secret first, then the
+  shared one — so an admin can give one user their own token for a shared service.
+- `secret_list` shows a confined user only the shared secrets plus their own
+  (names only, never values); an admin sees all, tagged by owner.
+
+Grant a user the full (admin-like) vault by setting `"vault": "all"` in their
+`policy.json` entry (default is `"own"`).
+
+> **Next slice:** fine-grained per-user **service/skill/device areas** (which
+> integrations each user may use), configured the same way under `"users"`.
+
 ## Recipes
 
 **Let the local model (RUNNER_TOKEN) be admin too**

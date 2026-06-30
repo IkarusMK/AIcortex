@@ -50,6 +50,8 @@ ADMIN_TOOLS = {
     "cron_add", "cron_delete",
     "secret_set", "secret_delete",
     "agent_register", "agent_remove",
+    # Per-user data areas (who-may-see-what) — identity/policy management.
+    "tenancy_set", "tenancy_unset", "tenancy_show", "tenancy_list", "tenancy_status",
 }
 
 # Read/list/search/load — safe for the viewer role.
@@ -228,6 +230,18 @@ def build_middleware():
                             args["sender"] = identity
                         elif tool == "task_add":
                             args["created_by"] = identity
+                    # Per-user data isolation (tenancy, opt-in TENANCY_ISOLATE=1):
+                    # confine a non-admin caller's memory_* calls to their OWN scope
+                    # so two people on one brain don't read/overwrite each other.
+                    # Fail-open: any glitch here leaves the requested scope untouched.
+                    if isinstance(args, dict):
+                        try:
+                            import tenancy
+                            if tool in tenancy.MEMORY_SCOPED_TOOLS:
+                                args["scope"] = tenancy.confine_memory_scope(
+                                    identity, role, args.get("scope", "shared"))
+                        except Exception:
+                            pass
             except Exception as exc:
                 if exc.__class__ is ToolError or isinstance(exc, ToolError):
                     raise  # a real policy denial must propagate
