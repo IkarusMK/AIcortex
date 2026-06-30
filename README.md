@@ -272,6 +272,8 @@ Then open `http://<host>:3000`, create the admin account, and pull a model — e
 
 AICortex has been through external security review (fail-closed vault, SSH host-key pinning, connect-time DNS-rebinding protection, resource limits, the authorization layer and per-user isolation). **Full status & reporting: [SECURITY.md](SECURITY.md).**
 
+> 🔐 **How your secrets stay secret** — encrypted at rest, never returned to the model, never in chat/repo, and how to set them safely (`secret_set` or `.env`): **[docs/secrets.md](docs/secrets.md)**.
+
 ## Configuration
 
 All config lives in `.env` (copy from `.env.example`):
