@@ -113,6 +113,8 @@ Exposing the connector publicly requires OAuth. AICortex uses **your own identit
 
 Register the OAuth client in your provider with redirect URI **`<BASE_URL>/auth/callback`**, then (re-)add the connector in your client to be sent through the login.
 
+> 🟣 **Using Pocket ID?** Follow the click-by-click **[Pocket ID setup guide](docs/pocketid-setup.md)** — creating the OIDC client, the exact `.env`, and optional groups → roles.
+
 > ℹ️ **Don't** put reverse-proxy SSO / forward-auth in front of `/mcp` — an MCP connector is a *machine* client and can't follow an interactive login redirect. Authentication belongs at the MCP layer, which is exactly what this does. When the OIDC variables are unset, the server binds to `127.0.0.1` only (local testing).
 
 ### 2. Pick your mode — one line in `.env`
