@@ -74,12 +74,22 @@ that group to a role here via `groups` in `policy.json` (or name the group
 `admin`/`user`/`viewer` directly). AICortex reads the claim named by
 `AUTH_ROLE_CLAIM` (default `groups`) and uses the highest-privilege match.
 
-> **Current limitation (tracked for v2.x):** FastMCP's OIDC **proxy** issues its
-> own minimal-claim token and does **not** yet forward the upstream group claim,
-> so this path is *dormant today* — the wiring is in place and activates
-> automatically once the claim is forwarded. Until then, use `policy.json`
-> `roles`/`default` or the role env vars. Enforcement strength is identical
-> either way; only *where the role comes from* differs.
+> **v1.4 — active for PocketID.** AICortex ships a PocketID-aware proxy that
+> forwards the upstream identity (`sub`, `email`, `groups`) into the token under
+> `upstream_claims`, so per-person identity and group→role mapping work end-to-end.
+> Set it up (staged, no lockout):
+> 1. **PocketID:** create groups (`AICortex-Admins`, `AICortex-Viewers`, …), add a
+>    **groups claim** (it travels in the profile scope), assign users.
+> 2. **Request it:** set `OIDC_SCOPE=openid profile email groups`.
+> 3. **Map it:** `data/auth/policy.json` → `"groups": {"AICortex-Admins":"admin", …}`.
+> 4. **Verify:** with `AUTH_AUDIT_ALL=1`, one tool call logs your PocketID `sub` as
+>    `identity` and the role derived from your group in `data/auth/audit.log`.
+> 5. **Tighten:** keep `OIDC_DEFAULT_ROLE=admin` until step 4 confirms your group
+>    resolves to admin, then set it to `user` (or `viewer`) so non-grouped logins
+>    get least privilege.
+>
+> The proxy is fail-safe: if the upstream token can't be read it simply omits the
+> claims (behaves like the stock proxy), so the login path is never at risk.
 
 ## Recipes
 

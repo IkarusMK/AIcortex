@@ -93,14 +93,28 @@ def _policy() -> dict:
 _RANK = {"viewer": 0, "user": 1, "admin": 2}
 
 
+def _claim_value(claims, key):
+    """Read a claim, preferring the forwarded upstream identity (PocketIDProxy
+    nests the IdP's claims under 'upstream_claims'), then the top level."""
+    if not isinstance(claims, dict):
+        return None
+    up = claims.get("upstream_claims")
+    if isinstance(up, dict) and key in up:
+        return up[key]
+    return claims.get(key)
+
+
 def _role_from_claims(claims) -> str:
     """Map an IdP role/group claim (e.g. PocketID groups) to a role, taking the
-    highest privilege found. Claim name = AUTH_ROLE_CLAIM (default "groups");
-    group→role mapping can be set in policy.json under "groups". Returns "" if no
-    usable claim is present (dormant until the OIDC layer forwards the claim)."""
+    highest privilege found. Claim name = AUTH_ROLE_CLAIM (default "groups", also
+    tolerates "oc_groups"); group→role mapping can be set in policy.json under
+    "groups". Returns "" if no usable claim is present."""
     if not claims:
         return ""
-    val = claims.get(os.environ.get("AUTH_ROLE_CLAIM", "groups"))
+    claim_name = os.environ.get("AUTH_ROLE_CLAIM", "groups")
+    val = _claim_value(claims, claim_name)
+    if val is None and claim_name != "oc_groups":
+        val = _claim_value(claims, "oc_groups")
     if val is None:
         return ""
     vals = val if isinstance(val, (list, tuple)) else re.split(r"[,\s]+", str(val))
@@ -171,7 +185,10 @@ def _identity():
         tok = get_access_token()
         cid = getattr(tok, "client_id", None) or "unknown"
         claims = getattr(tok, "claims", None) or {}
-        return cid, (cid == "runner"), claims
+        # Per-person identity from the forwarded upstream 'sub' if present,
+        # else the client_id. is_runner stays tied to the static token's client_id.
+        person = _claim_value(claims, "sub")
+        return (person or cid), (cid == "runner"), claims
     except Exception:
         return "unknown", False, {}
 

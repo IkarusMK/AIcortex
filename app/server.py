@@ -95,7 +95,17 @@ def _build_auth():
     storage = _client_storage()
     if storage is not None:
         kwargs["client_storage"] = storage
-    oidc = OIDCProxy(**kwargs)
+    # Use the PocketID-aware proxy so the upstream identity (sub/groups) is
+    # forwarded under the token's `upstream_claims` (enables per-person roles).
+    # Fail-safe: if the subclass can't be built, fall back to the stock proxy so
+    # the login path is never at risk.
+    try:
+        import pocketid_proxy
+        oidc = pocketid_proxy.build_proxy(**kwargs)
+        print("[AICortex] auth: OIDC proxy with upstream-claim forwarding")
+    except Exception as exc:
+        print(f"[AICortex] PocketIDProxy unavailable ({exc}); using stock OIDCProxy")
+        oidc = OIDCProxy(**kwargs)
 
     # Optionally ALSO accept a static runner token for headless machine clients
     # (the autonomy runner, any LLM). Interactive apps keep using OIDC unchanged;
