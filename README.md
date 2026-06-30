@@ -213,7 +213,52 @@ Two ready-to-deploy runners live in [`runner/`](runner/README.md): a **Claude Co
 
 ## Run it with a local model (Ollama)
 
-AICortex is model-agnostic — including **fully local** models. Point [Open WebUI](https://github.com/open-webui/open-webui) at the connector over its native MCP transport and a local [Ollama](https://ollama.com) model gets the same memory, skills and tools as any cloud assistant — nothing leaves your network. Tool-calling quality depends on the local model you pick. **Full guide: [docs/local-llm-openwebui.md](docs/local-llm-openwebui.md).**
+AICortex is model-agnostic — including **fully local** models. [Open WebUI](https://github.com/open-webui/open-webui) is the chat UI + MCP client, [Ollama](https://ollama.com) is the model, AICortex is the brain/tools — nothing leaves your network. **No connector changes needed**: Open WebUI connects over native MCP using the `RUNNER_TOKEN` you already have.
+
+```
+Open WebUI (chat UI)  ──native MCP (Streamable-HTTP, Bearer RUNNER_TOKEN)──▶  AICortex  ──▶  memory · skills · tools
+        ▼
+Ollama (local models)
+```
+
+> Requires **Open WebUI ≥ 0.6.31** (native MCP, Streamable-HTTP). Already running Open WebUI + Ollama? Skip to step 2.
+
+**Step 1 — Bring up Open WebUI + Ollama.** Add this to your `docker-compose.yml`, then `docker compose up -d` (adjust ports, the secret, and drop the bundled `ollama` if you already run one):
+
+```yaml
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"                                  # → http://<host>:3000
+    environment:
+      WEBUI_SECRET_KEY: "CHANGE-ME-to-a-long-random-string"   # REQUIRED — so the saved MCP token survives restarts
+      OLLAMA_BASE_URL: "http://ollama:11434"
+    volumes:
+      - open-webui:/app/backend/data
+    restart: unless-stopped
+    depends_on: [ollama]                             # remove if you use an existing/remote Ollama
+
+  ollama:                                            # OPTIONAL — only if you don't already run Ollama
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  open-webui:
+  ollama:
+```
+
+Then open `http://<host>:3000`, create the admin account, and pull a model — e.g. `docker exec -it ollama ollama pull llama3.1`.
+
+**Step 2 — Connect AICortex.** In Open WebUI: **Admin Settings → External Tools → + Add Server** → Type **`MCP (Streamable HTTP)`** → URL `https://<your-aicortex-host>/mcp` → Auth **`Bearer`** with your **`RUNNER_TOKEN`** → Save. (Set `WEBUI_SECRET_KEY` above or the token is lost on restart.)
+
+**Step 3 — Use it.** Open a chat, pick your local model, and tell it to call **`bootstrap`** first — now it has your memory, skills and tools.
+
+> **Pick a tool-aware model** (recent Llama 3.x / Qwen2.5 / Mistral-class) — small 7–8B models struggle with multi-step tool use — and start with a curated tool set. **Full guide (model tips, `mcpo` fallback for older Open WebUI, security notes): [docs/local-llm-openwebui.md](docs/local-llm-openwebui.md).**
 
 ## Security
 
