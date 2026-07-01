@@ -20,6 +20,7 @@ import guide
 import sessions
 import memory
 import coordination
+import version
 
 MEMORY_DIR = Path(os.environ.get("MEMORY_DIR", "/data/memory"))
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
@@ -180,7 +181,7 @@ def _catalog() -> str:
         resume = ""
 
     parts = [
-        "===== LIVE BRAIN CATALOG (current NAS state) =====",
+        f"===== LIVE BRAIN CATALOG (AICortex v{version.__version__} · current NAS state) =====",
         _section("MEMORY (facts about the user & projects)", mem_lines,
                  "empty — nothing stored yet; capture facts with memory_write"),
         _section("SKILLS (reusable know-how)", _skill_list(),

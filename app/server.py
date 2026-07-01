@@ -16,6 +16,7 @@ import os
 
 from fastmcp import FastMCP
 
+import version
 import memory
 import skills
 import services
@@ -180,8 +181,8 @@ bootstrap.register(mcp)
 
 @mcp.tool
 def ping(name: str = "world") -> str:
-    """Health check — confirms the connector is reachable."""
-    return f"Hello {name}, your NAS MCP server is alive! 🎉"
+    """Health check — confirms the connector is reachable and reports the running version."""
+    return f"Hello {name}, your NAS MCP server is alive! 🎉 (AICortex v{version.__version__})"
 
 
 # Memory tools: write / read / list / search / delete (file-based under MEMORY_DIR)
@@ -242,6 +243,7 @@ guide.register(mcp)
 
 
 if __name__ == "__main__":
+    print(f"[AICortex] version {version.__version__} starting")
     # Fail closed: without OIDC the server has no auth. Rather than silently
     # listen on 0.0.0.0 (an accidental port-forward would expose every tool),
     # bind to localhost only — unless the operator explicitly opts in with
