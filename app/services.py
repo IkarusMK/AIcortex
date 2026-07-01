@@ -48,7 +48,7 @@ def register(mcp):
     def service_add(name: str, base_url: str, token_env: str = "",
                     auth_scheme: str = "Bearer", description: str = "",
                     auth_header: str = "Authorization",
-                    write_only: bool = False) -> str:
+                    write_only: bool = False, category: str = "") -> str:
         """Register/update a callable service (stored as DATA — no redeploy).
         token_env = the NAME of the secret holding the auth token (store it with
         secret_set). The token itself is never stored here.
@@ -56,10 +56,20 @@ def register(mcp):
         For APIs that use a custom header instead of Bearer auth, set auth_header
         to that header name and auth_scheme="" so the raw token is sent without a
         "Bearer " prefix.
+        category (REQUIRED) = a free-text group for the catalog (e.g. "Smart Home",
+        "Dev", "Documents", "Web") — services are listed grouped by it, like skills,
+        so they stay easy to find as the list grows. Call service_list first and
+        REUSE an existing category where it fits; service_add REFUSES a missing one.
         write_only = a hard, server-side INGEST-ONLY lock: call_service REFUSES this
         service entirely so nothing can ever be read back out of it (for sensitive
         sinks like a document archive). Data can still be deposited through dedicated
         ingest tools that don't use call_service (e.g. scan_document → Paperless)."""
+        if not category.strip():
+            return ("Refused: a service MUST have a category (house rule, so the "
+                    "catalog stays tidy & findable — same as skills). Pass "
+                    "category=\"…\" (e.g. \"Smart Home\", \"Dev\", \"Documents\", "
+                    "\"Web\"); call service_list first and REUSE an existing one "
+                    "where it fits.")
         try:
             SERVICES_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -69,6 +79,7 @@ def register(mcp):
                 "auth_scheme": auth_scheme,
                 "auth_header": auth_header or "Authorization",
                 "description": description,
+                "category": category.strip(),
                 "write_only": bool(write_only),
             }
             _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -81,20 +92,29 @@ def register(mcp):
 
     @mcp.tool
     def service_list() -> str:
-        """List configured services (name — base_url — description)."""
+        """List configured services, grouped by category (name — base_url — description)."""
         if not SERVICES_DIR.exists():
             return "No services configured yet."
         items = sorted(SERVICES_DIR.glob("*.json"))
         if not items:
             return "No services configured yet. Use service_add."
-        out = []
+        rows: list[tuple[str, str]] = []  # (category, line)
         for p in items:
             try:
                 c = json.loads(p.read_text(encoding="utf-8"))
                 lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
-                out.append(f"- {p.stem} — {c.get('base_url', '')} — {c.get('description', '')}{lock}")
+                cat = str(c.get("category", "") or "").strip() or "Uncategorized"
+                rows.append((cat, f"- {p.stem} — {c.get('base_url', '')} — "
+                                  f"{c.get('description', '')}{lock}"))
             except Exception:
-                out.append(f"- {p.stem} — (unreadable config)")
+                rows.append(("Uncategorized", f"- {p.stem} — (unreadable config)"))
+        if all(cat == "Uncategorized" for cat, _ in rows):
+            return "\n".join(line for _, line in rows)
+        out: list[str] = []
+        cats = sorted({c for c, _ in rows}, key=lambda c: (c == "Uncategorized", c.lower()))
+        for cat in cats:
+            out.append(f"[{cat}]")
+            out.extend("  " + line for c, line in rows if c == cat)
         return "\n".join(out)
 
     @mcp.tool

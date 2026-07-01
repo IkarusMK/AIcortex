@@ -51,6 +51,35 @@ def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[
     return out
 
 
+def _json_grouped(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[str]:
+    """Like _json_names, but if any config carries a `category`, GROUP the entries
+    by it (the same tidy, skill-style catalog — faster to scan). Falls back to a
+    flat list when nothing is categorized, so uncategorized sections stay clean."""
+    entries: list[tuple[str, str]] = []  # (category, flat line)
+    any_cat = False
+    for p in sorted(d.glob("*.json")):
+        cat, extra = "", ""
+        try:
+            c = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(c, dict):
+                cat = str(c.get("category", "") or "").strip()
+                if cat:
+                    any_cat = True
+                vals = [str(c[f]) for f in fields if c.get(f)]
+                extra = " — " + " · ".join(vals) if vals else ""
+        except Exception:
+            extra = " — (unreadable)"
+        entries.append((cat or "Uncategorized", f"  - {p.stem}{extra}"))
+    if not any_cat:
+        return [line for _, line in entries]
+    out: list[str] = []
+    cats = sorted({c for c, _ in entries}, key=lambda c: (c == "Uncategorized", c.lower()))
+    for cat in cats:
+        out.append(f"  [{cat}]")
+        out.extend("  " + line for c, line in entries if c == cat)
+    return out
+
+
 def _skill_list() -> list[str]:
     """Compact skill overview that scales: list names while the library is small,
     collapse to per-category counts once it grows (so bootstrap stays cheap even
@@ -112,10 +141,13 @@ def _catalog() -> str:
             key=lambda d: (d.name != "shared", d.name),
         )
         for sc in scopes:
-            entries = memory.scope_title_lines(sc)
+            entries = memory.scope_tiered_lines(sc)
             if entries:
                 mem_lines.append(f"  [{sc.name}]")
                 mem_lines.extend(entries)
+        if mem_lines:
+            mem_lines.append("  ⏱ Short-term / current state → see RESUME sessions "
+                             "above (session_load) — that's the short-term tier.")
 
     # Auto-memory: surface candidates awaiting review so any session closes the
     # learning loop (promote/reject) without needing a background process.
@@ -154,7 +186,7 @@ def _catalog() -> str:
         _section("SKILLS (reusable know-how)", _skill_list(),
                  "none yet — author with skill_write"),
         _section("SERVICES (HTTP integrations)",
-                 _json_names(SERVICES_DIR, fields=("base_url", "description")),
+                 _json_grouped(SERVICES_DIR, fields=("base_url", "description")),
                  "none — add with service_add"),
         _section("MQTT DEVICES", _json_names(MQTT_DIR, fields=("host", "description")),
                  "none — add with mqtt_add"),

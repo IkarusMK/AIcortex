@@ -111,11 +111,14 @@ SKILLS (wiederverwendbares Know-how)
   knappe, imperative Anleitung (Frontmatter name/description/category/tags + Body).
 
 SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy)
-- HTTP-APIs: service_list / service_add(name, base_url, token_env[, auth_header,
-  write_only]) / call_service(service, path, method, json_body). Nur registrierte
-  erreichbar. write_only=true = harte INGEST-ONLY-Sperre: call_service verweigert
-  den Dienst komplett (nur Einliefern via Spezial-Tools wie scan_document, nie
-  auslesen — für sensible Senken wie ein Dokumentenarchiv).
+- HTTP-APIs: service_list / service_add(name, base_url, category, token_env[,
+  auth_header, write_only]) / call_service(service, path, method, json_body). Nur
+  registrierte erreichbar. ORDNUNGS-PFLICHT: JEDER Service braucht eine `category`
+  (z.B. "Smart Home", "Dev", "Documents", "Web") — vorher service_list und eine
+  BESTEHENDE wiederverwenden; service_add LEHNT ohne Kategorie ab. So bleibt der
+  Katalog gruppiert & schnell auffindbar (wie bei Skills). write_only=true = harte
+  INGEST-ONLY-Sperre: call_service verweigert den Dienst komplett (nur Einliefern
+  via Spezial-Tools wie scan_document, nie auslesen — für sensible Senken).
 - MQTT-Geräte (z.B. Drucker, Sensoren, Aktoren): mqtt_add / mqtt_list /
   mqtt_publish (Befehl) / mqtt_get (Status abonnieren).
 - FTP/FTPS-Dateien: ftp_add / ftp_upload (Quelle unter /data) / ftp_list.
@@ -250,9 +253,13 @@ library tidy and bootstrap/skill_list compact even at hundreds of skills. Write 
 short, imperative SKILL.md (frontmatter name/description/category/tags + body).
 
 SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
-- HTTP APIs: service_list / service_add(name, base_url, token_env[, auth_header,
-  write_only]) / call_service(service, path, method, json_body). Only registered
-  ones reachable. write_only=true = a hard INGEST-ONLY lock: call_service refuses
+- HTTP APIs: service_list / service_add(name, base_url, category, token_env[,
+  auth_header, write_only]) / call_service(service, path, method, json_body). Only
+  registered ones reachable. HOUSE RULE: every service MUST have a `category`
+  (e.g. "Smart Home", "Dev", "Documents", "Web") — call service_list first and
+  REUSE an existing one; service_add REFUSES a missing category, so the catalog
+  stays grouped & findable (same as skills). write_only=true = a hard INGEST-ONLY
+  lock: call_service refuses
   the service entirely (deposit only via dedicated tools like scan_document, never
   read back — for sensitive sinks like a document archive).
 - MQTT devices (e.g. printers, sensors, actuators): mqtt_add / mqtt_list /

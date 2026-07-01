@@ -150,6 +150,38 @@ def scope_title_lines(scope_dir: Path) -> list[str]:
     return out
 
 
+# Catalog display tiers, derived from the memory `type` — long-lived → shorter.
+# The SHORT-TERM tier ("what we're doing right now") isn't a memory type at all:
+# it's the SESSIONS layer (session_save/load), surfaced separately in bootstrap.
+_TIER_ORDER = ("user", "project", "feedback", "reference", "")
+_TIER_LABEL = {
+    "user": "🧭 Core — who/where you are · preferences (long-term)",
+    "project": "📂 Projects & focus — recent work & interests (mid-term)",
+    "feedback": "🛠 Working style — how to work",
+    "reference": "🔗 References — pointers & resources",
+    "": "• Other",
+}
+
+
+def scope_tiered_lines(scope_dir: Path) -> list[str]:
+    """Memory entries in a scope, GROUPED BY TIER (derived from `type`) for the
+    catalog — long-lived Core first, so a fresh LLM sees identity before ephemera.
+    Returns lines already indented for bootstrap's per-scope block."""
+    buckets: dict[str, list[str]] = {}
+    for p in sorted(scope_dir.glob("*.md")):
+        meta, _ = read_meta(p)
+        t = canon_type(meta.get("type", "")) or ""
+        buckets.setdefault(t, []).append(
+            f"      - {p.stem} — {meta.get('title', p.stem)}")
+    out: list[str] = []
+    ordered = list(_TIER_ORDER) + [t for t in buckets if t not in _TIER_ORDER]
+    for t in ordered:
+        if buckets.get(t):
+            out.append(f"    {_TIER_LABEL.get(t, '• ' + t)}")
+            out.extend(buckets[t])
+    return out
+
+
 def candidate_count() -> int:
     """How many memory candidates are staged for review."""
     d = MEMORY_DIR / CANDIDATES_SCOPE
