@@ -97,6 +97,20 @@ def _candidates(cfg: dict):
     return [("https", 443, base), ("http", 80, base)]
 
 
+def _looks_like_tls_error(exc) -> bool:
+    """True if an exception (walking its cause/context chain) is a TLS/certificate
+    verification failure — so we can hint at a self-signed device."""
+    seen = set()
+    e = exc
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        s = f"{type(e).__name__} {e}".lower()
+        if any(k in s for k in ("certificate", "ssl", "verify failed")):
+            return True
+        e = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+    return False
+
+
 def register(mcp):
     @mcp.tool
     def scan_add(name: str, host: str, port: int = 0, base: str = "/eSCL",
@@ -171,7 +185,8 @@ def register(mcp):
 
         # 1) Create the scan job (try the candidate transports until one accepts).
         job_url = None
-        last = ""
+        attempts = []          # every transport we tried + why it failed
+        tls_failed = False     # an https attempt failed cert verification
         for scheme, port, base in _candidates(cfg):
             url = f"{scheme}://{host}:{port}{base}/ScanJobs"
             try:
@@ -179,7 +194,11 @@ def register(mcp):
                                headers={"Content-Type": "text/xml"},
                                timeout=120, verify=netguard.tls_verify(cfg))
             except Exception as exc:
-                last = f"{scheme}:{port} {exc}"
+                if scheme == "https" and _looks_like_tls_error(exc):
+                    tls_failed = True
+                    attempts.append(f"{scheme}:{port} → TLS/certificate verification failed")
+                else:
+                    attempts.append(f"{scheme}:{port} → {type(exc).__name__}: {exc}")
                 continue
             if r.status_code in (200, 201) and r.headers.get("Location"):
                 job_url = r.headers["Location"]
@@ -188,10 +207,19 @@ def register(mcp):
                     job_url = f"{scheme}://{host}:{port}{job_url}"
                 transport = (scheme, port)
                 break
-            last = f"{scheme}:{port} HTTP {r.status_code}"
+            attempts.append(f"{scheme}:{port} → HTTP {r.status_code}")
         if not job_url:
-            return (f"Scanner '{scanner}' did not start a job ({last}). "
-                    f"Check IP/base (eSCL path, often /eSCL) and that scanning is enabled.")
+            detail = "; ".join(attempts) or "no transports available"
+            hint = ""
+            if tls_failed and not cfg.get("tls_insecure") and not cfg.get("ca_bundle"):
+                hint = (" The HTTPS attempt failed certificate verification — this is "
+                        "almost always a self-signed scanner: re-register it with "
+                        f"scan_add('{scanner}', '{host}', tls_insecure=true) (or point "
+                        "ca_bundle at its cert).")
+            else:
+                hint = (" Check the IP/base (eSCL path is often /eSCL, port 80 or 443) "
+                        "and that network scanning (eSCL/AirScan) is enabled on the device.")
+            return f"Scanner '{scanner}' did not start a job. Tried: {detail}.{hint}"
 
         # 2) Pull the scanned document (first page; ADF could yield more).
         doc = None

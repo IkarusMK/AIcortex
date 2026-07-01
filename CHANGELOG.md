@@ -4,6 +4,15 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.6.2] — 2026-06-30
+### Changed
+- Clearer failure messages for `scan_document` and `print_document`. The scanner
+  error now lists **every transport it tried** and, on an HTTPS certificate
+  failure, points at `tls_insecure` / `ca_bundle` for a self-signed device (instead
+  of only showing the last attempt). The printer error **names the IPP status**,
+  adds a reachability hint on connection errors, and suggests
+  `application/octet-stream` when the format is rejected.
+
 ## [1.6.1] — 2026-06-30
 ### Fixed
 - The `*_add` registration tools now **merge on update** instead of overwriting.
@@ -85,6 +94,7 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   file hub, IPP printing, eSCL scanning, an MCP gateway, cron-as-data scheduling, an
   encrypted secret vault, OAuth via your own OIDC provider, and an SSRF egress guard.
 
+[1.6.2]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6.2
 [1.6.1]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6.1
 [1.6]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6
 [1.5.2]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5.2

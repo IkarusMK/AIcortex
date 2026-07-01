@@ -39,6 +39,16 @@ _TAG_NAME = 0x42
 _TAG_MIME = 0x49
 _OP_PRINT_JOB = 0x0002
 
+# Common IPP status codes → human meaning (RFC 8011 §13.1), for clearer errors.
+_IPP_STATUS_NAMES = {
+    0x0400: "bad-request", 0x0401: "forbidden", 0x0403: "not-authorized",
+    0x0405: "not-possible", 0x0408: "request-value-too-long",
+    0x040A: "document-format-not-supported",
+    0x040C: "attributes-or-values-not-supported",
+    0x0500: "internal-error", 0x0501: "operation-not-supported",
+    0x0503: "service-unavailable", 0x0509: "busy",
+}
+
 
 def _slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
@@ -210,13 +220,23 @@ def register(mcp):
                     and document_format != "application/octet-stream"):
                 r = _send(scheme, ipp_scheme, "application/octet-stream")
         except Exception as exc:
-            return f"Print request failed: {exc}"
+            return (f"Print request failed ({type(exc).__name__}: {exc}). "
+                    f"Check that the printer is powered on and reachable at "
+                    f"{host}:{port}{path} — try port 631 and path /ipp/print (some use "
+                    f"/ipp or /) — and that {host} is inside INTERNAL_ALLOW_CIDRS.")
 
         status = _ipp_status(r.content)
         if r.status_code == 200 and status is not None and status <= 0x00FF:
             return (f"Sent '{job_name or 'document'}' to printer '{printer}' "
                     f"(IPP status 0x{status:04x}) — it should print now.")
         shown = f"0x{status:04x}" if status is not None else "unknown"
+        named = _IPP_STATUS_NAMES.get(status)
+        meaning = f" ({named})" if named else ""
+        extra = ""
+        if named == "document-format-not-supported":
+            extra = " The printer rejected the document format — try document_format=application/octet-stream."
+        elif status is None:
+            extra = " No IPP response — likely wrong path; try /ipp or /."
         return (f"Printer '{printer}' did not accept the job (HTTP {r.status_code}, "
-                f"IPP status {shown}). Check the IP/path (try /ipp or /) and that "
-                f"the format ({document_format}) is supported.")
+                f"IPP status {shown}{meaning}).{extra} Check the IP/path (try /ipp or /) "
+                f"and that the format ({document_format}) is supported.")
