@@ -13,6 +13,8 @@ stored in data, never returned to the model.
 Configs live under MCP_DIR. Transport: remote ``http`` (streamable) or ``sse``.
 """
 import json
+
+import cfgstore
 import os
 import re
 from pathlib import Path
@@ -280,7 +282,7 @@ def register(mcp):
                 "auth_scheme": auth_scheme,
                 "description": description,
             }
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
                 note = f" — set the token with secret_set('{token_env}', <value>)"

@@ -13,6 +13,8 @@ Only registered scanners are reachable and the host passes the SSRF egress guard
 under /data/work and can optionally be pushed straight into Paperless-ngx.
 """
 import json
+
+import cfgstore
 import os
 import re
 import time
@@ -115,7 +117,7 @@ def register(mcp):
                    "base": base or "/eSCL", "tls": tls,
                    "ca_bundle": ca_bundle, "tls_insecure": bool(tls_insecure),
                    "description": description}
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             mode = ("CA bundle" if ca_bundle else
                     ("verify OFF" if tls_insecure else "verified TLS"))
             return f"Registered scanner '{_slug(name)}' ({host}, base {cfg['base']}, {mode})."

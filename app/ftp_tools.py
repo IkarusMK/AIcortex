@@ -9,6 +9,8 @@ endpoints can be reached.
 """
 import ftplib
 import json
+
+import cfgstore
 import os
 import re
 import ssl
@@ -126,7 +128,7 @@ def register(mcp):
                 "password_env": password_env,
                 "description": description,
             }
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
                 note = f" — set the password with secret_set('{password_env}', <value>)"

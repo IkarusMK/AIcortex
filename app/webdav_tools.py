@@ -11,6 +11,8 @@ Use a Nextcloud **app password** (Settings → Security), not the login password
 Only registered endpoints are reachable and the host passes the SSRF guard.
 """
 import json
+
+import cfgstore
 import os
 import re
 import xml.etree.ElementTree as ET
@@ -92,7 +94,7 @@ def register(mcp):
                    "username": username, "password_env": password_env,
                    "tls_insecure": bool(tls_insecure), "ca_bundle": ca_bundle,
                    "description": description}
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
                 note = f" — set the app password: secret_set('{password_env}', <value>)"

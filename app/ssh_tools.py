@@ -10,6 +10,8 @@ ssh_run executes whatever command is passed on the remote host — powerful and
 state-changing. Confirm with the user before anything that changes remote state.
 """
 import json
+
+import cfgstore
 import os
 import re
 from io import StringIO
@@ -124,7 +126,7 @@ def register(mcp):
             SSH_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port), "username": username,
                    "password_env": password_env, "key_env": key_env, "description": description}
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             need = key_env or password_env
             note = f" — set the credential: secret_set('{need}', <value>)" if need and not secrets_store.get_secret(need) else ""
             return f"Registered SSH host '{_slug(name)}' ({username}@{host}:{port}).{note}"

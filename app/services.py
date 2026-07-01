@@ -9,6 +9,8 @@ environment, are never stored in data, and are never returned to the model.
 ``call_service`` only reaches registered services (no arbitrary URLs).
 """
 import json
+
+import cfgstore
 import os
 import re
 from pathlib import Path
@@ -56,20 +58,21 @@ def register(mcp):
         For APIs that use a custom header instead of Bearer auth, set auth_header
         to that header name and auth_scheme="" so the raw token is sent without a
         "Bearer " prefix.
-        category (REQUIRED) = a free-text group for the catalog (e.g. "Smart Home",
-        "Dev", "Documents", "Web") — services are listed grouped by it, like skills,
-        so they stay easy to find as the list grows. Call service_list first and
-        REUSE an existing category where it fits; service_add REFUSES a missing one.
-        write_only = a hard, server-side INGEST-ONLY lock: call_service REFUSES this
-        service entirely so nothing can ever be read back out of it (for sensitive
-        sinks like a document archive). Data can still be deposited through dedicated
-        ingest tools that don't use call_service (e.g. scan_document → Paperless)."""
+        category (REQUIRED for a new service) = a free-text group for the catalog
+        (e.g. "Smart Home", "Dev", "Documents", "Web") — services are listed grouped
+        by it, like skills, so they stay easy to find as the list grows. Call
+        service_list first and REUSE an existing category where it fits; service_add
+        REFUSES a missing one. Updates are MERGE-safe: fields you don't pass keep
+        their existing value, so you can update one field without restating the rest
+        (to clear a field, service_delete and re-add)."""
         if not category.strip():
-            return ("Refused: a service MUST have a category (house rule, so the "
-                    "catalog stays tidy & findable — same as skills). Pass "
-                    "category=\"…\" (e.g. \"Smart Home\", \"Dev\", \"Documents\", "
-                    "\"Web\"); call service_list first and REUSE an existing one "
-                    "where it fits.")
+            existing = _load(name)
+            if not (existing and str(existing.get("category", "")).strip()):
+                return ("Refused: a new service MUST have a category (house rule, so "
+                        "the catalog stays tidy & findable — same as skills). Pass "
+                        "category=\"…\" (e.g. \"Smart Home\", \"Dev\", \"Documents\", "
+                        "\"Web\"); call service_list first and REUSE an existing one "
+                        "where it fits.")
         try:
             SERVICES_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -82,7 +85,7 @@ def register(mcp):
                 "category": category.strip(),
                 "write_only": bool(write_only),
             }
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
                 note = f" — to activate it, call secret_set('{token_env}', <value>) yourself (don't ask the user to edit .env)"

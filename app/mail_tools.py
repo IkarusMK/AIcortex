@@ -8,6 +8,8 @@ the user before sending on their behalf.
 Stdlib only (smtplib + email). The SMTP host passes the SSRF egress guard.
 """
 import json
+
+import cfgstore
 import os
 import re
 import smtplib
@@ -75,7 +77,7 @@ def register(mcp):
             cfg = {"name": name, "host": host, "port": int(port), "from_addr": from_addr,
                    "username": username, "password_env": password_env,
                    "security": (security or "starttls").lower(), "description": description}
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
                 note = f" — set the password: secret_set('{password_env}', <value>)"

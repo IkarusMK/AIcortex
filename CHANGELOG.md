@@ -4,6 +4,16 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.6.1] — 2026-06-30
+### Fixed
+- The `*_add` registration tools now **merge on update** instead of overwriting.
+  Updating one field (e.g. adding a category) no longer wipes fields you didn't
+  restate — a `token_env` reference, a `write_only` ingest lock, TLS settings are
+  preserved. Shared `cfgstore.write_merged` across service/scan/mqtt/ftp/webdav/
+  ssh/mail/print/mcp registration. Service `category` is optional when updating an
+  already-categorized service (still required for a new one). To clear a field,
+  `*_delete` and re-add.
+
 ## [1.6] — 2026-06-30
 ### Added
 - **Tiered memory catalog** — `bootstrap` groups each memory scope by tier
@@ -75,6 +85,7 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   file hub, IPP printing, eSCL scanning, an MCP gateway, cron-as-data scheduling, an
   encrypted secret vault, OAuth via your own OIDC provider, and an SSRF egress guard.
 
+[1.6.1]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6.1
 [1.6]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6
 [1.5.2]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5.2
 [1.5.1]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5.1

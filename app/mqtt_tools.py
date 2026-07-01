@@ -10,6 +10,8 @@ Broker configs live under MQTT_DIR. The password is referenced by NAME
 in data, never returned to the model. Only registered brokers can be reached.
 """
 import json
+
+import cfgstore
 import os
 import re
 import ssl
@@ -122,7 +124,7 @@ def register(mcp):
                 "client_id": client_id,
                 "description": description,
             }
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
                 note = f" — set the password with secret_set('{password_env}', <value>)"

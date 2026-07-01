@@ -14,6 +14,8 @@ INTERNAL_ALLOW_CIDRS (e.g. your LAN range).
 """
 import base64
 import json
+
+import cfgstore
 import os
 import re
 import struct
@@ -103,7 +105,7 @@ def register(mcp):
             PRINT_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port),
                    "path": path or "/ipp/print", "description": description}
-            _cfg_path(name).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            cfgstore.write_merged(_cfg_path(name), cfg)
             return f"Registered printer '{_slug(name)}' ({host}:{port}{cfg['path']})."
         except Exception as exc:
             return f"Could not register printer: {exc}"
