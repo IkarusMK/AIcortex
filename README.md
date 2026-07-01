@@ -174,7 +174,7 @@ Every register has a matching delete (`skill_delete`, `service_delete`, `mqtt_de
 
 This is the heart of the project — making the assistant *itself* portable, not just the chat.
 
-- **Memory** lives as plain files under `data/memory`; the `memory_*` tools let the LLM recall and update what it knows about you, the same on every device.
+- **Memory** lives as plain files under `data/memory`; the `memory_*` tools let the LLM recall and update what it knows about you, the same on every device. The catalog groups it by **tier** — 🧭 Core (identity & preferences) → 📂 Projects → 🛠 Working style → 🔗 References, derived from each memory's `type`, with short-term/current state in the sessions layer — so a fresh LLM sees who you are before the ephemera.
 - **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router (`skill_search` / `skill_load` / `skill_resource`) finds the right skill and pulls in **only what it needs** (progressive disclosure).
 - **Categories keep it cheap — and are mandatory.** `skill_write` refuses an uncategorized skill and snaps near-duplicate spellings onto the existing category, so a 300-skill library stays a dozen lines in `bootstrap`, not a token dump. Starter skills live in [`examples/skills/`](examples/skills/README.md).
 - **Call `bootstrap` first.** Its description tells any LLM to call it at the start of every session. For clients that don't call tools on their own, add a one-line instruction to your client's project/system prompt — see [`docs/client-project-instructions.md`](docs/client-project-instructions.md).
@@ -183,14 +183,14 @@ This is the heart of the project — making the assistant *itself* portable, not
 
 Most assistants forget the moment a chat ends. AICortex closes that loop — and stays tidy while doing it.
 
-- **Typed, on purpose.** Every memory is `user`, `feedback`, `project` or `reference`; `memory_write` refuses an untyped memory, so the brain stays sorted by intent.
+- **Typed & tiered.** Every memory is `user`, `feedback`, `project` or `reference`; `memory_write` refuses an untyped memory, and `bootstrap` groups them into tiers (Core → Projects → Working style → References) so the catalog reads long-term → ephemeral — the brain stays sorted by intent.
 - **Learns in-session, at zero extra cost.** The model already talking to you distills the durable facts and writes them back — no second model, no background loop.
 - **Dedup-first.** A write flags overlapping entries so related facts merge into one file instead of multiplying.
 - **A review queue.** Anything captured automatically (or staged with `memory_note`) lands as a **candidate**, not live memory — you `memory_promote` the keepers and `memory_reject` the rest. Set `LEARN_AUTOCAPTURE=0` to turn auto-capture off.
 
 ## Tools & integrations (as data)
 
-New integrations don't need new code. A **service** is a small config you register at runtime with `service_add` (stored under `data/services`); `call_service` then reaches it — only registered services are allowed, and the auth token is injected server-side from the vault (`token_env`), never stored in service data or returned to the model. Pair a service with a `skill_write` skill that explains how to use it, and a new capability is live **without a redeploy**.
+New integrations don't need new code. A **service** is a small config you register at runtime with `service_add` (stored under `data/services`); `call_service` then reaches it — only registered services are allowed, and the auth token is injected server-side from the vault (`token_env`), never stored in service data or returned to the model. Every service takes a **`category`** (like skills — `service_add` refuses without one), so the catalog stays grouped and findable. Pair a service with a `skill_write` skill that explains how to use it, and a new capability is live **without a redeploy**.
 
 ## Multi-agent — one brain, many agents
 
@@ -358,6 +358,7 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | **Scan / WebDAV fails or falls back to plain HTTP** (e.g. *"did not start a job … 404"*) | The LAN device serves HTTPS with a **self-signed certificate**, which is verified by default. Confirm with `curl -k https://<device-ip>/...` → if that returns `200`, register it self-signed: `scan_add`/`webdav_add` with **`tls_insecure=true`** (or point `ca_bundle` at its cert). |
 | **A new tool or parameter from an update doesn't appear** | Your LLM client cached the old tool schema. **Fully restart the client session** (re-adding the connector is often not enough). |
 | **Pulled a new image but old behaviour persists** | The container didn't recreate (or `latest` wasn't rebuilt yet). Run `docker compose pull && docker compose up -d --force-recreate`, then verify with diagnostic #3 above. |
+| **The assistant says the AICortex tools "aren't loaded" / it can't call `bootstrap`** | A client-side setting — the connector's tools aren't enabled for that conversation. In the chat's tools/connectors menu, toggle **AICortex on as a tool source** (web/mobile); if it won't stick, remove the connector, fully reopen the app, re-add it, start a fresh chat. See [docs/client-project-instructions.md](docs/client-project-instructions.md). |
 
 ## License
 

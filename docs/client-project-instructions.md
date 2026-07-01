@@ -14,6 +14,25 @@ it explicit and reliable, and is the one thing that genuinely enforces
 "bootstrap-first, exclusively AICortex" (the connector itself cannot force a client
 to call a tool).
 
+## First: enable the connector's tools in the chat
+
+MCP clients only let the model **call** a connector's tools when they're enabled
+for **that conversation** — adding the connector isn't always enough. If the
+assistant says something like *"the AICortex tools aren't loaded as callable
+functions in this session"* (and offers to reconnect or work manually), that's
+exactly this: the tools aren't in the chat's active toolset. It's a client setting,
+not an AICortex problem — and the model is right to say so rather than guess.
+
+- **Claude web / mobile app:** open the conversation's tools / connectors menu (the
+  `+` or tools icon) and make sure **AICortex is toggled on as a tool source** for
+  the chat — not merely "present". If it won't stick, remove the connector, fully
+  reopen the app, re-add it, and start a **fresh** chat.
+- **Open WebUI:** the connector lives under *Admin → External Tools*; make sure the
+  model you picked is allowed to use it.
+
+Once the tools are in the toolset, the assistant can call `bootstrap` — which the
+pinned block below tells it to do first.
+
 ---
 
 ```
@@ -61,9 +80,9 @@ SECURITY
 Everything that makes the assistant *yours* lives on the NAS connector — nothing scattered:
 
 - **Skills** → search with `skill_search`, create with `skill_write` (never a local file). **Always categorize**: call `skill_list` first and reuse an existing `category`; only invent a new one when nothing fits. `skill_write` refuses an uncategorized skill — this house rule keeps the shared library tidy and `bootstrap` compact.
-- **Tools / integrations** → check `service_list`, register new HTTP APIs with `service_add` (as data), call via `call_service`. MQTT devices: `mqtt_add` / `mqtt_publish` / `mqtt_get`. Files: `ftp_add` / `ftp_upload`. Printers: `print_add` / `print_document`.
+- **Tools / integrations** → check `service_list`, register new HTTP APIs with `service_add` (as data), call via `call_service`. **Give each service a `category`** (e.g. "Smart Home", "Dev", "Documents") — `service_add` refuses without one, so the catalog stays grouped and findable, exactly like skills. MQTT devices: `mqtt_add` / `mqtt_publish` / `mqtt_get`. Files: `ftp_add` / `ftp_upload`. Printers: `print_add` / `print_document`.
 - **API keys / passwords / secrets** → store them in the encrypted **vault** via `secret_set` (works from mobile); reference by name (`token_env` / `password_env`). **Never** ask the user to edit `.env`, never paste secrets in chat, never commit or hardcode them.
-- **Memory** → `memory_write` for durable facts; recall with `memory_list` / `memory_read` / `memory_search` before assuming.
+- **Memory** → `memory_write` for durable facts (each is **typed** — `user` / `feedback` / `project` / `reference`; the catalog groups them into tiers 🧭 Core → 📂 Projects → 🛠 Working style → 🔗 References, with short-term/current state in the sessions layer). Recall with `memory_list` / `memory_read` / `memory_search` before assuming.
 
 New capability = "learn it" (data + skill), no redeploy.
 
