@@ -178,7 +178,9 @@ def register(mcp):
             if not p.is_absolute():
                 p = DATA_ROOT / file
             p = p.resolve()
-            if not str(p).startswith(str(DATA_ROOT)):
+            # Ancestry check, not a string prefix: startswith("/data") would also
+            # match a sibling like /data-backup and let a path escape the sandbox.
+            if p != DATA_ROOT and DATA_ROOT not in p.parents:
                 return "File must be under /data."
             if not p.is_file():
                 return f"No file at '{p}'."
@@ -201,9 +203,11 @@ def register(mcp):
             url = f"{scheme}://{host}:{port}{path}"
             # verify=False: printers use self-signed certs; this is a LAN device the
             # operator allow-listed, and IPP carries no credential here.
-            return httpx.post(url, content=body,
-                              headers={"Content-Type": "application/ipp"},
-                              timeout=60, verify=False)
+            # guard() re-applies the egress policy at connect (anti-rebinding).
+            with netguard.guard(host):
+                return httpx.post(url, content=body,
+                                  headers={"Content-Type": "application/ipp"},
+                                  timeout=60, verify=False)
 
         scheme, ipp_scheme = "http", "ipp"
         try:

@@ -190,9 +190,11 @@ def register(mcp):
         for scheme, port, base in _candidates(cfg):
             url = f"{scheme}://{host}:{port}{base}/ScanJobs"
             try:
-                r = httpx.post(url, content=xml.encode("utf-8"),
-                               headers={"Content-Type": "text/xml"},
-                               timeout=120, verify=netguard.tls_verify(cfg))
+                # guard() re-applies the egress policy at connect (anti-rebinding).
+                with netguard.guard(host):
+                    r = httpx.post(url, content=xml.encode("utf-8"),
+                                   headers={"Content-Type": "text/xml"},
+                                   timeout=120, verify=netguard.tls_verify(cfg))
             except Exception as exc:
                 if scheme == "https" and _looks_like_tls_error(exc):
                     tls_failed = True
@@ -225,8 +227,9 @@ def register(mcp):
         doc = None
         for _ in range(3):
             try:
-                rd = httpx.get(f"{job_url.rstrip('/')}/NextDocument", timeout=180,
-                               verify=netguard.tls_verify(cfg))
+                with netguard.guard(host):
+                    rd = httpx.get(f"{job_url.rstrip('/')}/NextDocument", timeout=180,
+                                   verify=netguard.tls_verify(cfg))
             except Exception as exc:
                 return f"Scan started but fetching the page failed: {exc}"
             if rd.status_code == 200 and rd.content:
@@ -266,8 +269,10 @@ def register(mcp):
                     return result + f" (Paperless needs secret '{tok_env}' — set it with secret_set.)"
                 headers["Authorization"] = f"Token {token}"
             try:
-                ru = httpx.post(up_url, headers=headers,
-                                files={"document": (name, doc, fmt)}, timeout=180)
+                from urllib.parse import urlparse as _urlparse
+                with netguard.guard(_urlparse(up_url).hostname or ""):
+                    ru = httpx.post(up_url, headers=headers,
+                                    files={"document": (name, doc, fmt)}, timeout=180)
                 if ru.status_code in (200, 201):
                     return result + f" Uploaded to Paperless ('{paperless}')."
                 return result + f" Paperless upload returned HTTP {ru.status_code}."

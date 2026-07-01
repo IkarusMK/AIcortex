@@ -169,7 +169,9 @@ def register(mcp):
         if not cfg:
             return f"Unknown endpoint '{endpoint}'."
         src = _safe_under_data(source)
-        if not str(src).startswith(str(DATA_ROOT)):
+        # Ancestry check, not a string prefix: startswith("/data") would also match
+        # a sibling like /data-backup and let a path escape the sandbox.
+        if src != DATA_ROOT and DATA_ROOT not in src.parents:
             return "Source must be under /data."
         if not src.is_file():
             return f"No file at '{src}'."

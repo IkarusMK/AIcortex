@@ -245,7 +245,11 @@ def build_middleware():
             except Exception as exc:
                 if exc.__class__ is ToolError or isinstance(exc, ToolError):
                     raise  # a real policy denial must propagate
-                # anything else (identity/policy resolution) → fail-open
+                # anything else (identity/policy resolution) → fail-open, but
+                # LEAVE A TRACE: a silent degrade-to-allow is exactly what an
+                # attacker would want to go unnoticed, so record it.
+                audit("unknown", "?", tool or "?", "fail-open",
+                      f"authz error, allowed without check: {type(exc).__name__}: {exc}")
             return await call_next(context)
 
     try:

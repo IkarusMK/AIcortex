@@ -158,15 +158,24 @@ def register(mcp):
         sees only the shared secrets plus the ones in their OWN namespace; an admin
         sees all (tagged by owner)."""
         keys = sorted(_read_all().keys())
+        own_ns = ""
+        confine = False
         try:
             import tenancy
             ident, role = tenancy.current_identity()
             own_ns = tenancy.vault_namespace(ident, role) if ident else ""
+            # Confine every non-admin while isolation is on. Fail-safe: an
+            # UNRESOLVED caller (role None) is treated as non-admin, so a glitch
+            # can't leak the full set of other users' secret names — it just shows
+            # the shared ones. When isolation is OFF (homelab), one shared brain →
+            # no confinement, unchanged behaviour.
+            confine = tenancy.isolation_enabled() and role != "admin"
         except Exception:
-            own_ns = ""
-        if own_ns:  # confined caller: shared + own only
+            own_ns, confine = "", False
+        if confine:  # shared + own only (own unknown → shared only)
             keys = [k for k in keys
-                    if not k.startswith("users/") or k.startswith(own_ns + "/")]
+                    if not k.startswith("users/")
+                    or (own_ns and k.startswith(own_ns + "/"))]
         if not keys:
             return "No secrets stored yet."
         return "\n".join(_fmt_key(k, own_ns) for k in keys)

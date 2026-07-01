@@ -30,6 +30,7 @@ policy.json shape (all optional):
     }
 Default per non-admin caller when there is no entry: ``own`` (confined).
 """
+import hashlib
 import json
 import os
 import re
@@ -61,9 +62,16 @@ def _policy() -> dict:
 
 
 def _safe(identity: str) -> str:
-    """Filesystem-safe identity segment (matches memory._scope_dir's guard so the
-    forced scope can't traverse out of the memory dir)."""
-    return re.sub(r"[^a-zA-Z0-9_-]+", "_", identity or "") or "unknown"
+    """Filesystem-safe, INJECTIVE identity segment: a readable slug plus a short
+    hash of the RAW identity. The slug alone is not injective (``bob@x.com`` and
+    ``bob.x.com`` both sanitise to ``bob_x_com``) — collapsing two people onto one
+    namespace would break vault/memory isolation — so the hash of the untouched
+    identity disambiguates. Output stays within [A-Za-z0-9_-], matching
+    memory._scope_dir's guard so the forced scope can't traverse out."""
+    raw = identity or ""
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_") or "user"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:10]
+    return f"{slug}-{digest}"
 
 
 def area_for(identity: str, role: str) -> dict:
