@@ -4,6 +4,15 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.6] — 2026-06-30
+### Added
+- **Tiered memory catalog** — `bootstrap` groups each memory scope by tier
+  (🧭 Core / 📂 Projects / 🛠 Working style / 🔗 References), derived from the
+  existing `type`; short-term/current state is the sessions layer. No migration.
+- **Categorized services** — `service_add` now **requires a `category`** (refuses
+  without one, like `skill_write`); the catalog and `service_list` group by it, via
+  a generic renderer that falls back to a flat list for uncategorized sections.
+
 ## [1.5.2] — 2026-06-30
 ### Security
 - Verify TLS **by default** for the scanner (eSCL) and WebDAV. Self-signed LAN
@@ -66,6 +75,7 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   file hub, IPP printing, eSCL scanning, an MCP gateway, cron-as-data scheduling, an
   encrypted secret vault, OAuth via your own OIDC provider, and an SSRF egress guard.
 
+[1.6]: https://github.com/IkarusMK/AIcortex/releases/tag/1.6
 [1.5.2]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5.2
 [1.5.1]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5.1
 [1.5]: https://github.com/IkarusMK/AIcortex/releases/tag/1.5
