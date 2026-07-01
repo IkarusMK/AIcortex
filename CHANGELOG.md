@@ -4,6 +4,34 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.6.3] — 2026-07-01
+### Security
+- **SSRF hardening on mail / scan / print (CRITICAL).** These dispatchers only
+  ran the `check_host()` preflight but connected *outside* `netguard.guard()`, so
+  the DNS-rebinding / TOCTOU window the guard exists to close was open exactly
+  there. Their actual connects (SMTP, eSCL, IPP, Paperless upload) are now wrapped
+  in the guard.
+- **Guard also blocks cross-host redirects.** While a guard is active, **every**
+  outbound DNS resolution is re-checked against the egress policy (not just the
+  named host), so an already-registered endpoint can no longer 30x-redirect the
+  client onto `169.254.169.254` or a LAN panel. Public and operator allow-listed
+  ranges still pass.
+- **Injective per-user namespace (HIGH).** `tenancy._safe()` sanitised distinct
+  identities to the same slug (`bob@x.com` and `bob.x.com` → `bob_x_com`), which
+  could fold two people onto one memory scope / vault namespace. It now appends a
+  short hash of the raw identity, so namespaces are collision-free. (No migration:
+  isolation is opt-in and no confined users exist yet.)
+- **Path checks use ancestry, not string prefix (MEDIUM).** The `/data` sandbox
+  checks in `mail_send`, `print_document` and `webdav_upload` used
+  `str(p).startswith("/data")`, which also matched siblings like `/data-backup`.
+  Now an ancestry check (`DATA_ROOT in p.parents`).
+- **Auth fail-open now leaves an audit trail (LOW).** A degrade-to-allow in the
+  authz middleware is recorded to the audit log instead of passing silently.
+- **`secret_list` name-leak hardened (LOW).** A non-admin caller under isolation
+  (including an unresolved one) no longer sees other users' secret *names* — only
+  shared plus their own. Values were never exposed. `service_add`/`service_delete`
+  were already admin-gated.
+
 ## [1.6.2] — 2026-06-30
 ### Changed
 - Clearer failure messages for `scan_document` and `print_document`. The scanner

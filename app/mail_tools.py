@@ -134,7 +134,9 @@ def register(mcp):
             if not ap.is_absolute():
                 ap = DATA_ROOT / attachment
             ap = ap.resolve()
-            if not str(ap).startswith(str(DATA_ROOT)):
+            # Ancestry check, not a string prefix: startswith("/data") would also
+            # match a sibling like /data-backup and let a path escape the sandbox.
+            if ap != DATA_ROOT and DATA_ROOT not in ap.parents:
                 return "Attachment must be under /data."
             if not ap.is_file():
                 return f"No attachment file at '{ap}'."
@@ -155,19 +157,23 @@ def register(mcp):
         sec = cfg.get("security", "starttls")
         port = int(cfg.get("port", 587))
         try:
-            if sec == "ssl":
-                server = smtplib.SMTP_SSL(host, port, timeout=30)
-            else:
-                server = smtplib.SMTP(host, port, timeout=30)
-            with server:
-                if sec == "starttls":
-                    server.starttls()
-                if cfg.get("username") and cfg.get("password_env"):
-                    pw = secrets_store.get_secret(cfg["password_env"])
-                    if not pw:
-                        return f"Account needs secret '{cfg['password_env']}'. Use secret_set."
-                    server.login(cfg["username"], pw)
-                server.send_message(msg, from_addr=cfg.get("from_addr"), to_addrs=rcpts)
+            # guard() wraps the actual connect so the SSRF egress policy is
+            # re-applied at resolve time (anti DNS-rebinding), not just at the
+            # check_host() preflight above.
+            with netguard.guard(host):
+                if sec == "ssl":
+                    server = smtplib.SMTP_SSL(host, port, timeout=30)
+                else:
+                    server = smtplib.SMTP(host, port, timeout=30)
+                with server:
+                    if sec == "starttls":
+                        server.starttls()
+                    if cfg.get("username") and cfg.get("password_env"):
+                        pw = secrets_store.get_secret(cfg["password_env"])
+                        if not pw:
+                            return f"Account needs secret '{cfg['password_env']}'. Use secret_set."
+                        server.login(cfg["username"], pw)
+                    server.send_message(msg, from_addr=cfg.get("from_addr"), to_addrs=rcpts)
         except Exception as exc:
             return f"Send failed: {exc}"
         return f"Sent '{subject}' to {', '.join(rcpts)}" + (f" with attachment {Path(attachment).name}" if attachment else "") + "."

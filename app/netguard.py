@@ -113,14 +113,21 @@ def _ip_allowed(ip, nets) -> bool:
 
 # ── DNS-rebinding guard (close the check→connect TOCTOU) ───────────────────
 # check_host() validates at preflight, but the client libraries (httpx, ftplib,
-# paramiko, paho) resolve again at CONNECT time — a hostname that answered with a
-# public IP during the check can answer with an internal IP at connect (DNS
-# rebinding). guard(host) wraps the actual network call: while active it filters
-# socket.getaddrinfo so the policy is re-applied to the connect-time addresses,
-# dropping any disallowed IP. TLS/SNI is unaffected (the hostname is unchanged),
-# so certificate verification keeps working. Refcounted + thread-safe so
-# concurrent calls to different hosts coexist; only guarded hosts are filtered,
-# everything else resolves normally.
+# paramiko, paho, smtplib) resolve again at CONNECT time — a hostname that
+# answered with a public IP during the check can answer with an internal IP at
+# connect (DNS rebinding). guard(host) wraps the actual network call: while it is
+# active EVERY socket.getaddrinfo is re-checked against the egress policy and any
+# disallowed (internal/link-local, not allow-listed) address is dropped.
+#
+# Filtering ALL lookups while a guard is active — not just the named host — is
+# deliberate: it also closes a cross-host redirect bypass (an already-registered
+# endpoint that 30x-redirects the client to 169.254.169.254 or a LAN admin panel
+# would otherwise resolve the NEW host unchecked). Public addresses still pass and
+# operator allow-listed internal ranges still pass, so legitimate LAN devices keep
+# working; only a disallowed target is blocked. TLS/SNI is unaffected (the
+# hostname is unchanged), so certificate verification keeps working. Refcounted +
+# thread-safe so concurrent/nested guarded calls coexist and getaddrinfo is
+# restored only once the last one exits.
 _guard_lock = threading.Lock()
 _guarded: dict = {}
 _orig_getaddrinfo = None
@@ -128,10 +135,9 @@ _orig_getaddrinfo = None
 
 def _filtered_getaddrinfo(host, *args, **kwargs):
     res = _orig_getaddrinfo(host, *args, **kwargs)
-    key = (host or "").strip().strip("[]").lower()
     with _guard_lock:
-        guarded = key in _guarded
-    if not guarded:
+        active = bool(_guarded)
+    if not active:
         return res
     nets = _allowed_cidrs()
     allowed = []
@@ -145,16 +151,18 @@ def _filtered_getaddrinfo(host, *args, **kwargs):
     if not allowed:
         raise socket.gaierror(
             f"netguard: every address for '{host}' is internal/blocked at connect "
-            f"time (possible DNS rebinding); none in INTERNAL_ALLOW_CIDRS")
+            f"time (possible DNS rebinding or redirect); none in INTERNAL_ALLOW_CIDRS")
     return allowed
 
 
 @contextlib.contextmanager
 def guard(host: str):
-    """Enforce the egress IP policy at CONNECT time for `host` (anti-rebinding).
-    Wrap the network call: `with netguard.guard(host): client.request(...)`."""
+    """Enforce the egress IP policy at CONNECT time (anti-rebinding, anti-redirect).
+    Wrap the network call: `with netguard.guard(host): client.request(...)`. While
+    active, every outbound DNS resolution — including redirect targets — is checked
+    against the policy, so `host` is only a label for refcounting/diagnostics."""
     global _orig_getaddrinfo
-    key = (host or "").strip().strip("[]").lower()
+    key = (host or "").strip().strip("[]").lower() or "-"
     with _guard_lock:
         _guarded[key] = _guarded.get(key, 0) + 1
         if _orig_getaddrinfo is None:
