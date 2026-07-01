@@ -4,6 +4,13 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.6.4] — 2026-07-01
+### Added
+- **Running version is now observable.** A single `version.__version__` is logged
+  at startup (`[AICortex] version X starting`), returned by `ping`, and shown in
+  the `bootstrap` catalog header — so you can tell which build a container is
+  actually running without fingerprinting its source.
+
 ## [1.6.3] — 2026-07-01
 ### Security
 - **SSRF hardening on mail / scan / print (CRITICAL).** These dispatchers only
