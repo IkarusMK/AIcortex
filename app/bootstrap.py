@@ -29,6 +29,7 @@ MQTT_DIR = Path(os.environ.get("MQTT_DIR", "/data/mqtt"))
 FTP_DIR = Path(os.environ.get("FTP_DIR", "/data/ftp"))
 MCP_DIR = Path(os.environ.get("MCP_DIR", "/data/mcp"))
 CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
+WEBHOOK_DIR = Path(os.environ.get("WEBHOOK_DIR", "/data/webhooks"))
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
 SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 WEBDAV_DIR = Path(os.environ.get("WEBDAV_DIR", "/data/webdav"))
@@ -213,6 +214,9 @@ def _catalog() -> str:
                  "none — add with scan_add"),
         _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
                  "none — add with cron_add"),
+        _section("INBOUND WEBHOOKS (POST /hooks/<name> → inbox)",
+                 _json_names(WEBHOOK_DIR, fields=("notify", "description")),
+                 "none — add with webhook_add"),
         _section("TEAM (agents — live presence, online first)", _agents(),
                  "none registered — agent_register(name, role, capabilities)"),
         _section("TASK BOARD (shared work — claim/handoff)", _board(),
