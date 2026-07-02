@@ -267,6 +267,23 @@ Then open `http://<host>:3000`, create the admin account, and pull a model — e
 
 > **Pick a tool-aware model** (recent Llama 3.x / Qwen2.5 / Mistral-class) — small 7–8B models struggle with multi-step tool use — and start with a curated tool set. **Full guide (model tips, `mcpo` fallback for older Open WebUI, security notes): [docs/local-llm-openwebui.md](docs/local-llm-openwebui.md).**
 
+## FAQ
+
+**Why a separate "brain" when Claude and ChatGPT already have memory?**
+Because *processing* your data isn't the same as *owning* it. Built-in memory lives inside one vendor, one app, one model. AICortex is **yours**: model- and client-agnostic (the same brain on Claude, ChatGPT, a local Ollama model, desktop or phone — no lock-in), it reaches your **own** devices and files, and it keeps secrets in a vault on your NAS. Its action tools *reduce* what you paste into a cloud chat rather than add exposure — the sensitive value stays server-side and is referenced by name.
+
+**Why keyword search instead of semantic / vector search?**
+Deliberate. Memory is a **curated, typed catalog** — the handful of facts you (or the assistant) chose to keep — not an embedding pile you hope to retrieve from. A typed, human-readable catalog stays debuggable, portable and free of a vector database. (If the skill library ever grows large enough that paraphrase-matching hurts, opt-in local embeddings for `skill_search` *only* is the escape hatch — not a memory-wide graph.)
+
+**Why no built-in code sandbox / executor?**
+A code executor would be the single biggest attack surface and it breaks the *no code, no redeploy* principle. The sandbox pattern already exists **as data**: `ssh_add` a disposable, LAN-isolated jail host and `ssh_run` there. It's a documented pattern, not something baked into the connector.
+
+**Why no built-in Telegram / Slack / ntfy / … integrations?**
+Those are just HTTP APIs — so they're `service_add` + a skill, not new code. That's the whole point: a new capability is **data + a skill**, never a redeploy.
+
+**Do I need OIDC and a reverse proxy?**
+For a public/cloud LLM client, yes — the endpoint must be reachable over HTTPS and authenticated (see [Authentication & authorization](#authentication--authorization)). Running a purely local client? You can keep it on the LAN. Homelab mode keeps auth simple; enterprise mode adds roles + per-user isolation with one switch — see **[docs/authorization.md](docs/authorization.md)**.
+
 ## Security
 
 - **Auth fails closed.** Without OIDC the server binds to `127.0.0.1` only (override with `ALLOW_INSECURE=1`). Enable OIDC **before** exposing the proxy — anyone who reaches `/mcp` can otherwise call every tool.
