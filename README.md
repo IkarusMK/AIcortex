@@ -159,7 +159,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Devices (MQTT) | `mqtt_add` · `mqtt_list` · `mqtt_publish` · `mqtt_get` | Talk to MQTT devices (e.g. a LAN printer or sensor) as data |
 | Files (FTP/FTPS) | `ftp_add` · `ftp_list_endpoints` · `ftp_list` · `ftp_upload` | Up/list files over FTP/FTPS |
 | Cloud (WebDAV) | `webdav_add` · `webdav_list` · `webdav_upload` · `webdav_download` · `webdav_mkdir` · `webdav_delete` | Move large files NAS↔cloud (Nextcloud/ownCloud), app-password auth |
-| Calendar (CalDAV) | `caldav_add` · `caldav_list_calendars` · `caldav_list_events` · `caldav_add_event` | Read/create calendar events (Nextcloud/Radicale), app-password auth |
+| Calendar (CalDAV) | `caldav_add` · `caldav_list_calendars` · `caldav_list_events` · `caldav_add_event` · `caldav_delete_event` | Read/create/delete calendar events (Nextcloud/Radicale), app-password auth |
 | Workspace files | `fs_list` · `fs_read` · `fs_write` · `fs_move` · `fs_delete` · `fs_info` | See & tidy the `/data/work` file hub (sandboxed) |
 | SSH / SFTP | `ssh_add` · `ssh_run` · `ssh_upload` · `ssh_download` · `ssh_list_dir` | Run remote commands & transfer files (hosts as data, vault creds) |
 | Email (SMTP) | `mail_add` · `mail_list` · `mail_send` | Send mail/notifications with optional attachment |

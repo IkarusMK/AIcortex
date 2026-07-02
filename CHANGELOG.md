@@ -4,6 +4,13 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.7.1] — 2026-07-02
+### Added
+- **`caldav_delete_event`** — completes CalDAV CRUD. Shipping `caldav_add_event`
+  without a matching delete in 1.7.0 was an oversight; every write now has its
+  delete. `caldav_list_events` additionally returns each event's **href** as the
+  delete handle. State-changing → confirm first.
+
 ## [1.7.0] — 2026-07-02
 ### Added
 - **Webhooks — inbound receiver + outbound sender.** Inbound: a public

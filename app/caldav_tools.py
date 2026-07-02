@@ -207,11 +207,15 @@ def register(mcp):
         out = []
         try:
             root = ET.fromstring(r.content)
-            for cd in root.findall(".//c:calendar-data", _NS):
-                ics = cd.text or ""
+            for resp in root.findall("d:response", _NS):
+                cd = resp.find(".//c:calendar-data", _NS)
+                if cd is None or not (cd.text or "").strip():
+                    continue
+                ics = cd.text
+                href = unquote(resp.findtext("d:href", default="", namespaces=_NS))
                 summary = _ics_field(ics, "SUMMARY") or "(no title)"
                 out.append(f"- {summary} · {_ics_field(ics, 'DTSTART')} → "
-                           f"{_ics_field(ics, 'DTEND')} · {_ics_field(ics, 'UID')}")
+                           f"{_ics_field(ics, 'DTEND')} · {href}")
         except Exception as exc:
             return f"Could not parse events: {exc}"
         return "\n".join(out) if out else "(no events in that range)"
@@ -253,3 +257,29 @@ def register(mcp):
         if r.status_code in (200, 201, 204):
             return f"Created event '{summary}' ({dtstart} → {dtend})."
         return f"Create returned HTTP {r.status_code} (check the calendar href / credentials)."
+
+    @mcp.tool
+    def caldav_delete_event(endpoint: str, event: str) -> str:
+        """Delete a calendar event by its `event` href (the last field from
+        caldav_list_events) or a full event URL. STATE-CHANGING — confirm with the
+        user first."""
+        cfg = _load(endpoint)
+        if not cfg:
+            return f"Unknown endpoint '{endpoint}'."
+        if not (event or "").strip():
+            return "Provide the event href (from caldav_list_events)."
+        client, base = _client(cfg)
+        if client is None:
+            return base
+        url = event.strip()
+        if not urlparse(url).scheme:  # a relative href → make it absolute on the endpoint host
+            b = urlparse(base)
+            url = f"{b.scheme}://{b.netloc}{url}"
+        try:
+            with netguard.guard(urlparse(url).hostname or ""), client:
+                r = client.request("DELETE", url)
+        except Exception as exc:
+            return f"Delete failed: {exc}"
+        if r.status_code in (200, 204, 404):  # 404 = already gone
+            return f"Deleted event ({r.status_code})."
+        return f"Delete returned HTTP {r.status_code} (check the href / credentials)."
