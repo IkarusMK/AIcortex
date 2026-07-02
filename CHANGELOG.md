@@ -6,6 +6,16 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 ### Added
+- **Webhooks — inbound receiver + outbound sender.** Inbound: a public
+  `POST /hooks/<name>` route (served alongside `/mcp/` via FastMCP `custom_route`,
+  outside the MCP OAuth) lets external services push events that land in the inbox —
+  making the brain event-driven. It authenticates itself with a per-hook **shared
+  secret token and/or HMAC signature** (constant-time), rejects unknown/unsigned
+  requests, caps body size, and only deposits into the inbox (never the tool
+  surface). `webhook_add` / `webhook_list` / `webhook_delete` (admin). Outbound:
+  `webhook_send(url, json_body)` — a thin SSRF-guarded POST for notifications.
+  **Operator note:** expose only `/hooks/*` past the reverse proxy's auth, never
+  `/mcp`.
 - **CalDAV — calendars as data.** `caldav_add` / `caldav_list_calendars` /
   `caldav_list_events` / `caldav_add_event`: discover calendars, list events in a
   time range, and create an event (PUT of an iCalendar object) — over CalDAV

@@ -25,7 +25,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - The *same* brain on desktop **and** mobile — one account, one state
 
 **🔌 Real reach — everything as data**
-- HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **CalDAV** calendars, **SSH/SFTP**, **SMTP + IMAP** email
+- HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **CalDAV** calendars, **SSH/SFTP**, **SMTP + IMAP** email, inbound/outbound **webhooks**
 - **IPP printing** and **eSCL scanning** (straight into Paperless-ngx) to LAN multifunction devices
 - An **MCP gateway** to use other MCP servers' tools as data
 - Register an integration once with one tool call — no code, no redeploy
@@ -167,6 +167,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint |
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device → `/data/work`, optionally into Paperless |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
+| Webhooks | `webhook_add` · `webhook_list` · `webhook_delete` · `webhook_send` | Inbound `POST /hooks/<name>` (secret/HMAC) → inbox (event-driven); outbound POST notify |
 | Multi-agent | `agent_register`/`list` · `task_add`/`list`/`claim`/`update` · `task_next` · `task_handoff` · `inbox_*` | Presence-aware team: capability-routed pull & context-preserving handoff |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log; auto-expires |
 | Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` | Cron jobs as data; a NAS runner triggers them |
@@ -290,6 +291,7 @@ For a public/cloud LLM client, yes — the endpoint must be reachable over HTTPS
 - **Auth fails closed.** Without OIDC the server binds to `127.0.0.1` only (override with `ALLOW_INSECURE=1`). Enable OIDC **before** exposing the proxy — anyone who reaches `/mcp` can otherwise call every tool.
 - **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are model-callable, so the registered-target list isn't a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only). Set it to the LAN/VPN ranges you actually use.
 - **Encrypted vault, enforced.** Secrets go in the vault via `secret_set` (encrypted at rest, referenced by name, never returned). `secret_set` **refuses plaintext** unless `STORAGE_ENCRYPTION_KEY` is set. `.env` is only for bootstrap config.
+- **Inbound webhooks authenticate themselves.** `POST /hooks/<name>` is served alongside `/mcp/` but *not* behind the MCP OAuth (external senders can't do OAuth) — instead each hook validates a **shared secret token and/or an HMAC signature** (constant-time), rejects unknown hooks (404) and unsigned/bad requests (401), caps the body size, and only ever deposits into the inbox — it never reaches the tool surface. **Expose only `/hooks/*` past your reverse proxy's auth, never `/mcp`.** Don't want any public receiver? Leave webhooks unregistered (opt-in) or keep the `/hooks` path LAN-only.
 - **TLS verified by default** for FTP / MQTT / WebDAV / scanning; self-signed LAN devices opt out per-endpoint via the admin-only registration tools (`tls_insecure` / `ca_bundle`).
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 

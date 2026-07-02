@@ -49,6 +49,7 @@ ADMIN_TOOLS = {
     "print_add", "print_delete",
     "scan_add", "scan_delete",
     "mcp_add", "mcp_delete",
+    "webhook_add", "webhook_delete",
     # cron_add/cron_delete are NOT here: a non-admin may schedule/delete their OWN
     # jobs (forced act-as as themselves); the tools enforce owner-scoping in-tool.
     "secret_set", "secret_delete",
@@ -70,6 +71,7 @@ READ_ONLY_TOOLS = {
     "mail_list", "imap_list", "imap_search", "imap_fetch",
     "print_list", "scan_list",
     "mcp_list", "mcp_tools",
+    "webhook_list",
     "fs_list", "fs_read", "fs_info",
     "session_list", "session_load",
     # cron_list is read-only (filtered to the caller's own jobs in-tool). cron_due

@@ -68,6 +68,17 @@ def _presence(a: dict) -> str:
     return "away"
 
 
+def post_inbox(to: str, body: str, subject: str = "", sender: str = "") -> str:
+    """Append a message to the shared inbox and return its id. Module-level so
+    non-tool callers (e.g. the inbound webhook receiver) can deposit events too."""
+    items = _read(INBOX_FILE)
+    msg = {"id": _id(), "ts": _now(), "to": to, "from": sender or "unknown",
+           "subject": subject, "body": body, "read": False}
+    items.append(msg)
+    _write(INBOX_FILE, items)
+    return msg["id"]
+
+
 def _caps_set(s) -> set:
     if isinstance(s, (list, tuple)):
         s = " ".join(s)
@@ -124,12 +135,8 @@ def register(mcp):
     def inbox_post(to: str, body: str, subject: str = "", sender: str = "") -> str:
         """Post a message to an agent (or 'user' / 'all'). Append-only.
         `sender` = your agent name. Recipients read it with inbox_read."""
-        items = _read(INBOX_FILE)
-        msg = {"id": _id(), "ts": _now(), "to": to, "from": sender or "unknown",
-               "subject": subject, "body": body, "read": False}
-        items.append(msg)
-        _write(INBOX_FILE, items)
-        return f"Posted message {msg['id']} to '{to}'."
+        mid = post_inbox(to, body, subject, sender)
+        return f"Posted message {mid} to '{to}'."
 
     @mcp.tool
     def inbox_read(agent: str, unread_only: bool = True, limit: int = 20) -> str:

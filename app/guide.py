@@ -146,6 +146,10 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
+- Webhooks: EINGEHEND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
+  webhook_delete — öffentliche Route POST /hooks/<name>, per Secret-Token/HMAC abgesichert,
+  Event → Inbox (macht das Gehirn event-fähig). AUSGEHEND webhook_send(url, json_body) — POST,
+  ausgehend → vorher bestätigen. (Proxy: nur /hooks/* ohne OIDC durchreichen, nie /mcp.)
 
 MULTI-AGENT (geteilter Koordinations-Layer — Mac, NAS-Ollama, Handy als EIN Team)
 - ANMELDEN = Präsenz-Herzschlag: agent_register(name, role, capabilities[, status])
@@ -295,6 +299,10 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
+- Webhooks: INBOUND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
+  webhook_delete — public route POST /hooks/<name>, secured by secret token/HMAC, event →
+  inbox (makes the brain event-driven). OUTBOUND webhook_send(url, json_body) — POST, outbound
+  → confirm first. (Proxy: pass only /hooks/* without OIDC, never /mcp.)
 
 MULTI-AGENT (shared coordination layer — desktop, NAS-Ollama, mobile as ONE team)
 - REGISTER = presence heartbeat: agent_register(name, role, capabilities[, status])
