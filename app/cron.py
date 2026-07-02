@@ -89,22 +89,40 @@ def _is_due(expr: str, dt: datetime) -> bool:
 def register(mcp):
     @mcp.tool
     def cron_add(name: str, schedule: str, prompt: str, notify: str = "user",
-                 enabled: bool = True) -> str:
+                 enabled: bool = True, owner: str = "") -> str:
         """Create/update a scheduled job (stored as DATA on the NAS).
         schedule = 5-field cron (e.g. "30 6 * * *" = 06:30 daily, server local
         time). prompt = what the triggered LLM run should do. notify = inbox
-        recipient for the result (default "user"). The NAS runner executes it."""
+        recipient for the result (default "user"). The NAS runner executes it.
+
+        owner (act-as) = run this job in a specific user's area (their memory /
+        vault / services / skills). Leave empty for the runner's default identity.
+        Only an admin may set an owner OTHER than themselves — a non-admin can
+        schedule jobs only as themselves (no privilege escalation)."""
         if len(schedule.split()) != 5:
             return "schedule must be a 5-field cron expression: 'min hour dom mon dow'."
+        act_as = (owner or "").strip()
+        if act_as:
+            try:
+                import tenancy
+                caller, role = tenancy.current_identity()
+                ok, resolved = tenancy.act_as_owner(caller, role, act_as)
+                if not ok:
+                    return f"Refused: {resolved}"
+                act_as = resolved
+            except Exception:
+                pass  # fail-open: identity glitch stores the requested owner as-is
         jobs = _read()
         sid = _slug(name)
         jobs = [j for j in jobs if j.get("id") != sid]
         jobs.append({"id": sid, "name": name, "schedule": schedule, "prompt": prompt,
                      "notify": notify or "user", "enabled": bool(enabled),
+                     "owner": act_as,
                      "created": datetime.now().isoformat(timespec="seconds"),
                      "last_run": ""})
         _write(jobs)
-        return f"Scheduled job '{sid}' ({schedule})."
+        as_note = f" as {act_as}" if act_as else ""
+        return f"Scheduled job '{sid}' ({schedule}){as_note}."
 
     @mcp.tool
     def cron_list() -> str:
@@ -113,7 +131,9 @@ def register(mcp):
         if not jobs:
             return "No scheduled jobs yet. Use cron_add."
         return "\n".join(
-            f"- {j.get('id')} — {j.get('schedule')} — {'on' if j.get('enabled') else 'off'} — last {j.get('last_run') or 'never'} — {j.get('name', '')}"
+            f"- {j.get('id')} — {j.get('schedule')} — {'on' if j.get('enabled') else 'off'}"
+            + (f" — as {j['owner']}" if j.get('owner') else "")
+            + f" — last {j.get('last_run') or 'never'} — {j.get('name', '')}"
             for j in jobs)
 
     @mcp.tool
@@ -130,11 +150,14 @@ def register(mcp):
     @mcp.tool
     def cron_due() -> str:
         """For the NAS runner: return enabled jobs due THIS minute that haven't
-        run yet this minute, as JSON [{id, prompt, notify}]. Run each, then call
-        cron_mark_run(id)."""
+        run yet this minute, as JSON [{id, prompt, notify, owner}]. Run each, then
+        call cron_mark_run(id). `owner` (act-as) = the identity the runner should
+        run the job as (empty = the runner's default); the runner is responsible
+        for presenting that identity so the job stays in the owner's area."""
         now = datetime.now()
         stamp = now.strftime("%Y-%m-%dT%H:%M")
-        due = [{"id": j["id"], "prompt": j["prompt"], "notify": j.get("notify", "user")}
+        due = [{"id": j["id"], "prompt": j["prompt"], "notify": j.get("notify", "user"),
+                "owner": j.get("owner", "")}
                for j in _read()
                if j.get("enabled") and j.get("last_run") != stamp and _is_due(j.get("schedule", ""), now)]
         return json.dumps(due, ensure_ascii=False)

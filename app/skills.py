@@ -74,12 +74,16 @@ def register(mcp):
         """Find skills relevant to a task (ranked name — description). Call this
         before specialized work, then skill_load the best match. Optionally narrow
         to one category (see skill_list for the categories)."""
+        import tenancy
         q = (query or "").lower()
         cat = (category or "").strip().lower()
         results = []
         for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
             meta, body = _parse(sk.read_text(encoding="utf-8"))
             if cat and _category(meta).lower() != cat:
+                continue
+            # Per-user capability area: hide skills this caller may not use.
+            if not tenancy.caller_skill_allowed(sk.parent.name, _category(meta)):
                 continue
             hay = f"{sk.parent.name} {meta.get('name','')} {meta.get('description','')} {meta.get('tags','')} {body}".lower()
             score = sum(1 for w in q.split() if w in hay)
@@ -95,40 +99,69 @@ def register(mcp):
         """Without a category: list the CATEGORIES with a skill count each (compact,
         scales to hundreds of skills). With a category: list the skills in it
         (name — description). Use skill_search to find a skill across all categories."""
+        import tenancy
         items = sorted(SKILLS_DIR.glob("*/SKILL.md"))
         if not items:
             return "No skills yet. Use skill_write to add one."
         cat = (category or "").strip().lower()
         if not cat:
             counts: dict[str, int] = {}
+            total = 0
             for sk in items:
                 meta, _ = _parse(sk.read_text(encoding="utf-8"))
-                counts[_category(meta)] = counts.get(_category(meta), 0) + 1
+                c = _category(meta)
+                if not tenancy.caller_skill_allowed(sk.parent.name, c):
+                    continue
+                counts[c] = counts.get(c, 0) + 1
+                total += 1
+            if not counts:
+                return ("No skills available to you. An admin can grant access with "
+                        "tenancy_set(identity, skills=...).")
             lines = [f"- {c} — {n} skill(s)"
                      for c, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
-            return (f"{len(items)} skills in {len(counts)} categories — "
+            return (f"{total} skills in {len(counts)} categories — "
                     f"call skill_list(\"<category>\") to see one, or skill_search(query):\n"
                     + "\n".join(lines))
         out = []
         for sk in items:
             meta, _ = _parse(sk.read_text(encoding="utf-8"))
-            if _category(meta).lower() == cat:
+            if _category(meta).lower() == cat and tenancy.caller_skill_allowed(
+                    sk.parent.name, _category(meta)):
                 out.append(f"- {sk.parent.name} — {meta.get('description', '')}")
         return "\n".join(out) if out else f"No skills in category '{category}'."
 
     @mcp.tool
     def skill_load(name: str) -> str:
         """Load a skill's full instructions by its name (from skill_search/list)."""
+        import tenancy
         path = SKILLS_DIR / _slug(name) / "SKILL.md"
         if not path.exists():
             return f"No skill named '{name}'."
-        return path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
+        meta, _ = _parse(text)
+        if not tenancy.caller_skill_allowed(path.parent.name, _category(meta)):
+            return (f"Denied: skill '{name}' is not in your allowed set. An admin "
+                    f"can grant it with tenancy_set(identity, skills=...).")
+        return text
 
     @mcp.tool
     def skill_resource(name: str, filename: str) -> str:
         """Read a resource file bundled with a skill."""
+        import tenancy
+        folder = SKILLS_DIR / _slug(name)
+        cat = ""
+        md = folder / "SKILL.md"
+        if md.exists():
+            try:
+                meta, _ = _parse(md.read_text(encoding="utf-8"))
+                cat = _category(meta)
+            except Exception:
+                cat = ""
+        if not tenancy.caller_skill_allowed(folder.name, cat):
+            return (f"Denied: skill '{name}' is not in your allowed set. An admin "
+                    f"can grant it with tenancy_set(identity, skills=...).")
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or "")
-        path = SKILLS_DIR / _slug(name) / safe
+        path = folder / safe
         if not path.exists() or not path.is_file():
             return f"No resource '{filename}' in skill '{name}'."
         return path.read_text(encoding="utf-8")
