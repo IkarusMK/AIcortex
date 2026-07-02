@@ -19,26 +19,26 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 ## Highlights
 
 **🧠 A brain that travels with you**
-- One-call `bootstrap` onboarding — loads the guide *and* a live catalog of everything on the brain in a single round-trip
+- One-call `bootstrap` — loads the guide *and* a live catalog of the whole brain in a single round-trip
 - Self-learning, **typed** memory with a review queue, so it grows without polluting itself
-- A **skill router** — search your skills, load only what's needed (progressive disclosure), learn new ones at runtime
-- The *same* brain on desktop **and** mobile — one account, one state
+- A **skill router** — search your skills, load only what's needed, author new ones at runtime
+- The *same* brain across models, desktop **and** mobile — one account, one state
 
-**🔌 Real reach — everything as data**
-- HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **CalDAV** calendars, **SSH/SFTP**, **SMTP + IMAP** email, inbound/outbound **webhooks**
-- **IPP printing** and **eSCL scanning** (straight into Paperless-ngx) to LAN multifunction devices
-- An **MCP gateway** to use other MCP servers' tools as data
-- Register an integration once with one tool call — no code, no redeploy
+**🔌 Real reach — every integration is just data**
+- **Email** (SMTP send **+ IMAP read**), **calendars** (**CalDAV**), HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **SSH/SFTP**
+- **IPP printing** & **eSCL scanning** (straight into Paperless-ngx) on LAN multifunction devices
+- **Event-driven:** inbound **webhooks** (`POST /hooks/<name>`, secret/HMAC-verified) turn external events into inbox items; outbound webhooks notify
+- An **MCP gateway** to use other MCP servers' tools — register any integration with one call, **no code, no redeploy**
 
-**👥 Team & continuity**
+**👥 Team, autonomy & continuity**
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
 - **Cross-LLM session handoff** — resume exactly where another model or device left off
-- **Cron-as-data scheduling** with a small NAS-side runner
+- **Cron-as-data scheduling** with per-user **act-as**: a scheduled job runs confined to *its owner's* area, via a short-lived per-job token — never a standing god-token
 
-**🔒 Secure & self-hosted**
-- Your own **OIDC** login, **roles** (admin / user / viewer) and opt-in **per-user data isolation**
-- An **encrypted secret vault** and an **SSRF egress guard**; auth fails closed
-- Runs end-to-end on your hardware — including with a **local model** (Ollama)
+**🔒 Secure & multi-tenant**
+- Your own **OIDC** login and **roles** (admin / user / viewer) — one switch, `AUTH_ENFORCE`
+- **Per-user isolation *and* capability areas:** private memory + vault per person, plus **default-deny** service/skill allow-lists an admin assigns — so not everyone may use every tool
+- An **encrypted secret vault**, an **SSRF egress guard**, and capability checks that **fail closed** — end-to-end on your hardware, including a **local model** (Ollama)
 
 ## How it works
 
@@ -220,9 +220,11 @@ Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt)` fro
 
 Two ready-to-deploy runners live in [`runner/`](runner/README.md): a **Claude Code backend** (does the connector's OAuth login itself) and a **generic any-LLM backend** ([`runner/generic/`](runner/generic/README.md)) that drives the connector from any model via [LiteLLM](https://github.com/BerriAI/litellm), authenticating with a static `RUNNER_TOKEN` accepted alongside OIDC (FastMCP `MultiAuth`).
 
+> **What the `RUNNER_TOKEN` may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
+
 ## Run it with a local model (Ollama)
 
-AICortex is model-agnostic — including **fully local** models. [Open WebUI](https://github.com/open-webui/open-webui) is the chat UI + MCP client, [Ollama](https://ollama.com) is the model, AICortex is the brain/tools — nothing leaves your network. **No connector changes needed**: Open WebUI connects over native MCP using the `RUNNER_TOKEN` you already have.
+AICortex is model-agnostic — including **fully local** models. [Open WebUI](https://github.com/open-webui/open-webui) is the chat UI + MCP client, [Ollama](https://ollama.com) is the model, AICortex is the brain/tools — nothing leaves your network. **No connector changes needed**: Open WebUI connects over native MCP using the `RUNNER_TOKEN` you already have (in enterprise mode, give that token a role/areas — see the note above).
 
 ```
 Open WebUI (chat UI)  ──native MCP (Streamable-HTTP, Bearer RUNNER_TOKEN)──▶  AICortex  ──▶  memory · skills · tools
