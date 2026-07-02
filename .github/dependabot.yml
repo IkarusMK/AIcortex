@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Python dependencies (baked into the image from app/requirements.txt).
+  - package-ecosystem: pip
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+
+  # GitHub Actions — keep the workflow's actions current AND let Dependabot pin
+  # them to commit SHAs over time (supply-chain hardening of the build pipeline).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "ci", "security"]
+
+  # Runner reference images / deps.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "security"]

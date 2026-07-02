@@ -273,6 +273,33 @@ def caller_skill_allowed(name: str, category: str = "") -> bool:
         return False
 
 
+# Device/endpoint registries (caldav, imap, webdav, ssh, mail, print, scan, mqtt,
+# ftp, mcp) are ALSO per-user capabilities — a non-admin must only reach the
+# endpoints an admin assigned. `kind` is the class ("caldav", "ssh", …); the policy
+# entry may carry a per-kind allow-list (same `all`|`none`|[names] shape as services/
+# skills) under that key. Same default-deny + fail-closed model.
+def endpoint_allowed(identity: str, role: str, kind: str, name: str) -> bool:
+    """Whether `identity` may use endpoint `name` of class `kind`. DEFAULT-DENY under
+    enforce (no `<kind>` grant → nothing); homelab mode → all."""
+    spec = _access_spec(identity, role, kind)   # generic: reads policy users.<sub>.<kind>
+    if spec == _ACCESS_ALL:
+        return True
+    return (name or "").strip().lower() in spec
+
+
+def caller_endpoint_allowed(kind: str, name: str) -> bool:
+    """endpoint_allowed for the CURRENT caller (honors act-as). Fail-CLOSED under
+    enforce, open in homelab."""
+    try:
+        ident, role = current_identity()
+        return endpoint_allowed(ident, role, kind, name)
+    except Exception as exc:
+        if not _enforced():
+            return True
+        _audit_area_fail(kind, "unknown", name, exc)
+        return False
+
+
 def act_as_owner(caller_identity: str, caller_role: str, requested_owner: str):
     """Validate the ``owner`` (act-as identity) for a scheduled job. Returns
     ``(ok, value_or_reason)``:
@@ -328,6 +355,20 @@ def _fmt_access(spec) -> str:
     return s or "all"
 
 
+# Device/endpoint capability classes an admin can grant per user (same shape as
+# services/skills). Kept in sync with authz._ENDPOINT_TOOLS.
+_DEVICE_KINDS = ("caldav", "imap", "webdav", "ssh", "mail", "print",
+                 "scan", "mqtt", "ftp", "mcp")
+
+
+def _norm_access(v: str):
+    """Normalize an access value string → 'all' | 'none' | [names]."""
+    low = (v or "").strip().lower()
+    if low in (_ACCESS_ALL, _ACCESS_NONE):
+        return low
+    return [x for x in re.split(r"[,\s]+", low) if x]
+
+
 def _describe_area(identity: str) -> str:
     """Human line describing a user's stored config + how it resolves for the
     'user' role (the common non-admin case)."""
@@ -337,11 +378,13 @@ def _describe_area(identity: str) -> str:
     svcs = _fmt_access(cfg.get("services", "all"))
     skls = _fmt_access(cfg.get("skills", "all"))
     note = cfg.get("note", "")
+    devices = " ".join(f"{k}={_fmt_access(cfg[k])}" for k in _DEVICE_KINDS if k in cfg)
     resolved = area_for(identity, "user")
     scope = resolved["memory_scope"] or "shared + all (unconfined)"
     extra = f" · note: {note}" if note else ""
+    dev = f" · devices: {devices}" if devices else ""
     return (f"- {identity}: memory={mem}, vault={vault}, services={svcs}, "
-            f"skills={skls} → memory scope: {scope}{extra}")
+            f"skills={skls}{dev} → memory scope: {scope}{extra}")
 
 
 def register(mcp):
@@ -369,7 +412,8 @@ def register(mcp):
 
     @mcp.tool
     def tenancy_set(identity: str, memory: str = "", vault: str = "",
-                    services: str = "", skills: str = "", note: str = "") -> str:
+                    services: str = "", skills: str = "", grant: str = "",
+                    note: str = "") -> str:
         """Set a user's data area in policy.json (create or update). `identity` =
         the person's Pocket ID `sub` (or a client_id).
 
@@ -379,10 +423,13 @@ def register(mcp):
           (locked out), or a comma-separated allow-list of names and/or categories
           (e.g. "github, Documents"). These are SHARED capabilities, so default 'all';
           set an allow-list to narrow a user.
+        - `grant` = per-endpoint-class access for DEVICES (caldav/imap/webdav/ssh/
+          mail/print/scan/mqtt/ftp/mcp), format "kind=spec" separated by ';' —
+          e.g. "caldav=nextcloud-cal; ssh=all; imap=none". Under enforce these are
+          DEFAULT-DENY (a non-admin reaches no device endpoint until granted).
 
-        Leave a field empty to KEEP its current value; a brand-new user with nothing
-        set defaults to memory='own' (services/skills default to 'all' implicitly).
-        `note` is an optional label. (Admin-only.)"""
+        Leave a field empty to KEEP its current value. `note` is an optional label.
+        (Admin-only.)"""
         identity = (identity or "").strip()
         if not identity:
             return "Refused: identity is required (the user's Pocket ID sub or client_id)."
@@ -399,17 +446,20 @@ def register(mcp):
             entry["memory"] = memory.strip().lower()
         if vault.strip():
             entry["vault"] = vault.strip().lower()
-        # services/skills: store 'all'/'none' verbatim, else a normalized list so
-        # the catalog + _access_spec agree on the shape.
+        # services/skills: 'all'/'none' verbatim, else a normalized list.
         for label, val in (("services", services), ("skills", skills)):
-            v = val.strip()
-            if not v:
+            if val.strip():
+                entry[label] = _norm_access(val)
+        # grant: per-device-class access, "kind=spec; kind=spec".
+        for part in re.split(r"[;\n]+", grant or ""):
+            if "=" not in part:
                 continue
-            low = v.lower()
-            if low in (_ACCESS_ALL, _ACCESS_NONE):
-                entry[label] = low
-            else:
-                entry[label] = [x for x in re.split(r"[,\s]+", low) if x]
+            kind, _, spec = part.partition("=")
+            kind = kind.strip().lower()
+            if kind not in _DEVICE_KINDS:
+                return (f"Refused: unknown grant kind '{kind}'. Valid: "
+                        f"{', '.join(_DEVICE_KINDS)}.")
+            entry[kind] = _norm_access(spec)
         if note.strip():
             entry["note"] = note.strip()
         entry.setdefault("memory", "own")  # meaningful default for a new user

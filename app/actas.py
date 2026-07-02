@@ -105,8 +105,11 @@ def verify(token: str, expected_job: str = None):
 # identity resolvers (authz/tenancy) whom the running job acts as. A token's jti is
 # single-use: once consumed it can't start another run (replay guard) — on top of
 # the short TTL and the due-this-minute window.
+import collections
+
 _active = {"sub": None, "job": None, "exp": 0, "jti": None}
 _consumed: set = set()
+_consumed_order: "collections.deque" = collections.deque()
 _CONSUMED_CAP = 4096  # bound the replay-guard set so it can't grow without limit
 
 
@@ -131,10 +134,13 @@ def consume() -> None:
     """Invalidate the current binding's token (single-use) and clear it. Called on
     cron_mark_run so the same token can't drive a second run."""
     jti = _active.get("jti")
-    if jti:
-        if len(_consumed) >= _CONSUMED_CAP:
-            _consumed.clear()  # coarse but bounded; TTL already limits reuse window
+    if jti and jti not in _consumed:
         _consumed.add(jti)
+        _consumed_order.append(jti)
+        # Evict only the OLDEST jti when over the cap (a wholesale clear would briefly
+        # re-open replay for everything); TTL already bounds a jti's useful life.
+        while len(_consumed_order) > _CONSUMED_CAP:
+            _consumed.discard(_consumed_order.popleft())
     end()
 
 

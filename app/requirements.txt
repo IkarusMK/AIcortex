@@ -2,7 +2,12 @@ fastmcp>=3.4,<4
 paho-mqtt>=2.1,<3
 # SSH / SFTP for ssh_tools (remote commands + file transfer)
 paramiko>=3.4,<4
+# Secure XML parsing for the CalDAV/WebDAV server responses (blocks entity-expansion
+# / billion-laughs DoS from a malicious or compromised registered server).
+defusedxml>=0.7.1,<1
 # Keep the explicit DiskStore client_storage working on FastMCP 3 (v3's default
 # moved to FileTreeStore due to a diskcache CVE; the disk extra is the
 # sanctioned way to keep DiskStore — ours is Fernet-encrypted, self-data only).
-py-key-value-aio[disk]
+# NOTE: bound this once a stable upper major is known; Dependabot + the CI pip-audit
+# step (see .github/) track advisories on all deps in the meantime.
+py-key-value-aio[disk]>=0.2

@@ -156,11 +156,12 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 
 ZUGRIFF & BEREICHE (Multi-User — greift bei AUTH_ENFORCE=1; Homelab/AUTH_ENFORCE=0: keine Grenzen)
 - Nicht-Admins sind auf ihren EIGENEN Memory-Scope (users/<sub>) + Vault-Namespace beschränkt und
-  erreichen nur die Services/Skills, die ein Admin ihnen zugewiesen hat (DEFAULT-DENY). Läufst du
-  unerwartet auf „denied", ist genau das der Grund — kein Bug, sondern ein fehlender Bereich.
-- ADMIN vergibt Zugriff als Daten: tenancy_set(identity, memory=, vault=, services=, skills=) /
-  tenancy_show / tenancy_list / tenancy_status / tenancy_unset. services/skills = "all" | "none" |
-  Liste von Namen/Kategorien. Admins selbst sind nie beschränkt.
+  erreichen nur die Services, Skills UND Geräte-Endpoints (caldav/imap/webdav/ssh/mail/print/scan/
+  mqtt/ftp/mcp), die ein Admin ihnen zugewiesen hat (DEFAULT-DENY). Läufst du unerwartet auf
+  „denied", ist genau das der Grund — kein Bug, sondern ein fehlender Bereich.
+- ADMIN vergibt Zugriff als Daten: tenancy_set(identity, memory=, vault=, services=, skills=,
+  grant="caldav=nextcloud-cal; ssh=all; imap=none") / tenancy_show / tenancy_list / tenancy_status /
+  tenancy_unset. Werte = "all" | "none" | Liste von Namen/Kategorien. Admins sind nie beschränkt.
 
 MULTI-AGENT (geteilter Koordinations-Layer — Mac, NAS-Ollama, Handy als EIN Team)
 - ANMELDEN = Präsenz-Herzschlag: agent_register(name, role, capabilities[, status])
@@ -322,11 +323,12 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 
 ACCESS & AREAS (multi-user — applies when AUTH_ENFORCE=1; homelab/AUTH_ENFORCE=0: no limits)
 - Non-admins are confined to their OWN memory scope (users/<sub>) + vault namespace and reach only
-  the services/skills an admin assigned (DEFAULT-DENY). If you hit an unexpected "denied", that's the
-  reason — not a bug, just a missing area grant.
-- ADMIN grants access as data: tenancy_set(identity, memory=, vault=, services=, skills=) /
-  tenancy_show / tenancy_list / tenancy_status / tenancy_unset. services/skills = "all" | "none" |
-  a list of names/categories. Admins themselves are never confined.
+  the services, skills AND device endpoints (caldav/imap/webdav/ssh/mail/print/scan/mqtt/ftp/mcp) an
+  admin assigned (DEFAULT-DENY). If you hit an unexpected "denied", that's the reason — not a bug,
+  just a missing area grant.
+- ADMIN grants access as data: tenancy_set(identity, memory=, vault=, services=, skills=,
+  grant="caldav=nextcloud-cal; ssh=all; imap=none") / tenancy_show / tenancy_list / tenancy_status /
+  tenancy_unset. Values = "all" | "none" | a list of names/categories. Admins are never confined.
 
 MULTI-AGENT (shared coordination layer — desktop, NAS-Ollama, mobile as ONE team)
 - REGISTER = presence heartbeat: agent_register(name, role, capabilities[, status])

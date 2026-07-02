@@ -160,7 +160,14 @@ def guard(host: str):
     """Enforce the egress IP policy at CONNECT time (anti-rebinding, anti-redirect).
     Wrap the network call: `with netguard.guard(host): client.request(...)`. While
     active, every outbound DNS resolution — including redirect targets — is checked
-    against the policy, so `host` is only a label for refcounting/diagnostics."""
+    against the policy, so `host` is only a label for refcounting/diagnostics.
+
+    Coverage note: the guard filters ``socket.getaddrinfo``. Sync clients (httpx,
+    smtplib, ftplib, paramiko, paho) and ASYNC httpx (mcp_gateway) on the default
+    asyncio resolver all route through it (asyncio's ``loop.getaddrinfo`` calls
+    ``socket.getaddrinfo`` in an executor). Do NOT install a C-ares resolver
+    (``aiodns``): it would bypass this connect-time guard. The ``check_host`` /
+    ``check_url`` preflight still applies regardless."""
     global _orig_getaddrinfo
     key = (host or "").strip().strip("[]").lower() or "-"
     with _guard_lock:

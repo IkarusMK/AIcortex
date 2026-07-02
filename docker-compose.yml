@@ -6,7 +6,12 @@ services:
     container_name: aicortex
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-8787}:8787"
+      # Bind the published port to LOOPBACK by default, so only the reverse proxy on
+      # this host reaches it — not the whole LAN (which would let anyone hit /mcp and
+      # /hooks/* past the proxy). A host-network proxy (e.g. Zoraxy in host mode) sees
+      # 127.0.0.1 fine. If your proxy runs as a bridge-network container, either share
+      # a Docker network with it or set BIND_ADDR=0.0.0.0.
+      - "${BIND_ADDR:-127.0.0.1}:${HOST_PORT:-8787}:8787"
     environment:
       TZ: "${TZ:-UTC}"
       PUID: "${PUID:-1000}"

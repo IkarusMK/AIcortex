@@ -85,6 +85,29 @@ READ_ONLY_TOOLS = {
 
 _VALID_ROLES = ("admin", "user", "viewer")
 
+# Device/endpoint ACTION tools → (capability class, the arg naming the endpoint).
+# Under enforce, a non-admin may invoke these only on endpoints an admin assigned
+# them (tenancy.endpoint_allowed); this closes the gap where per-user areas covered
+# only services/skills, not the caldav/imap/webdav/ssh/… registries.
+_ENDPOINT_TOOLS = {
+    "caldav_list_calendars": ("caldav", "endpoint"),
+    "caldav_list_events": ("caldav", "endpoint"),
+    "caldav_add_event": ("caldav", "endpoint"),
+    "caldav_delete_event": ("caldav", "endpoint"),
+    "imap_search": ("imap", "account"), "imap_fetch": ("imap", "account"),
+    "webdav_list": ("webdav", "endpoint"), "webdav_upload": ("webdav", "endpoint"),
+    "webdav_download": ("webdav", "endpoint"), "webdav_mkdir": ("webdav", "endpoint"),
+    "webdav_delete": ("webdav", "endpoint"),
+    "ssh_run": ("ssh", "host"), "ssh_upload": ("ssh", "host"),
+    "ssh_download": ("ssh", "host"), "ssh_list_dir": ("ssh", "host"),
+    "mail_send": ("mail", "account"),
+    "print_document": ("print", "printer"),
+    "scan_document": ("scan", "scanner"),
+    "mqtt_publish": ("mqtt", "device"), "mqtt_get": ("mqtt", "device"),
+    "mcp_call": ("mcp", "server"), "mcp_tools": ("mcp", "server"),
+    "ftp_upload": ("ftp", "endpoint"),
+}
+
 
 def enabled() -> bool:
     # Secure by default: enforce unless explicitly disabled.
@@ -286,6 +309,20 @@ def build_middleware():
                                     identity, role, args.get("scope", "shared"))
                         except Exception:
                             pass
+                    # Per-user DEVICE/ENDPOINT areas (H1): confine a non-admin's use of
+                    # caldav/imap/webdav/ssh/mail/… to the endpoints an admin assigned.
+                    # endpoint_allowed is itself fail-closed under enforce / open in
+                    # homelab, so a denial here is a real policy decision.
+                    if tool in _ENDPOINT_TOOLS and isinstance(args, dict):
+                        import tenancy
+                        kind, arg = _ENDPOINT_TOOLS[tool]
+                        if not tenancy.endpoint_allowed(identity, role, kind, args.get(arg, "")):
+                            audit(identity, role, tool, "deny",
+                                  f"{kind} endpoint '{args.get(arg, '')}' not in caller's area")
+                            raise ToolError(
+                                f"Denied: {kind} endpoint '{args.get(arg, '')}' is not in "
+                                f"your allowed set. An admin grants it with "
+                                f"tenancy_set(identity, {kind}='<name>'|'all').")
             except Exception as exc:
                 if exc.__class__ is ToolError or isinstance(exc, ToolError):
                     raise  # a real policy denial must propagate

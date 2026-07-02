@@ -108,6 +108,22 @@ check("replay: reused token refused", actas.begin(t3, "j3")[0] is False)
 actas.end()
 check("no binding: current() None", actas.current() is None)
 
+# ── H1: per-user DEVICE/endpoint areas (caldav/imap/webdav/ssh/…) ──
+set_policy({"users": {
+    "dave": {"caldav": ["nextcloud-cal"], "ssh": "all", "imap": "none"},
+}, "roles": {"boss@x.com": "admin"}})
+enforce(True)
+check("H1: dave caldav granted endpoint", tenancy.endpoint_allowed("dave", "user", "caldav", "nextcloud-cal"))
+check("H1: dave caldav OTHER denied", not tenancy.endpoint_allowed("dave", "user", "caldav", "work-cal"))
+check("H1: dave ssh=all", tenancy.endpoint_allowed("dave", "user", "ssh", "any-host"))
+check("H1: dave imap=none deny", not tenancy.endpoint_allowed("dave", "user", "imap", "acct"))
+check("H1: dave NO webdav grant → DEFAULT-DENY", not tenancy.endpoint_allowed("dave", "user", "webdav", "nc"))
+check("H1: admin all endpoints", tenancy.endpoint_allowed("boss@x.com", "admin", "caldav", "anything"))
+check("H1: unknown user default-deny", not tenancy.endpoint_allowed("nobody", "user", "caldav", "x"))
+enforce(False)
+check("H1 homelab: all endpoints allowed", tenancy.endpoint_allowed("dave", "user", "imap", "acct"))
+enforce(True)
+
 print()
 if failures:
     print(f"{len(failures)} FAILURES:", failures)
