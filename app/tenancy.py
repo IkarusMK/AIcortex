@@ -5,22 +5,26 @@ tools* a caller may use; tenancy decides *which data* a caller sees within those
 tools — so two people sharing one AICortex don't read or overwrite each other's
 memory and secrets.
 
-OPT-IN (``TENANCY_ISOLATE=1``; default OFF) — this is the "community homelab vs.
-enterprise" switch:
-- OFF (default): no confinement. Every authenticated caller uses data exactly as
-  before (one trusted operator / a small homelab). Nothing changes.
-- ON: each non-admin identity is confined to its OWN memory scope (``users/<sub>``)
-  and OWN vault namespace, while ``admin`` keeps full access. Per-user widening or
-  narrowing lives as DATA in ``data/auth/policy.json`` under ``"users"`` — no code,
-  no redeploy.
+ONE SWITCH — areas ride on ``AUTH_ENFORCE`` (the same switch as authz; "enforce
+means enforce", no separate TENANCY_ISOLATE):
+- AUTH_ENFORCE=0 (homelab): no checks at all — every authenticated caller uses data
+  and every capability exactly as before. Nobody can be locked out by a defect.
+- AUTH_ENFORCE=1 (default, enterprise): each non-admin identity is confined to its
+  OWN memory scope (``users/<sub>``) and OWN vault namespace; SHARED capabilities
+  (services, skills) are DEFAULT-DENY — a user reaches only what an admin assigned.
+  ``admin`` keeps full access. Per-user areas live as DATA in
+  ``data/auth/policy.json`` under ``"users"`` — no code, no redeploy.
 
-DESIGN SAFETY (mirrors authz so it can't lock a hands-off operator out):
-- Fail-open: any error resolving identity/policy/area → NO confinement (return the
-  caller's requested scope unchanged), so a resolution glitch degrades to "full
-  access", never to "locked out".
+DESIGN SAFETY:
+- PRIVATE data (memory, vault): fail-OPEN — a resolution glitch degrades to the
+  caller's requested scope, never a lockout.
+- SHARED capabilities (services, skills): fail-CLOSED when enforced — any error in
+  the check path → deny, logged loudly to the audit log. In homelab mode no checks
+  run, so a defect can't strand anyone.
 - Admins are never confined.
 - The identity is the forwarded upstream ``sub`` (PocketIDProxy) when present, so
-  isolation is per-PERSON, not per-OAuth-client.
+  isolation is per-PERSON, not per-OAuth-client. A cron act-as run is scoped to the
+  job OWNER (see authz.effective_identity / actas).
 
 policy.json shape (all optional):
     {
@@ -66,10 +70,19 @@ MEMORY_SCOPED_TOOLS = {
 }
 
 
+def _enforced() -> bool:
+    """Areas are enforced exactly when authorization is — one switch, AUTH_ENFORCE
+    (secure by default: ON unless explicitly disabled). Read the env DIRECTLY so this
+    can never raise and can't be caught in an import cycle — the fail-closed logic
+    below relies on always being able to tell whether we're in enforce mode."""
+    return os.environ.get("AUTH_ENFORCE", "1").strip().lower() not in (
+        "0", "false", "no", "off")
+
+
 def isolation_enabled() -> bool:
-    """Master switch. OFF by default so single-operator setups are untouched."""
-    return os.environ.get("TENANCY_ISOLATE", "0").strip().lower() in (
-        "1", "true", "yes", "on")
+    """Back-compat name — area isolation now rides on AUTH_ENFORCE (the separate
+    TENANCY_ISOLATE switch is retired)."""
+    return _enforced()
 
 
 def _policy() -> dict:
@@ -141,20 +154,15 @@ def vault_namespace(identity: str, role: str) -> str:
 
 
 def current_identity():
-    """Resolve the CURRENT caller from the FastMCP auth context as
-    ``(identity, role)`` — identity = the forwarded upstream ``sub`` (per-person)
-    else the OAuth client_id. Fail-open to ``(None, None)`` so a resolution glitch
-    degrades to 'no namespace' (shared/flat), never to a wrong owner. Used by
-    data tools (e.g. secrets_store) that must namespace by who is calling."""
+    """Resolve the EFFECTIVE caller as ``(identity, role)`` — honoring an active cron
+    act-as binding, so a running job resolves to its OWNER (at the owner's own
+    privilege), not the runner. Delegates to ``authz.effective_identity`` (single
+    source of truth). Fail-safe to ``(None, None)`` on a hard resolution error; under
+    enforce the capability wrappers treat that as deny. Used by data tools
+    (secrets_store, services, skills) that must scope by who is calling."""
     try:
-        from fastmcp.server.dependencies import get_access_token
         import authz  # lazy: avoids an import cycle at module load
-        tok = get_access_token()
-        cid = getattr(tok, "client_id", None) or "unknown"
-        claims = getattr(tok, "claims", None) or {}
-        person = authz._claim_value(claims, "sub") or cid
-        role = authz.role_for(person, cid == "runner", claims)
-        return person, role
+        return authz.effective_identity()
     except Exception:
         return None, None
 
@@ -169,31 +177,31 @@ _ACCESS_NONE = "none"
 def _access_spec(identity: str, role: str, key: str):
     """Resolve a caller's access for a capability class (key = 'services'|'skills').
     Returns the string 'all' (unrestricted) or a frozenset of lowercased allow-list
-    entries (names and/or categories; empty frozenset = 'none' = nothing allowed).
+    entries (names and/or categories; empty frozenset = deny nothing-allowed).
 
-    Fail-open to 'all': isolation off, an admin, an unresolved identity, a missing
-    field, or any error → full access (capabilities are shared by default and a
-    glitch must never strand a caller)."""
-    try:
-        if not isolation_enabled():
+    DEFAULT-DENY under enforce: a non-admin with no assigned area for this class gets
+    NOTHING. Pure resolver — it does NOT swallow errors; the public wrappers turn an
+    exception into a fail-closed deny (+audit) when enforced."""
+    if not _enforced():
+        return _ACCESS_ALL                 # homelab: no checks, everything open
+    if role == "admin":
+        return _ACCESS_ALL                 # admins are never confined
+    users = _policy().get("users")
+    cfg = users.get(identity) if isinstance(users, dict) else None
+    if not isinstance(cfg, dict) or key not in cfg:
+        return frozenset()                 # no assigned area for this class → deny
+    spec = cfg.get(key)
+    if isinstance(spec, str):
+        s = spec.strip().lower()
+        if s == _ACCESS_NONE:
+            return frozenset()
+        if s in ("", _ACCESS_ALL):
             return _ACCESS_ALL
-        if role == "admin" or not identity or identity == "unknown":
-            return _ACCESS_ALL
-        cfg = (_policy().get("users") or {}).get(identity, {})
-        spec = cfg.get(key, _ACCESS_ALL)
-        if isinstance(spec, str):
-            s = spec.strip().lower()
-            if s == _ACCESS_NONE:
-                return frozenset()
-            if s in ("", _ACCESS_ALL):
-                return _ACCESS_ALL
-            # a comma/space-separated string is also accepted as an allow-list
-            return frozenset(x for x in re.split(r"[,\s]+", s) if x)
-        if isinstance(spec, (list, tuple, set)):
-            return frozenset(str(x).strip().lower() for x in spec if str(x).strip())
-        return _ACCESS_ALL
-    except Exception:
-        return _ACCESS_ALL
+        # a comma/space-separated string is also accepted as an allow-list
+        return frozenset(x for x in re.split(r"[,\s]+", s) if x)
+    if isinstance(spec, (list, tuple, set)):
+        return frozenset(str(x).strip().lower() for x in spec if str(x).strip())
+    return frozenset()                     # unknown shape → deny (fail-closed)
 
 
 def _capability_allowed(identity, role, key, name, category="") -> bool:
@@ -205,46 +213,64 @@ def _capability_allowed(identity, role, key, name, category="") -> bool:
     return (n in spec) or (bool(c) and c in spec)
 
 
+def _audit_area_fail(kind: str, identity: str, name: str, exc: Exception) -> None:
+    """Loud audit line when a capability check errors and we fail-closed (decision 4).
+    A silent deny would hide a policy/data defect; record why."""
+    try:
+        import authz
+        authz.audit(identity or "unknown", "?", f"{kind}:{name}", "deny",
+                    f"area-check failed → deny: {type(exc).__name__}: {exc}")
+    except Exception:
+        pass
+
+
 def service_allowed(identity: str, role: str, name: str, category: str = "") -> bool:
     """Whether `identity` may see/call service `name` (matched by name OR category).
-    Fail-open (see _access_spec)."""
+    Fail-CLOSED under enforce (error → deny + audit); open in homelab mode."""
     try:
         return _capability_allowed(identity, role, "services", name, category)
-    except Exception:
-        return True
+    except Exception as exc:
+        if not _enforced():
+            return True
+        _audit_area_fail("services", identity, name, exc)
+        return False
 
 
 def skill_allowed(identity: str, role: str, name: str, category: str = "") -> bool:
     """Whether `identity` may see/load skill `name` (matched by name OR category).
-    Fail-open (see _access_spec)."""
+    Fail-CLOSED under enforce (error → deny + audit); open in homelab mode."""
     try:
         return _capability_allowed(identity, role, "skills", name, category)
-    except Exception:
-        return True
+    except Exception as exc:
+        if not _enforced():
+            return True
+        _audit_area_fail("skills", identity, name, exc)
+        return False
 
 
 def caller_service_allowed(name: str, category: str = "") -> bool:
-    """service_allowed for the CURRENT caller (resolved from the auth context).
-    For use inside service tools, mirroring how secrets_store filters itself.
-    Fail-open: an unresolved caller → allowed."""
+    """service_allowed for the CURRENT caller (honors an active cron act-as binding).
+    Fail-CLOSED under enforce."""
     try:
         ident, role = current_identity()
-        if ident is None:
-            return True
         return service_allowed(ident, role, name, category)
-    except Exception:
-        return True
+    except Exception as exc:
+        if not _enforced():
+            return True
+        _audit_area_fail("services", "unknown", name, exc)
+        return False
 
 
 def caller_skill_allowed(name: str, category: str = "") -> bool:
-    """skill_allowed for the CURRENT caller. Fail-open: unresolved → allowed."""
+    """skill_allowed for the CURRENT caller. Fail-CLOSED under enforce."""
     try:
         ident, role = current_identity()
-        if ident is None:
-            return True
         return skill_allowed(ident, role, name, category)
-    except Exception:
-        return True
+    except Exception as exc:
+        if not _enforced():
+            return True
+        _audit_area_fail("skills", "unknown", name, exc)
+        return False
 
 
 def act_as_owner(caller_identity: str, caller_role: str, requested_owner: str):
@@ -330,12 +356,12 @@ def register(mcp):
         users = _policy().get("users") or {}
         lines = [
             f"Per-user isolation: {'ON' if on else 'OFF'} "
-            f"(TENANCY_ISOLATE={'1' if on else '0'}).",
+            f"(AUTH_ENFORCE={'1' if on else '0'}).",
             f"Configured users: {len(users)}.",
         ]
         if not on:
-            lines.append("Note: isolation is OFF — every caller shares one brain "
-                         "(homelab mode). Set TENANCY_ISOLATE=1 to enforce areas.")
+            lines.append("Note: enforcement is OFF — every caller shares one brain "
+                         "(homelab mode). Set AUTH_ENFORCE=1 to enforce areas.")
         if users:
             lines.append("")
             lines += [_describe_area(i) for i in sorted(users)]
@@ -391,8 +417,8 @@ def register(mcp):
         pol["users"] = users
         _write_policy(pol)
         warn = "" if isolation_enabled() else (
-            "\n⚠ TENANCY_ISOLATE is OFF, so this area is stored but NOT enforced "
-            "yet — set TENANCY_ISOLATE=1 in .env and restart to activate.")
+            "\n⚠ AUTH_ENFORCE is OFF, so this area is stored but NOT enforced yet — "
+            "set AUTH_ENFORCE=1 in .env and restart to activate.")
         return f"Set area for '{identity}'.\n{_describe_area(identity)}{warn}"
 
     @mcp.tool

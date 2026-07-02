@@ -47,7 +47,8 @@ ADMIN_TOOLS = {
     "print_add", "print_delete",
     "scan_add", "scan_delete",
     "mcp_add", "mcp_delete",
-    "cron_add", "cron_delete",
+    # cron_add/cron_delete are NOT here: a non-admin may schedule/delete their OWN
+    # jobs (forced act-as as themselves); the tools enforce owner-scoping in-tool.
     "secret_set", "secret_delete",
     "agent_register", "agent_remove",
     # Per-user data areas (who-may-see-what) — identity/policy management.
@@ -67,7 +68,10 @@ READ_ONLY_TOOLS = {
     "mcp_list", "mcp_tools",
     "fs_list", "fs_read", "fs_info",
     "session_list", "session_load",
-    "cron_list", "cron_due",
+    # cron_list is read-only (filtered to the caller's own jobs in-tool). cron_due
+    # is NOT here — it mints act-as capability tokens, so it's runner/admin-only
+    # (guarded in-tool), not a safe read for a viewer.
+    "cron_list",
     "agent_list", "inbox_read",
     "task_list", "task_next",
     "secret_list",
@@ -195,6 +199,37 @@ def _identity():
         return "unknown", False, {}
 
 
+def _actas_role(owner: str) -> str:
+    """Role for a cron act-as OWNER. Crucially this NEVER falls back to the default
+    'admin' the way an interactive caller does — an owned job must run with the
+    owner's OWN (least) privilege, so it resolves to the owner's explicit policy
+    role or 'user'. Otherwise a scheduled job would silently run as admin."""
+    pol = _policy()
+    roles = pol.get("roles", {}) if isinstance(pol, dict) else {}
+    r = roles.get(owner)
+    return r if r in _VALID_ROLES else "user"
+
+
+def effective_identity():
+    """(identity, role) for the CURRENT call, honoring an active cron act-as binding.
+    When the runner is executing a job as an owner, that owner (at the owner's own
+    privilege) is the effective caller for both tool-gating and data-scoping — so the
+    job is confined to the owner's area, never the runner's. No binding → the real
+    caller. Fail-open to ('unknown','user') only on a hard resolution error."""
+    try:
+        import actas
+        owner = actas.current()
+        if owner:
+            return owner, _actas_role(owner)
+    except Exception:
+        pass
+    try:
+        ident, is_runner, claims = _identity()
+        return ident, role_for(ident, is_runner, claims)
+    except Exception:
+        return "unknown", "user"
+
+
 def build_middleware():
     """Return a FastMCP Middleware enforcing the policy, or None if unavailable."""
     try:
@@ -212,8 +247,10 @@ def build_middleware():
             tool = getattr(getattr(context, "message", None), "name", None)
             try:
                 if enabled() and tool:
-                    identity, is_runner, claims = _identity()
-                    role = role_for(identity, is_runner, claims)
+                    # effective_identity() honors an active cron act-as binding, so a
+                    # scheduled job is gated + scoped as its OWNER (least privilege),
+                    # never as the runner.
+                    identity, role = effective_identity()
                     ok, reason = decide(role, tool)
                     if not ok or audit_all():
                         audit(identity, role, tool, "allow" if ok else "deny", reason)
@@ -230,10 +267,11 @@ def build_middleware():
                             args["sender"] = identity
                         elif tool == "task_add":
                             args["created_by"] = identity
-                    # Per-user data isolation (tenancy, opt-in TENANCY_ISOLATE=1):
+                    # Per-user data isolation (tenancy, rides on AUTH_ENFORCE):
                     # confine a non-admin caller's memory_* calls to their OWN scope
-                    # so two people on one brain don't read/overwrite each other.
-                    # Fail-open: any glitch here leaves the requested scope untouched.
+                    # so two people on one brain don't read/overwrite each other. Under
+                    # act-as, `identity`/`role` are already the OWNER, so a job's memory
+                    # lands in the owner's scope. Fail-open: a glitch leaves scope as-is.
                     if isinstance(args, dict):
                         try:
                             import tenancy

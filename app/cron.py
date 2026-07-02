@@ -86,6 +86,39 @@ def _is_due(expr: str, dt: datetime) -> bool:
             and _field_match(dow, dow_val, 0, 6))
 
 
+def _caller():
+    """(identity, role, is_runner) for the REAL current caller (the token identity —
+    NOT the act-as owner), for owner-scoping and runner-only gates. Fail-safe to
+    ('unknown', 'user', False)."""
+    try:
+        import authz
+        ident, is_runner, claims = authz._identity()
+        return ident, authz.role_for(ident, is_runner, claims), is_runner
+    except Exception:
+        return "unknown", "user", False
+
+
+def _runner_or_admin():
+    """(ok, identity) — is the real caller the NAS runner or an admin?"""
+    ident, role, is_runner = _caller()
+    return (is_runner or role == "admin"), ident
+
+
+def _runner_plumbing_ok():
+    """(ok, reason) for token-minting / act-as-starting tools (cron_due,
+    act_as_begin). Requires the runner/admin AND that NO act-as run is currently
+    bound — otherwise a job (whose tool calls share the runner's connection) could
+    harvest other jobs' tokens or nest identities. Closes that escalation."""
+    try:
+        import actas
+        if actas.current():
+            return False, "not allowed while an act-as run is active"
+    except Exception:
+        pass
+    ok, _ = _runner_or_admin()
+    return ok, ("" if ok else "runner/admin only")
+
+
 def register(mcp):
     @mcp.tool
     def cron_add(name: str, schedule: str, prompt: str, notify: str = "user",
@@ -95,23 +128,30 @@ def register(mcp):
         time). prompt = what the triggered LLM run should do. notify = inbox
         recipient for the result (default "user"). The NAS runner executes it.
 
-        owner (act-as) = run this job in a specific user's area (their memory /
-        vault / services / skills). Leave empty for the runner's default identity.
-        Only an admin may set an owner OTHER than themselves — a non-admin can
-        schedule jobs only as themselves (no privilege escalation)."""
+        owner (act-as) = run this job in a user's area (their memory / vault /
+        services / skills). A NON-ADMIN may schedule ONLY as themselves — their job
+        is always tagged with their own identity and runs as them (no escalation). An
+        ADMIN may set any owner, or leave it empty to run as the runner's default."""
         if len(schedule.split()) != 5:
             return "schedule must be a 5-field cron expression: 'min hour dom mon dow'."
-        act_as = (owner or "").strip()
+        caller, role, _ = _caller()
+        req_owner = (owner or "").strip()
+        if role == "admin":
+            act_as = req_owner                      # admin: anyone, or "" = runner default
+        else:
+            if req_owner and req_owner != caller:
+                return ("Refused: you can only schedule jobs as yourself — leave "
+                        "owner empty (the job will run as you).")
+            act_as = caller                          # non-admin: FORCED self act-as
+        warn = ""
         if act_as:
             try:
-                import tenancy
-                caller, role = tenancy.current_identity()
-                ok, resolved = tenancy.act_as_owner(caller, role, act_as)
-                if not ok:
-                    return f"Refused: {resolved}"
-                act_as = resolved
+                import actas
+                if not actas.available():
+                    warn = (" ⚠ act-as can't be secured (no STORAGE_ENCRYPTION_KEY) — "
+                            "the runner will WITHHOLD this job until a signing key is set.")
             except Exception:
-                pass  # fail-open: identity glitch stores the requested owner as-is
+                pass
         jobs = _read()
         sid = _slug(name)
         jobs = [j for j in jobs if j.get("id") != sid]
@@ -122,12 +162,16 @@ def register(mcp):
                      "last_run": ""})
         _write(jobs)
         as_note = f" as {act_as}" if act_as else ""
-        return f"Scheduled job '{sid}' ({schedule}){as_note}."
+        return f"Scheduled job '{sid}' ({schedule}){as_note}.{warn}"
 
     @mcp.tool
     def cron_list() -> str:
-        """List scheduled jobs (id — schedule — enabled — last run)."""
+        """List scheduled jobs (id — schedule — enabled — last run). A non-admin sees
+        only their OWN jobs; an admin sees all."""
         jobs = _read()
+        caller, role, _ = _caller()
+        if role != "admin":
+            jobs = [j for j in jobs if j.get("owner") == caller]
         if not jobs:
             return "No scheduled jobs yet. Use cron_add."
         return "\n".join(
@@ -138,14 +182,46 @@ def register(mcp):
 
     @mcp.tool
     def cron_delete(name: str) -> str:
-        """Delete a scheduled job by name/id."""
+        """Delete a scheduled job by name/id. A non-admin may delete only their OWN
+        jobs; an admin may delete any."""
         jobs = _read()
         sid = _slug(name)
-        kept = [j for j in jobs if j.get("id") != sid]
-        if len(kept) == len(jobs):
+        target = next((j for j in jobs if j.get("id") == sid), None)
+        if not target:
             return f"No job '{name}'."
-        _write(kept)
+        caller, role, _ = _caller()
+        if role != "admin" and target.get("owner") != caller:
+            return "Refused: you can only delete your own jobs."
+        _write([j for j in jobs if j.get("id") != sid])
         return f"Deleted job '{sid}'."
+
+    @mcp.tool
+    def act_as_begin(act_as_token: str, job_id: str = "") -> str:
+        """For the NAS runner: switch the connector to run AS a job's owner, using the
+        short-lived capability token from cron_due. Every following tool call in this
+        run is scoped + gated as the owner (their memory / vault / services / skills)
+        until act_as_end. Runner/admin only, and not while another act-as run is
+        active; the token is validated server-side (signature, expiry, job match,
+        single-use) BEFORE any identity switch."""
+        ok, reason = _runner_plumbing_ok()
+        if not ok:
+            return f"Denied: act_as_begin is {reason}."
+        import actas
+        good, res = actas.begin(act_as_token, job_id or None)
+        if not good:
+            return f"Refused: {res}"
+        return f"Acting as {res['sub']} for job {res['job']} (until token expiry)."
+
+    @mcp.tool
+    def act_as_end() -> str:
+        """For the NAS runner: end the current act-as run and INVALIDATE its token
+        (single-use), so the next job runs under the correct identity. Runner/admin."""
+        ok, _ = _runner_or_admin()
+        if not ok:
+            return "Denied: only the NAS runner or an admin may end an act-as run."
+        import actas
+        actas.consume()
+        return "act-as ended (token invalidated)."
 
     @mcp.tool
     def cron_due() -> str:
@@ -157,7 +233,12 @@ def register(mcp):
         token the runner must pass back on the execution call so the connector runs
         the job in that owner's area. The runner holds no standing authority — only
         this per-job, time-boxed token. Fail-closed: if a token can't be minted (no
-        signing key), the job is WITHHELD rather than run without confinement."""
+        signing key), the job is WITHHELD rather than run without confinement.
+        Runner/admin only, and not during an active act-as run (so a running job
+        can't harvest other jobs' tokens)."""
+        ok, reason = _runner_plumbing_ok()
+        if not ok:
+            return f"Denied: cron_due is {reason} (it mints act-as capability tokens)."
         import actas
         now = datetime.now()
         stamp = now.strftime("%Y-%m-%dT%H:%M")
@@ -183,7 +264,10 @@ def register(mcp):
     @mcp.tool
     def cron_mark_run(name: str, result: str = "") -> str:
         """For the NAS runner: mark a job as run this minute (prevents double
-        execution); optionally store a short last result."""
+        execution); optionally store a short last result. Runner/admin only."""
+        ok, _ = _runner_or_admin()
+        if not ok:
+            return "Denied: cron_mark_run is for the NAS runner."
         jobs = _read()
         sid = _slug(name)
         for j in jobs:
