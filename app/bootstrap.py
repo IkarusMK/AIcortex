@@ -32,6 +32,7 @@ CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
 SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 WEBDAV_DIR = Path(os.environ.get("WEBDAV_DIR", "/data/webdav"))
+CALDAV_DIR = Path(os.environ.get("CALDAV_DIR", "/data/caldav"))
 SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
 MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
 IMAP_DIR = Path(os.environ.get("IMAP_DIR", "/data/imap"))
@@ -196,6 +197,8 @@ def _catalog() -> str:
                  "none — add with ftp_add"),
         _section("WEBDAV ENDPOINTS", _json_names(WEBDAV_DIR, fields=("base_url", "description")),
                  "none — add with webdav_add"),
+        _section("CALDAV ENDPOINTS", _json_names(CALDAV_DIR, fields=("base_url", "description")),
+                 "none — add with caldav_add"),
         _section("SSH HOSTS", _json_names(SSH_DIR, fields=("host", "description")),
                  "none — add with ssh_add"),
         _section("SMTP ACCOUNTS", _json_names(MAIL_DIR, fields=("from_addr", "host")),

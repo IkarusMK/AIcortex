@@ -125,6 +125,9 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - WebDAV/Cloud (z.B. Nextcloud): webdav_add(name, base_url, username, password_env) /
   webdav_list / webdav_upload (Quelle /data → Cloud) / webdav_download (→ /data/work) /
   webdav_mkdir. Für große Dateien NAS↔Cloud (App-Passwort, nicht Login-Passwort).
+- CalDAV/Kalender (z.B. Nextcloud): caldav_add(name, base_url, username, password_env) /
+  caldav_list_calendars / caldav_list_events(endpoint[, calendar, start, end]) /
+  caldav_add_event(endpoint, calendar, summary, start, end) — Termin anlegen → vorher bestätigen.
 - Drucker (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file ODER content_base64[, document_format]). Druckt PDFs
   direkt im LAN. Physische Ausgabe → vorher bestätigen.
@@ -271,6 +274,9 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - WebDAV/cloud (e.g. Nextcloud): webdav_add(name, base_url, username, password_env) /
   webdav_list / webdav_upload (source /data → cloud) / webdav_download (→ /data/work) /
   webdav_mkdir. For large files NAS↔cloud (use an app password, not the login one).
+- CalDAV/calendar (e.g. Nextcloud): caldav_add(name, base_url, username, password_env) /
+  caldav_list_calendars / caldav_list_events(endpoint[, calendar, start, end]) /
+  caldav_add_event(endpoint, calendar, summary, start, end) — creating an event → confirm first.
 - Printers (IPP/AirPrint): print_add(name, host[, port, path]) / print_list /
   print_document(printer, file OR content_base64[, document_format]). Prints PDFs
   directly on the LAN. Physical output → confirm first.
