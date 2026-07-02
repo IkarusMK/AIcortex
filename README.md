@@ -25,7 +25,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - The *same* brain on desktop **and** mobile — one account, one state
 
 **🔌 Real reach — everything as data**
-- HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **SSH/SFTP**, **SMTP** email
+- HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **SSH/SFTP**, **SMTP + IMAP** email
 - **IPP printing** and **eSCL scanning** (straight into Paperless-ngx) to LAN multifunction devices
 - An **MCP gateway** to use other MCP servers' tools as data
 - Register an integration once with one tool call — no code, no redeploy
@@ -53,7 +53,7 @@ AICortex  (this container, on your NAS)
         │  uses local files & secrets
         ▼
 Memory · Skills · HTTP services · MQTT & FTP devices · WebDAV cloud · Workspace files
-   · SSH/SFTP · SMTP email · IPP printing · eSCL scanning · MCP gateway · Inbox/Tasks
+   · SSH/SFTP · SMTP + IMAP email · IPP printing · eSCL scanning · MCP gateway · Inbox/Tasks
    · Sessions · Cron · Secret vault   (every outbound call passes the SSRF egress guard)
 ```
 
@@ -162,6 +162,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Workspace files | `fs_list` · `fs_read` · `fs_write` · `fs_move` · `fs_delete` · `fs_info` | See & tidy the `/data/work` file hub (sandboxed) |
 | SSH / SFTP | `ssh_add` · `ssh_run` · `ssh_upload` · `ssh_download` · `ssh_list_dir` | Run remote commands & transfer files (hosts as data, vault creds) |
 | Email (SMTP) | `mail_add` · `mail_list` · `mail_send` | Send mail/notifications with optional attachment |
+| Email (IMAP) | `imap_add` · `imap_list` · `imap_search` · `imap_fetch` | Read incoming mail (read-only, PEEK); pull attachments → `/data/work` |
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint |
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device → `/data/work`, optionally into Paperless |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |

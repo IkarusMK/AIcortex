@@ -32,6 +32,7 @@ import webdav_tools
 import fs_tools
 import ssh_tools
 import mail_tools
+import imap_tools
 import secrets_store
 import guide
 import bootstrap
@@ -229,6 +230,9 @@ ssh_tools.register(mcp)
 
 # SMTP: mail_add / mail_list / mail_send (send email/notifications, accounts as data)
 mail_tools.register(mcp)
+
+# IMAP: imap_add / imap_list / imap_search / imap_fetch (read incoming email)
+imap_tools.register(mcp)
 
 # Encrypted secret vault: secret_set / secret_list / secret_delete (dynamic secrets)
 secrets_store.register(mcp)

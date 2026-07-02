@@ -137,6 +137,9 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   (Befehl, zustandsändernd → bestätigen) / ssh_upload / ssh_download / ssh_list_dir.
 - E-Mail senden (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
   mail_send(account, to, subject, body[, attachment]). Ausgehend → vorher bestätigen.
+- E-Mail lesen (IMAP): imap_add(name, host, username[, password_env, port, security]) /
+  imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
+  Lesend, markiert NICHT als gelesen (PEEK); Anhänge optional → /data/work.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
@@ -280,6 +283,9 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   (command, state-changing → confirm) / ssh_upload / ssh_download / ssh_list_dir.
 - Send email (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
   mail_send(account, to, subject, body[, attachment]). Outbound → confirm first.
+- Read email (IMAP): imap_add(name, host, username[, password_env, port, security]) /
+  imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
+  Read-only, does NOT mark seen (PEEK); attachments optionally → /data/work.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
   A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
