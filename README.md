@@ -76,6 +76,11 @@ Rule of thumb: want a dedicated memory/graph engine → GBrain; want a batteries
 
 ## Quick start
 
+> 🤖 **Installing with an AI coding agent?** Point it at
+> **[INSTALL_FOR_AGENTS.md](INSTALL_FOR_AGENTS.md)** — it walks the agent through the
+> whole install and verification, handing the human-only steps (DNS, proxy, OIDC) back
+> to you.
+
 ```bash
 git clone git@github.com:IkarusMK/AICortex.git
 cd AICortex
@@ -134,14 +139,13 @@ Every authenticated caller gets every tool — one shared brain, zero friction. 
 
 **🏢 Enterprise — several people, one brain**
 ```env
-AUTH_ENFORCE=1                          # default — roles on (admin / user / viewer)
-TENANCY_ISOLATE=1                       # each non-admin gets their own memory + vault
+AUTH_ENFORCE=1                          # default — the single switch (see below)
 OIDC_SCOPE=openid profile email groups  # request the groups claim
 AUTH_ROLE_CLAIM=groups                  # map Pocket ID groups → roles
 ```
-Roles are driven by your IdP groups (mapped in `data/auth/policy.json`, or managed live with the `tenancy_*` admin tools). Each non-admin is confined to their **own memory scope and private vault namespace** — two people never read or overwrite each other's data — while an admin provisions per-user secrets (`secret_set owner=…`). Admins keep full access.
+`AUTH_ENFORCE=1` is the **one switch** — "enforce means enforce". It turns on roles (admin / user / viewer), per-user isolation, and per-user capability areas together. Roles are driven by your IdP groups (mapped in `data/auth/policy.json`, or managed live with the `tenancy_*` admin tools). Each non-admin is confined to their **own memory scope and private vault namespace** — two people never read or overwrite each other's data — and reaches only the **services & skills an admin assigns** (default-deny); an admin provisions per-user secrets (`secret_set owner=…`) and areas (`tenancy_set services=… skills=…`). Admins keep full access.
 
-Both modes run the same image. Isolation is **opt-in and fails open**, so flipping it on never strands the operator. **Full guide: [docs/authorization.md](docs/authorization.md).**
+Both modes run the same image. **Private data** (memory, vault) fails **open** so a glitch never strands the operator; **shared capabilities** (services, skills) fail **closed** under enforce. **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
 
 ## Capabilities
 

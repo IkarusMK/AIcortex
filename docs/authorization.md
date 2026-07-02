@@ -97,14 +97,9 @@ Roles decide *which tools* a caller may use. **Data isolation** decides *which d
 they see within those tools — so two people sharing one brain don't read or
 overwrite each other's memory.
 
-It is **opt-in** (off by default, so a single-operator setup is untouched):
-
-```bash
-# in .env
-TENANCY_ISOLATE=1
-```
-
-With it on:
+It rides on the **same switch as authorization** — `AUTH_ENFORCE` (default on; no
+separate `TENANCY_ISOLATE`). In homelab mode (`AUTH_ENFORCE=0`) nothing is confined;
+with `AUTH_ENFORCE=1`:
 
 - Each **non-admin** identity is confined to its **own memory scope** `users/<sub>`.
   Every `memory_*` call is rewritten to that scope — they can't read `shared` or

@@ -84,10 +84,9 @@ Only needed if **several people** share one AICortex and you want roles
    members. Make sure the group is associated with the AICortex client.
 2. **Request the groups claim** — in AICortex `.env`:
    ```env
-   AUTH_ENFORCE=1                          # roles on (this is the default)
+   AUTH_ENFORCE=1                          # the one switch: roles + per-user isolation + areas
    OIDC_SCOPE=openid profile email groups  # ask Pocket ID for the groups claim
    AUTH_ROLE_CLAIM=groups                  # which claim carries the role
-   TENANCY_ISOLATE=1                       # optional: per-user memory + vault
    ```
 3. **Map groups → roles** in `data/auth/policy.json`:
    ```json

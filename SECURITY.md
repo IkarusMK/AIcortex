@@ -65,7 +65,7 @@ tool permissions, audit log, per-credential identity binding, optional IdP
 role/group claim; `AUTH_ENFORCE=0` to disable) plus a `mail_send` recipient
 allow-list. **v1.4** adds a PocketID-aware proxy that forwards the upstream
 identity (`sub`/`groups`) so Pocket ID groups drive roles end-to-end. **v1.5**
-adds opt-in **per-user data isolation** (`TENANCY_ISOLATE=1`): each non-admin
+adds **per-user data isolation** (now unified under `AUTH_ENFORCE`): each non-admin
 caller is confined to their own memory scope and vault namespace (admins
 provision per-user secrets; users can't create them). **v1.5.2** closes the
 scanner/WebDAV **TLS gap**: scanner (eSCL) requests now **verify certificates by
