@@ -4,7 +4,7 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
-## [Unreleased]
+## [1.7.0] — 2026-07-02
 ### Added
 - **Webhooks — inbound receiver + outbound sender.** Inbound: a public
   `POST /hooks/<name>` route (served alongside `/mcp/` via FastMCP `custom_route`,
@@ -47,6 +47,15 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
     the runner presents it via `act_as_begin`/`act_as_end`, so it holds no standing
     authority and a running job is scoped to its owner at the owner's own privilege.
     See `docs/per-user-areas.md`.
+
+### Changed
+- **Isolation now rides on `AUTH_ENFORCE` (breaking).** The separate `TENANCY_ISOLATE`
+  switch is **retired** — "enforce means enforce", one switch. With `AUTH_ENFORCE=1`
+  (the default) non-admins are now confined (own memory scope + private vault) and
+  **default-denied** services/skills until an admin grants them; homelab mode
+  (`AUTH_ENFORCE=0`) is unchanged. A leftover `TENANCY_ISOLATE=1` in `.env` becomes a
+  harmless no-op. **Admins are unaffected.** Docs updated across README, `.env.example`,
+  `SECURITY.md`, `docs/authorization.md`, `docs/pocketid-setup.md`, `docs/secrets.md`.
 
 ## [1.6.3] — 2026-07-01
 ### Security
