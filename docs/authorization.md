@@ -14,13 +14,18 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 | Role | Can do |
 |------|--------|
 | **admin** | everything |
-| **user** | everything **except** admin-only tools (registering services/devices/MCP servers, scheduling cron, managing secrets and agents) |
+| **user** | everything **except** admin-only tools (registering services/devices/MCP servers, managing secrets, identities and per-user areas). A user **may** schedule their **own** cron jobs — those always run as that user (act-as). |
 | **viewer** | read-only tools only (`*_list`, `*_search`, `*_read`, `*_load`, `bootstrap`, …) |
 
 **Admin-only tools:** `service_add/delete`, `mqtt_add/delete`, `ftp_add/delete`,
 `webdav_add/delete_endpoint`, `ssh_add/delete_endpoint`, `mail_add/delete_account`,
-`print_add/delete`, `scan_add/delete`, `mcp_add/delete`, `cron_add/delete`,
-`secret_set/delete`, `agent_register/remove`.
+`imap_add/delete_account`, `print_add/delete`, `scan_add/delete`, `mcp_add/delete`,
+`secret_set/delete`, `agent_register/remove`, and the per-user-area tools
+(`tenancy_set/unset/show/list/status`).
+
+> `cron_add`/`cron_delete` are **not** admin-only: a non-admin may schedule and
+> delete their **own** jobs (owner-scoped), an admin any. `cron_due`/`cron_mark_run`
+> and `act_as_begin`/`act_as_end` are the NAS runner's plumbing (runner/admin only).
 
 ## Defaults (what happens out of the box)
 
@@ -93,40 +98,49 @@ that group to a role here via `groups` in `policy.json` (or name the group
 
 ## Per-user data isolation (multi-tenant)
 
-Roles decide *which tools* a caller may use. **Data isolation** decides *which data*
-they see within those tools — so two people sharing one brain don't read or
-overwrite each other's memory.
+Roles decide *which tools* a caller may use. **Areas** decide *which data and which
+capabilities* they get within those tools — so people sharing one brain don't read
+each other's notes, and not everyone may call every service.
 
 It rides on the **same switch as authorization** — `AUTH_ENFORCE` (default on; no
 separate `TENANCY_ISOLATE`). In homelab mode (`AUTH_ENFORCE=0`) nothing is confined;
-with `AUTH_ENFORCE=1`:
+with `AUTH_ENFORCE=1`, for each **non-admin** identity (the forwarded Pocket ID
+`sub`, so it's per-**person**):
 
-- Each **non-admin** identity is confined to its **own memory scope** `users/<sub>`.
-  Every `memory_*` call is rewritten to that scope — they can't read `shared` or
-  another user's notes. The identity is the forwarded Pocket ID `sub`, so it's
-  per-**person**, not per-OAuth-client.
-- **Admins** are never confined (full access to `shared` and every scope).
-- It is **fail-open**: if the caller's identity can't be resolved, no confinement
-  is applied — a glitch degrades to "full access", never to "locked out".
+- **Private data** — confined to their **own memory scope** `users/<sub>` and **own
+  vault namespace**. They can't read `shared` or another user's notes/secrets.
+- **Shared capabilities** — **default-deny**: they reach only the **services and
+  skills** an admin assigned (by name or category). Nothing assigned → nothing.
+- **Admins** are never confined (full access to everything).
+
+**Two safety stances:** private data is **fail-open** (a resolution glitch degrades
+to the requested scope, never a lockout); shared capabilities are **fail-closed**
+(any error in the check → deny, logged loudly to `audit.log`). In homelab mode no
+checks run, so a defect can't strand anyone. Full detail: **[per-user-areas.md](per-user-areas.md)**.
 
 Manage areas the easy way — **admin connector tools** (the assistant is the
 dashboard, works from any device; stored as data, no redeploy):
 
 | Tool | Does |
 |------|------|
-| `tenancy_status` | is isolation on? how many users are configured? |
-| `tenancy_set(identity, memory='own'|'all', vault=…, note=…)` | create/update a user's area |
+| `tenancy_status` | is enforcement on? how many users are configured? |
+| `tenancy_set(identity, memory=…, vault=…, services=…, skills=…, note=…)` | create/update a user's area |
 | `tenancy_show(identity)` / `tenancy_list` | inspect resolved areas |
 | `tenancy_unset(identity)` | revert a user to the default |
 
-`identity` is the person's Pocket ID `sub`. These are **admin-only**. Under the
+`identity` is the person's Pocket ID `sub`. These are **admin-only**. `services` /
+`skills` take `all`, `none`, or a comma-list of names and/or categories. Under the
 hood they edit `data/auth/policy.json` (which you can also hand-edit):
 
 ```json
 {
   "users": {
-    "a1b2c3-pocketid-sub": { "memory": "own" },   // confined (default for non-admins)
-    "trusted-colleague":   { "memory": "all" }    // full access, like an admin
+    "a1b2c3-pocketid-sub": {
+      "memory": "own", "vault": "own",       // private data confined (the default)
+      "services": ["github", "Documents"],    // only these services (name or category)
+      "skills": "all"                          // every skill
+    },
+    "trusted-colleague": { "memory": "all", "vault": "all", "services": "all", "skills": "all" }
   }
 }
 ```
@@ -146,8 +160,38 @@ The model is *admin provisions, user consumes* — users can't create secrets:
 Grant a user the full (admin-like) vault by setting `"vault": "all"` in their
 `policy.json` entry (default is `"own"`).
 
-> **Next slice:** fine-grained per-user **service/skill/device areas** (which
-> integrations each user may use), configured the same way under `"users"`.
+### Assigning rights — a worked example (generic)
+
+Enterprise mode (`AUTH_ENFORCE=1`), goal: admins full access; staff who may use the
+document tools but not the dev/API services; read-only guests.
+
+**1 · Roles from IdP groups.** Create the groups in your provider, request the claim,
+map them once:
+```json
+// data/auth/policy.json
+{ "groups": { "AICortex-Admins": "admin", "AICortex-Staff": "user", "AICortex-Guests": "viewer" } }
+```
+Set `OIDC_SCOPE=openid profile email groups`, and `OIDC_DEFAULT_ROLE=user` so a login
+with no group gets least privilege.
+
+**2 · Per-person override (optional).** Pin one identity regardless of its groups:
+```json
+{ "roles": { "<a-pocketid-sub>": "admin" } }
+```
+
+**3 · Per-user areas.** Roles gate the *tools*; areas gate the *data & capabilities*.
+Grant a staff member only the document services + one skill — from any device, no
+redeploy:
+```
+tenancy_set("<staff-sub>", services="paperless, Documents", skills="web-reader")
+tenancy_show("<staff-sub>")      # check what actually resolves
+```
+They now reach only those services/skills (everything else default-denied), plus
+their own memory + vault. Widen with `services="all"`, lock out with `"none"`, or
+revert entirely with `tenancy_unset("<staff-sub>")`.
+
+**4 · Verify.** With `AUTH_AUDIT_ALL=1`, one call from that user logs their `sub`,
+the resolved role and the allow/deny decision in `data/auth/audit.log`.
 
 ## Recipes
 
