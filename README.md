@@ -97,7 +97,7 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 **Expose it & add the connector:**
 
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.
-2. Proxy that host to `http://<nas-ip>:8787` over HTTPS — the upstream is **plain HTTP**, so do *not* enable "TLS to upstream". If your proxy geo-blocks, allow your LLM provider's egress region.
+2. Proxy that host to `http://<nas-ip>:8787` over HTTPS — the upstream is **plain HTTP**, so do *not* enable "TLS to upstream". If your proxy geo-blocks, allow your LLM provider's egress region. The published port binds to **`127.0.0.1`** by default (only this host's proxy reaches it, not the LAN); a host-network proxy uses `http://127.0.0.1:8787`, a **bridge-network** proxy needs `BIND_ADDR=0.0.0.0` (or a shared Docker network).
 3. In your MCP client: **add a custom connector / MCP server** → URL `https://agent.example.com/mcp`.
 4. Test: ask the assistant to call the `ping` tool.
 
@@ -293,7 +293,7 @@ For a public/cloud LLM client, yes — the endpoint must be reachable over HTTPS
 - **Auth fails closed.** Without OIDC the server binds to `127.0.0.1` only (override with `ALLOW_INSECURE=1`). Enable OIDC **before** exposing the proxy — anyone who reaches `/mcp` can otherwise call every tool.
 - **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are model-callable, so the registered-target list isn't a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only). Set it to the LAN/VPN ranges you actually use.
 - **Encrypted vault, enforced.** Secrets go in the vault via `secret_set` (encrypted at rest, referenced by name, never returned). `secret_set` **refuses plaintext** unless `STORAGE_ENCRYPTION_KEY` is set. `.env` is only for bootstrap config.
-- **Inbound webhooks authenticate themselves.** `POST /hooks/<name>` is served alongside `/mcp/` but *not* behind the MCP OAuth (external senders can't do OAuth) — instead each hook validates a **shared secret token and/or an HMAC signature** (constant-time), rejects unknown hooks (404) and unsigned/bad requests (401), caps the body size, and only ever deposits into the inbox — it never reaches the tool surface. **Expose only `/hooks/*` past your reverse proxy's auth, never `/mcp`.** Don't want any public receiver? Leave webhooks unregistered (opt-in) or keep the `/hooks` path LAN-only.
+- **Inbound webhooks authenticate themselves.** `POST /hooks/<name>` is served alongside `/mcp/` but *not* behind the MCP OAuth (external senders can't do OAuth) — instead each hook validates a **shared secret token** (the `X-Webhook-Token` header only — never a URL query, so it can't leak into logs) **and/or an HMAC signature** (constant-time). Unknown hooks and bad/unsigned requests both return a uniform `401` (no hook-name enumeration), the body size is capped, and it only ever deposits into the inbox — it never reaches the tool surface. **Expose only `/hooks/*` past your reverse proxy's auth, never `/mcp`.** Don't want any public receiver? Leave webhooks unregistered (opt-in) or keep the `/hooks` path LAN-only.
 - **TLS verified by default** for FTP / MQTT / WebDAV / scanning; self-signed LAN devices opt out per-endpoint via the admin-only registration tools (`tls_insecure` / `ca_bundle`).
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
@@ -308,6 +308,7 @@ All config lives in `.env` (copy from `.env.example`):
 | Variable    | Default | Description |
 |-------------|---------|-------------|
 | `HOST_PORT` | `8787`  | Host port the server is published on (the container always listens on `8787` internally) |
+| `BIND_ADDR` | `127.0.0.1` | Address the published port binds to. Loopback = only this host's reverse proxy reaches it, not the LAN. Set `0.0.0.0` if your proxy is a **separate bridge-network container** |
 | `PUID` / `PGID` | `1000` | User/group ID the process runs as (file ownership) |
 | `TZ`        | `UTC`   | Container timezone |
 
