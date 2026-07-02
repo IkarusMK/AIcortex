@@ -18,7 +18,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Advisory supply-chain gate: surface known CVEs in the pinned dependencies on
       # every build (non-blocking, so a transitive advisory doesn't stop a release;
