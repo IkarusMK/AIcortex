@@ -6,6 +6,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 ### Added
+- **IMAP — read incoming email.** The read-side counterpart to SMTP `mail_send`:
+  `imap_add` / `imap_list` / `imap_search` / `imap_fetch`. Reads are read-only
+  (BODY.PEEK, `readonly` select) so nothing is marked seen; attachments optionally
+  saved to `/data/work`. Same security posture as SMTP — host passes the SSRF guard
+  and the connect is wrapped in `netguard.guard()`; `imap_add`/`imap_delete_account`
+  are admin-only, the read tools are viewer-safe.
 - **Running version is now observable.** A single `version.__version__` is logged
   at startup (`[AICortex] version X starting`), returned by `ping`, and shown in
   the `bootstrap` catalog header — so you can tell which build a container is

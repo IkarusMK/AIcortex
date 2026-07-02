@@ -34,6 +34,7 @@ SCAN_DIR = Path(os.environ.get("SCAN_DIR", "/data/scanners"))
 WEBDAV_DIR = Path(os.environ.get("WEBDAV_DIR", "/data/webdav"))
 SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
 MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
+IMAP_DIR = Path(os.environ.get("IMAP_DIR", "/data/imap"))
 
 
 def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[str]:
@@ -199,6 +200,8 @@ def _catalog() -> str:
                  "none — add with ssh_add"),
         _section("SMTP ACCOUNTS", _json_names(MAIL_DIR, fields=("from_addr", "host")),
                  "none — add with mail_add"),
+        _section("IMAP ACCOUNTS", _json_names(IMAP_DIR, fields=("username", "host")),
+                 "none — add with imap_add"),
         _section("MCP SERVERS (gateway)", _json_names(MCP_DIR, fields=("url", "description")),
                  "none — add with mcp_add"),
         _section("PRINTERS (IPP)", _json_names(PRINT_DIR, fields=("host", "description")),
