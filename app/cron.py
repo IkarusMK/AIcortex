@@ -149,17 +149,35 @@ def register(mcp):
 
     @mcp.tool
     def cron_due() -> str:
-        """For the NAS runner: return enabled jobs due THIS minute that haven't
-        run yet this minute, as JSON [{id, prompt, notify, owner}]. Run each, then
-        call cron_mark_run(id). `owner` (act-as) = the identity the runner should
-        run the job as (empty = the runner's default); the runner is responsible
-        for presenting that identity so the job stays in the owner's area."""
+        """For the NAS runner: return enabled jobs due THIS minute that haven't run
+        yet this minute, as JSON [{id, prompt, notify, owner, act_as_token}]. Run
+        each, then call cron_mark_run(id).
+
+        act-as: when a job has an `owner`, `act_as_token` is a SHORT-LIVED capability
+        token the runner must pass back on the execution call so the connector runs
+        the job in that owner's area. The runner holds no standing authority — only
+        this per-job, time-boxed token. Fail-closed: if a token can't be minted (no
+        signing key), the job is WITHHELD rather than run without confinement."""
+        import actas
         now = datetime.now()
         stamp = now.strftime("%Y-%m-%dT%H:%M")
-        due = [{"id": j["id"], "prompt": j["prompt"], "notify": j.get("notify", "user"),
-                "owner": j.get("owner", "")}
-               for j in _read()
-               if j.get("enabled") and j.get("last_run") != stamp and _is_due(j.get("schedule", ""), now)]
+        due = []
+        for j in _read():
+            if not (j.get("enabled") and j.get("last_run") != stamp
+                    and _is_due(j.get("schedule", ""), now)):
+                continue
+            owner = j.get("owner", "")
+            token = ""
+            if owner:
+                token = actas.issue(j["id"], owner)
+                if not token:
+                    # owner set but no way to mint a confined token → do NOT hand the
+                    # runner an unconfined job. Surface it so the operator can fix the
+                    # missing STORAGE_ENCRYPTION_KEY rather than run it wide-open.
+                    continue
+            due.append({"id": j["id"], "prompt": j["prompt"],
+                        "notify": j.get("notify", "user"),
+                        "owner": owner, "act_as_token": token})
         return json.dumps(due, ensure_ascii=False)
 
     @mcp.tool
