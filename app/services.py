@@ -101,16 +101,23 @@ def register(mcp):
         items = sorted(SERVICES_DIR.glob("*.json"))
         if not items:
             return "No services configured yet. Use service_add."
+        import tenancy
         rows: list[tuple[str, str]] = []  # (category, line)
         for p in items:
             try:
                 c = json.loads(p.read_text(encoding="utf-8"))
-                lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
                 cat = str(c.get("category", "") or "").strip() or "Uncategorized"
+                # Per-user capability area: hide services this caller may not use.
+                if not tenancy.caller_service_allowed(p.stem, cat):
+                    continue
+                lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
                 rows.append((cat, f"- {p.stem} — {c.get('base_url', '')} — "
                                   f"{c.get('description', '')}{lock}"))
             except Exception:
                 rows.append(("Uncategorized", f"- {p.stem} — (unreadable config)"))
+        if not rows:
+            return ("No services available to you. An admin can grant access with "
+                    "tenancy_set(identity, services=...).")
         if all(cat == "Uncategorized" for cat, _ in rows):
             return "\n".join(line for _, line in rows)
         out: list[str] = []
@@ -137,6 +144,12 @@ def register(mcp):
         cfg = _load(service)
         if not cfg:
             return f"Unknown service '{service}'. Use service_list / service_add."
+        # Per-user capability area: a narrowed caller may only reach the services an
+        # admin allow-listed for them. Fail-open (unresolved caller → allowed).
+        import tenancy
+        if not tenancy.caller_service_allowed(service, cfg.get("category", "")):
+            return (f"Denied: service '{service}' is not in your allowed set. "
+                    f"An admin can grant it with tenancy_set(identity, services=...).")
         if cfg.get("write_only"):
             return (f"Refused: service '{service}' is INGEST-ONLY (write_only) — reading "
                     f"from it via call_service is blocked by policy, for every client, "

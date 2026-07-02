@@ -25,10 +25,28 @@ DESIGN SAFETY (mirrors authz so it can't lock a hands-off operator out):
 policy.json shape (all optional):
     {
       "users": {
-        "<sub-or-client-id>": { "memory": "own"|"all", "vault": "own"|"all" }
+        "<sub-or-client-id>": {
+          "memory":   "own"|"all",           # private data → default "own" (confined)
+          "vault":    "own"|"all",           # private data → default "own" (confined)
+          "services": "all"|"none"|[names…], # shared capability → default "all"
+          "skills":   "all"|"none"|[names…], # shared capability → default "all"
+          "note": "…"
+        }
       }
     }
-Default per non-admin caller when there is no entry: ``own`` (confined).
+
+TWO DEFAULT STANCES, on purpose:
+- PRIVATE data (memory, vault): default "own" — a non-admin is confined unless an
+  admin widens them. Two people never see each other's notes/secrets by accident.
+- SHARED capabilities (services, skills): default "all" — everyone can use every
+  registered integration/skill unless an admin NARROWS them to an allow-list of
+  names and/or categories ("none" locks all out). Capabilities are meant to be
+  shared; you opt into restricting them.
+
+Cron act-as: a scheduled job may carry an ``owner`` (a user's identity). Only an
+admin may schedule a job to run AS another user; a non-admin can only schedule as
+themselves (no privilege escalation). The NAS runner then executes that job in the
+owner's area. See ``act_as_owner``.
 """
 import hashlib
 import json
@@ -141,6 +159,116 @@ def current_identity():
         return None, None
 
 
+# ── Per-user capability areas: which SERVICES / SKILLS a caller may use ──────
+# Unlike memory/vault (private data, confined by default), services and skills are
+# SHARED capabilities: default "all", narrowed only by an explicit admin allow-list.
+_ACCESS_ALL = "all"
+_ACCESS_NONE = "none"
+
+
+def _access_spec(identity: str, role: str, key: str):
+    """Resolve a caller's access for a capability class (key = 'services'|'skills').
+    Returns the string 'all' (unrestricted) or a frozenset of lowercased allow-list
+    entries (names and/or categories; empty frozenset = 'none' = nothing allowed).
+
+    Fail-open to 'all': isolation off, an admin, an unresolved identity, a missing
+    field, or any error → full access (capabilities are shared by default and a
+    glitch must never strand a caller)."""
+    try:
+        if not isolation_enabled():
+            return _ACCESS_ALL
+        if role == "admin" or not identity or identity == "unknown":
+            return _ACCESS_ALL
+        cfg = (_policy().get("users") or {}).get(identity, {})
+        spec = cfg.get(key, _ACCESS_ALL)
+        if isinstance(spec, str):
+            s = spec.strip().lower()
+            if s == _ACCESS_NONE:
+                return frozenset()
+            if s in ("", _ACCESS_ALL):
+                return _ACCESS_ALL
+            # a comma/space-separated string is also accepted as an allow-list
+            return frozenset(x for x in re.split(r"[,\s]+", s) if x)
+        if isinstance(spec, (list, tuple, set)):
+            return frozenset(str(x).strip().lower() for x in spec if str(x).strip())
+        return _ACCESS_ALL
+    except Exception:
+        return _ACCESS_ALL
+
+
+def _capability_allowed(identity, role, key, name, category="") -> bool:
+    spec = _access_spec(identity, role, key)
+    if spec == _ACCESS_ALL:
+        return True
+    n = (name or "").strip().lower()
+    c = (category or "").strip().lower()
+    return (n in spec) or (bool(c) and c in spec)
+
+
+def service_allowed(identity: str, role: str, name: str, category: str = "") -> bool:
+    """Whether `identity` may see/call service `name` (matched by name OR category).
+    Fail-open (see _access_spec)."""
+    try:
+        return _capability_allowed(identity, role, "services", name, category)
+    except Exception:
+        return True
+
+
+def skill_allowed(identity: str, role: str, name: str, category: str = "") -> bool:
+    """Whether `identity` may see/load skill `name` (matched by name OR category).
+    Fail-open (see _access_spec)."""
+    try:
+        return _capability_allowed(identity, role, "skills", name, category)
+    except Exception:
+        return True
+
+
+def caller_service_allowed(name: str, category: str = "") -> bool:
+    """service_allowed for the CURRENT caller (resolved from the auth context).
+    For use inside service tools, mirroring how secrets_store filters itself.
+    Fail-open: an unresolved caller → allowed."""
+    try:
+        ident, role = current_identity()
+        if ident is None:
+            return True
+        return service_allowed(ident, role, name, category)
+    except Exception:
+        return True
+
+
+def caller_skill_allowed(name: str, category: str = "") -> bool:
+    """skill_allowed for the CURRENT caller. Fail-open: unresolved → allowed."""
+    try:
+        ident, role = current_identity()
+        if ident is None:
+            return True
+        return skill_allowed(ident, role, name, category)
+    except Exception:
+        return True
+
+
+def act_as_owner(caller_identity: str, caller_role: str, requested_owner: str):
+    """Validate the ``owner`` (act-as identity) for a scheduled job. Returns
+    ``(ok, value_or_reason)``:
+
+    - requested empty → ``(True, "")`` — no act-as; the job runs as the runner's
+      default identity (unchanged behaviour).
+    - caller is admin → ``(True, requested)`` — an admin may schedule on anyone's
+      behalf.
+    - requested == caller → ``(True, requested)`` — scheduling as yourself is fine.
+    - otherwise → ``(False, reason)`` — a non-admin may NOT schedule a job that runs
+      AS another (more-privileged) user. This is the privilege-escalation guard."""
+    req = (requested_owner or "").strip()
+    if not req:
+        return True, ""
+    if caller_role == "admin":
+        return True, req
+    if caller_identity and req == caller_identity:
+        return True, req
+    return False, ("only an admin may schedule a job to run AS another user "
+                   "(act-as); you can schedule jobs only as yourself")
+
+
 # ── Control plane: admin tools to manage per-user areas (policy.json) ───────
 # "The assistant is the dashboard": an admin sets who-may-what from any device,
 # stored as DATA in policy.json — no separate UI, no redeploy.
@@ -165,17 +293,29 @@ def _write_policy(obj: dict) -> None:
     os.replace(tmp, POLICY_FILE)
 
 
+def _fmt_access(spec) -> str:
+    """Render a services/skills access spec compactly for the describe output."""
+    if isinstance(spec, (list, tuple, set)):
+        items = [str(x).strip() for x in spec if str(x).strip()]
+        return ",".join(items) if items else "none"
+    s = str(spec if spec is not None else "all").strip()
+    return s or "all"
+
+
 def _describe_area(identity: str) -> str:
     """Human line describing a user's stored config + how it resolves for the
     'user' role (the common non-admin case)."""
     cfg = (_policy().get("users") or {}).get(identity, {})
     mem = str(cfg.get("memory", "own"))
     vault = str(cfg.get("vault", "own"))
+    svcs = _fmt_access(cfg.get("services", "all"))
+    skls = _fmt_access(cfg.get("skills", "all"))
     note = cfg.get("note", "")
     resolved = area_for(identity, "user")
     scope = resolved["memory_scope"] or "shared + all (unconfined)"
     extra = f" · note: {note}" if note else ""
-    return (f"- {identity}: memory={mem}, vault={vault} → memory scope: {scope}{extra}")
+    return (f"- {identity}: memory={mem}, vault={vault}, services={svcs}, "
+            f"skills={skls} → memory scope: {scope}{extra}")
 
 
 def register(mcp):
@@ -203,13 +343,20 @@ def register(mcp):
 
     @mcp.tool
     def tenancy_set(identity: str, memory: str = "", vault: str = "",
-                    note: str = "") -> str:
+                    services: str = "", skills: str = "", note: str = "") -> str:
         """Set a user's data area in policy.json (create or update). `identity` =
-        the person's Pocket ID `sub` (or a client_id). `memory`/`vault` = 'own'
-        (confined to their own scope — the default for non-admins) or 'all' (full
-        access, like an admin). Leave a field empty to keep its current value; a
-        brand-new user with nothing set defaults to memory='own'. `note` is an
-        optional label. (Admin-only.)"""
+        the person's Pocket ID `sub` (or a client_id).
+
+        - `memory`/`vault` = 'own' (confined to their own scope — the default for
+          non-admins) or 'all' (full access, like an admin).
+        - `services`/`skills` = 'all' (every registered one — the default), 'none'
+          (locked out), or a comma-separated allow-list of names and/or categories
+          (e.g. "github, Documents"). These are SHARED capabilities, so default 'all';
+          set an allow-list to narrow a user.
+
+        Leave a field empty to KEEP its current value; a brand-new user with nothing
+        set defaults to memory='own' (services/skills default to 'all' implicitly).
+        `note` is an optional label. (Admin-only.)"""
         identity = (identity or "").strip()
         if not identity:
             return "Refused: identity is required (the user's Pocket ID sub or client_id)."
@@ -226,6 +373,17 @@ def register(mcp):
             entry["memory"] = memory.strip().lower()
         if vault.strip():
             entry["vault"] = vault.strip().lower()
+        # services/skills: store 'all'/'none' verbatim, else a normalized list so
+        # the catalog + _access_spec agree on the shape.
+        for label, val in (("services", services), ("skills", skills)):
+            v = val.strip()
+            if not v:
+                continue
+            low = v.lower()
+            if low in (_ACCESS_ALL, _ACCESS_NONE):
+                entry[label] = low
+            else:
+                entry[label] = [x for x in re.split(r"[,\s]+", low) if x]
         if note.strip():
             entry["note"] = note.strip()
         entry.setdefault("memory", "own")  # meaningful default for a new user
