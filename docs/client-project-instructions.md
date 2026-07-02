@@ -61,8 +61,15 @@ SKILLS
   already provides.
 
 TOOLS
-- Prefer the connector's tools (home automation, documents, printer, …) over
-  guessing or asking me to do it manually.
+- Prefer the connector's tools over guessing or doing it manually — home automation
+  & devices (MQTT), documents & scanning, printing, cloud files (WebDAV), calendar
+  (CalDAV), email (read via IMAP, send via SMTP), SSH, and inbound/outbound webhooks.
+  Check `service_list` and the `bootstrap` catalog for what's registered.
+
+ACTIONS
+- Read/query freely. But CONFIRM with me before a physical, state-changing or
+  outbound action — sending mail, printing, creating/deleting a calendar event,
+  posting a webhook, deleting or overwriting anything.
 
 SESSIONS
 - Save a `session_save` checkpoint after each milestone and before you stop, so a
@@ -80,7 +87,7 @@ SECURITY
 Everything that makes the assistant *yours* lives on the NAS connector — nothing scattered:
 
 - **Skills** → search with `skill_search`, create with `skill_write` (never a local file). **Always categorize**: call `skill_list` first and reuse an existing `category`; only invent a new one when nothing fits. `skill_write` refuses an uncategorized skill — this house rule keeps the shared library tidy and `bootstrap` compact.
-- **Tools / integrations** → check `service_list`, register new HTTP APIs with `service_add` (as data), call via `call_service`. **Give each service a `category`** (e.g. "Smart Home", "Dev", "Documents") — `service_add` refuses without one, so the catalog stays grouped and findable, exactly like skills. MQTT devices: `mqtt_add` / `mqtt_publish` / `mqtt_get`. Files: `ftp_add` / `ftp_upload`. Printers: `print_add` / `print_document`.
+- **Tools / integrations** → check `service_list`, register new HTTP APIs with `service_add` (as data), call via `call_service`. **Give each service a `category`** (e.g. "Smart Home", "Dev", "Documents") — `service_add` refuses without one, so the catalog stays grouped and findable, exactly like skills. MQTT devices: `mqtt_add` / `mqtt_publish` / `mqtt_get`. Files: `ftp_add` / `ftp_upload`, cloud: `webdav_*`. Printing: `print_add` / `print_document`; scanning: `scan_add` / `scan_document`. Email: `mail_send` (SMTP) + `imap_search` / `imap_fetch` (IMAP read). Calendar: `caldav_list_events` / `caldav_add_event` (CalDAV). Webhooks: `webhook_add` (inbound → inbox) / `webhook_send` (outbound). Every register has a matching delete.
 - **API keys / passwords / secrets** → store them in the encrypted **vault** via `secret_set` (works from mobile); reference by name (`token_env` / `password_env`). **Never** ask the user to edit `.env`, never paste secrets in chat, never commit or hardcode them.
 - **Memory** → `memory_write` for durable facts (each is **typed** — `user` / `feedback` / `project` / `reference`; the catalog groups them into tiers 🧭 Core → 📂 Projects → 🛠 Working style → 🔗 References, with short-term/current state in the sessions layer). Recall with `memory_list` / `memory_read` / `memory_search` before assuming.
 
@@ -91,3 +98,13 @@ New capability = "learn it" (data + skill), no redeploy.
 When you run more than one agent, give each its own `agent_id` and use
 `scope="agents/<agent_id>"` for private memory while keeping shared facts in
 `scope="shared"`. See [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Access & areas (multi-user)
+
+If several people share one AICortex (enterprise mode, `AUTH_ENFORCE=1`), each
+non-admin is confined to their own memory + vault and reaches only the
+services/skills an **admin** granted them. An unexpected *"denied"* means a missing
+area, not a bug — an admin grants access as data with
+`tenancy_set(identity, services=…, skills=…)`. In homelab mode (`AUTH_ENFORCE=0`)
+there are no limits. Scheduled work for a specific person runs **act-as** in that
+user's area (`cron_add(..., owner=<sub>)`). Full guide: [authorization.md](authorization.md) · [per-user-areas.md](per-user-areas.md).
