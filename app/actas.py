@@ -97,3 +97,49 @@ def verify(token: str, expected_job: str = None):
     if not claims.get("sub"):
         return False, "no owner in token"
     return True, claims
+
+
+# ── Runtime act-as binding (long-lived, SEQUENTIAL runner) ──────────────────
+# The runner processes due jobs one at a time, so a single process-level binding
+# is safe: begin() before a job, end()/consume() after. current() tells the
+# identity resolvers (authz/tenancy) whom the running job acts as. A token's jti is
+# single-use: once consumed it can't start another run (replay guard) — on top of
+# the short TTL and the due-this-minute window.
+_active = {"sub": None, "job": None, "exp": 0, "jti": None}
+_consumed: set = set()
+_CONSUMED_CAP = 4096  # bound the replay-guard set so it can't grow without limit
+
+
+def begin(token: str, expected_job: str = None):
+    """Validate `token` and make the current process act as its owner. Returns
+    ``(ok, claims_or_reason)``. Refuses a token whose jti was already consumed."""
+    ok, res = verify(token, expected_job)
+    if not ok:
+        return False, res
+    if res.get("jti") in _consumed:
+        return False, "token already used (replay)"
+    _active.update(sub=res["sub"], job=res["job"], exp=res["exp"], jti=res.get("jti"))
+    return True, res
+
+
+def end() -> None:
+    """Drop the current act-as binding (call after a job run)."""
+    _active.update(sub=None, job=None, exp=0, jti=None)
+
+
+def consume() -> None:
+    """Invalidate the current binding's token (single-use) and clear it. Called on
+    cron_mark_run so the same token can't drive a second run."""
+    jti = _active.get("jti")
+    if jti:
+        if len(_consumed) >= _CONSUMED_CAP:
+            _consumed.clear()  # coarse but bounded; TTL already limits reuse window
+        _consumed.add(jti)
+    end()
+
+
+def current():
+    """The owner sub the running job acts as, or None. Expired binding → None."""
+    if _active.get("sub") and int(_active.get("exp", 0)) >= int(time.time()):
+        return _active["sub"]
+    return None

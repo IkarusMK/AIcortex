@@ -1,18 +1,25 @@
-"""Unit tests for per-user service/skill areas + cron act-as (task f821eab9).
+"""Per-user service/skill areas + cron act-as (task f821eab9).
 
-Pure-function tests for tenancy.py — no MCP server needed. Drives policy.json via
-a temp AUTH_STORE_DIR and TENANCY_ISOLATE, then checks the access resolvers and the
-act-as escalation guard.
+Final model (briefing 02.07): areas ride on AUTH_ENFORCE; capabilities are
+DEFAULT-DENY under enforce and FAIL-CLOSED; cron runs act-as as the job owner via
+a capability token. Pure-function + integration tests (no MCP server).
 """
-import importlib
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-APP = "/Users/steffenmac/Downloads/LLMConnector/app"
-sys.path.insert(0, APP)
+# AUTH_STORE_DIR must be set BEFORE importing the modules (they compute POLICY_FILE
+# at import time). One temp dir; we rewrite policy.json per scenario.
+_DIR = tempfile.mkdtemp()
+os.environ["AUTH_STORE_DIR"] = _DIR
+os.environ["STORAGE_ENCRYPTION_KEY"] = "test-key-for-actas"
+sys.path.insert(0, "/Users/steffenmac/Downloads/LLMConnector/app")
+
+import tenancy   # noqa: E402
+import authz     # noqa: E402
+import actas     # noqa: E402
 
 failures = []
 
@@ -23,80 +30,83 @@ def check(name, cond):
         failures.append(name)
 
 
-def load_tenancy(policy: dict, isolate=True):
-    """Reload tenancy with a fresh temp policy so each scenario is isolated."""
-    d = tempfile.mkdtemp()
-    Path(d, "policy.json").write_text(json.dumps(policy), encoding="utf-8")
-    os.environ["AUTH_STORE_DIR"] = d
-    os.environ["TENANCY_ISOLATE"] = "1" if isolate else "0"
-    import tenancy
-    importlib.reload(tenancy)
-    return tenancy
+def set_policy(obj):
+    Path(_DIR, "policy.json").write_text(json.dumps(obj), encoding="utf-8")
 
 
-ALICE = "alice@x.com"
-BOB = "bob@x.com"
+def enforce(on: bool):
+    os.environ["AUTH_ENFORCE"] = "1" if on else "0"
 
-# ── Scenario A: isolation OFF → everything allowed (homelab, backward compat) ──
-t = load_tenancy({"users": {ALICE: {"services": "none", "skills": "none"}}}, isolate=False)
-check("iso-off: service allowed despite 'none'", t.service_allowed(ALICE, "user", "github", "Dev"))
-check("iso-off: skill allowed despite 'none'", t.skill_allowed(ALICE, "user", "web-seite-lesen", "Web"))
 
-# ── Scenario B: isolation ON, user with an allow-list ──
-pol = {"users": {
+ALICE, BOB = "alice@x.com", "bob@x.com"
+POL = {"users": {
     ALICE: {"services": ["github", "Documents"], "skills": ["web-seite-lesen"]},
-    BOB: {"services": "all"},          # explicit all
-    "carol": {"services": "none"},     # locked out
-}}
-t = load_tenancy(pol, isolate=True)
+    BOB: {"services": "all"},          # services all, NO skills field
+    "carol": {"services": "none"},
+}, "roles": {"boss@x.com": "admin"}}
+set_policy(POL)
 
-# admin is never confined
-check("admin: all services", t.service_allowed(ALICE, "admin", "anything", "x"))
+# ── Homelab (AUTH_ENFORCE=0): no checks, everything allowed ──
+enforce(False)
+check("homelab: carol 'none' still allowed", tenancy.service_allowed("carol", "user", "github", "Dev"))
+check("homelab: unknown user allowed", tenancy.service_allowed("nobody", "user", "x", "y"))
+check("homelab: bob skills (no field) allowed", tenancy.skill_allowed(BOB, "user", "any", "z"))
 
-# alice: name in list
-check("alice: github by name", t.service_allowed(ALICE, "user", "github", "Dev"))
-# alice: category in list (paperless is category 'Documents')
-check("alice: paperless by CATEGORY", t.service_allowed(ALICE, "user", "paperless", "Documents"))
-# alice: not listed → denied
-check("alice: crafty denied", not t.service_allowed(ALICE, "user", "crafty", "Gaming"))
-# alice skills
-check("alice: web skill allowed", t.skill_allowed(ALICE, "user", "web-seite-lesen", "Web"))
-check("alice: other skill denied", not t.skill_allowed(ALICE, "user", "mql5-mastery", "Programmierung"))
-# alice has no 'skills'? she does. But she has no explicit 'services' default → she does. Check default:
-check("alice: skills default is her list (candlestick denied)",
-      not t.skill_allowed(ALICE, "user", "candlestick", "Trading"))
+# ── Enforce (AUTH_ENFORCE=1): default-deny + allow-lists ──
+enforce(True)
+check("enforce: admin all", tenancy.service_allowed("boss@x.com", "admin", "anything", "x"))
+check("enforce: alice github by name", tenancy.service_allowed(ALICE, "user", "github", "Dev"))
+check("enforce: alice paperless by CATEGORY", tenancy.service_allowed(ALICE, "user", "paperless", "Documents"))
+check("enforce: alice crafty DENIED", not tenancy.service_allowed(ALICE, "user", "crafty", "Gaming"))
+check("enforce: alice web skill allowed", tenancy.skill_allowed(ALICE, "user", "web-seite-lesen", "Web"))
+check("enforce: alice other skill DENIED", not tenancy.skill_allowed(ALICE, "user", "mql5", "Programmierung"))
+check("enforce: bob services all", tenancy.service_allowed(BOB, "user", "crafty", "Gaming"))
+check("enforce: bob NO skills field → DEFAULT-DENY", not tenancy.skill_allowed(BOB, "user", "any", "z"))
+check("enforce: carol none → deny", not tenancy.service_allowed("carol", "user", "github", "Dev"))
+check("enforce: unknown user → DEFAULT-DENY", not tenancy.service_allowed("nobody", "user", "github", "Dev"))
+check("enforce: empty identity → deny", not tenancy.service_allowed("", "user", "github", "Dev"))
 
-# bob: explicit 'all'
-check("bob: all services", t.service_allowed(BOB, "user", "crafty", "Gaming"))
-# bob: skills field ABSENT → default 'all'
-check("bob: skills default all", t.skill_allowed(BOB, "user", "anything", "x"))
+# ── Fail-closed on corrupt policy (enforce) ──
+Path(_DIR, "policy.json").write_text("{ this is not json", encoding="utf-8")
+check("enforce: corrupt policy → non-admin DENY", not tenancy.service_allowed(ALICE, "user", "github", "Dev"))
+check("enforce: corrupt policy → admin still all", tenancy.service_allowed("boss@x.com", "admin", "github", "Dev"))
+enforce(False)
+check("homelab: corrupt policy → allowed (no checks)", tenancy.service_allowed(ALICE, "user", "github", "Dev"))
+set_policy(POL)
+enforce(True)
 
-# carol: 'none' → nothing
-check("carol: service none", not t.service_allowed("carol", "user", "github", "Dev"))
+# ── act_as_owner escalation guard ──
+check("actas-owner: empty ok", tenancy.act_as_owner(BOB, "user", "") == (True, ""))
+check("actas-owner: admin any", tenancy.act_as_owner("boss", "admin", ALICE) == (True, ALICE))
+check("actas-owner: user self", tenancy.act_as_owner(BOB, "user", BOB) == (True, BOB))
+check("actas-owner: user other refused", tenancy.act_as_owner(BOB, "user", ALICE)[0] is False)
 
-# unknown user (no entry) → default 'all' for capabilities
-check("unknown user: default all services", t.service_allowed("nobody", "user", "github", "Dev"))
+# ── authz.effective_identity honors act-as, never defaults owner to admin ──
+actas.end()
+tok = actas.issue("job1", ALICE)
+ok, _ = actas.begin(tok, "job1")
+check("actas: begin ok", ok)
+ident, role = authz.effective_identity()
+check("effective: identity is owner", ident == ALICE)
+check("effective: owner role is 'user' (NOT default-admin)", role == "user")
+# integration: capability check now follows the owner's grants
+check("act-as run: alice may use github", tenancy.caller_service_allowed("github", "Dev"))
+check("act-as run: alice may NOT use crafty", not tenancy.caller_service_allowed("crafty", "Gaming"))
+# owner that IS an admin in policy.roles resolves to admin
+actas.end()
+ok, _ = actas.begin(actas.issue("j2", "boss@x.com"), "j2")
+_, boss_role = authz.effective_identity()
+check("effective: policy-admin owner → admin role", boss_role == "admin")
 
-# unresolved identity → fail-open all
-check("unresolved: fail-open all", t.service_allowed("", "user", "github", "Dev"))
-check("unknown identity token: fail-open all", t.service_allowed("unknown", "user", "github", "Dev"))
-
-# ── Scenario C: act-as escalation guard ──
-check("actas: empty owner ok (no act-as)", t.act_as_owner(BOB, "user", "") == (True, ""))
-check("actas: admin may set any owner", t.act_as_owner("admin-sub", "admin", ALICE) == (True, ALICE))
-check("actas: user as SELF ok", t.act_as_owner(BOB, "user", BOB) == (True, BOB))
-ok, reason = t.act_as_owner(BOB, "user", ALICE)
-check("actas: user as OTHER refused", ok is False and "admin" in reason)
-
-# ── Scenario D: string allow-list ("github, Documents") parses like a list ──
-t2 = load_tenancy({"users": {ALICE: {"services": "github, Documents"}}}, isolate=True)
-check("str-list: github allowed", t2.service_allowed(ALICE, "user", "github", "Dev"))
-check("str-list: crafty denied", not t2.service_allowed(ALICE, "user", "crafty", "Gaming"))
-
-# ── Scenario E: _fmt_access rendering ──
-check("fmt: list", t.__dict__["_fmt_access"](["github", "Documents"]) == "github,Documents")
-check("fmt: all", t.__dict__["_fmt_access"]("all") == "all")
-check("fmt: empty list → none", t.__dict__["_fmt_access"]([]) == "none")
+# ── single-use: consume() then the same token can't begin again ──
+actas.end()
+t3 = actas.issue("j3", ALICE)
+check("replay: first begin ok", actas.begin(t3, "j3")[0] is True)
+actas.consume()
+check("replay: binding cleared after consume", actas.current() is None)
+check("replay: reused token refused", actas.begin(t3, "j3")[0] is False)
+actas.end()
+check("no binding: current() None", actas.current() is None)
 
 print()
 if failures:

@@ -11,6 +11,20 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   the `bootstrap` catalog header — so you can tell which build a container is
   actually running without fingerprinting its source. (The stamp always mirrors the
   newest release; it moves only when a release is cut.)
+- **Per-user service/skill areas + per-user cron (act-as).** Tenancy now extends from
+  private data to shared capabilities and scheduled jobs, gated by `AUTH_ENFORCE`
+  (the separate `TENANCY_ISOLATE` switch is retired — "enforce means enforce").
+  - `policy.json` users gain `services`/`skills` = `all` | `none` | allow-list of
+    names/categories. Under enforce these are **default-deny** and **fail-closed**
+    (errors → deny + audit); homelab mode (`AUTH_ENFORCE=0`) runs no checks.
+  - Enforced in `call_service`/`service_list` and `skill_load`/`skill_resource`/
+    `skill_search`/`skill_list`; managed via `tenancy_set(services=…, skills=…)`.
+  - **Cron act-as:** a job can run as an owner. A non-admin schedules only as
+    themselves; an admin as anyone. `cron_due` mints a short-lived per-job capability
+    token (HMAC, HKDF-derived from `STORAGE_ENCRYPTION_KEY`, 5-min TTL, single-use);
+    the runner presents it via `act_as_begin`/`act_as_end`, so it holds no standing
+    authority and a running job is scoped to its owner at the owner's own privilege.
+    See `docs/per-user-areas.md`.
 
 ## [1.6.3] — 2026-07-01
 ### Security
