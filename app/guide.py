@@ -145,12 +145,22 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Lesend, markiert NICHT als gelesen (PEEK); Anhänge optional → /data/work.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
-- Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt) / cron_list / cron_delete.
-  Ein NAS-Runner stößt fällige Jobs an (cron_due/cron_mark_run) und meldet das Ergebnis.
+- Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner]) / cron_list / cron_delete.
+  owner = act-as: der Job läuft im BEREICH dieses Users (Nicht-Admin darf nur als er selbst planen).
+  Ein NAS-Runner stößt fällige Jobs an: cron_due liefert je Job ein kurzlebiges act-as-Token →
+  act_as_begin/act_as_end umschließen die Ausführung → cron_mark_run meldet das Ergebnis.
 - Webhooks: EINGEHEND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
   webhook_delete — öffentliche Route POST /hooks/<name>, per Secret-Token/HMAC abgesichert,
   Event → Inbox (macht das Gehirn event-fähig). AUSGEHEND webhook_send(url, json_body) — POST,
   ausgehend → vorher bestätigen. (Proxy: nur /hooks/* ohne OIDC durchreichen, nie /mcp.)
+
+ZUGRIFF & BEREICHE (Multi-User — greift bei AUTH_ENFORCE=1; Homelab/AUTH_ENFORCE=0: keine Grenzen)
+- Nicht-Admins sind auf ihren EIGENEN Memory-Scope (users/<sub>) + Vault-Namespace beschränkt und
+  erreichen nur die Services/Skills, die ein Admin ihnen zugewiesen hat (DEFAULT-DENY). Läufst du
+  unerwartet auf „denied", ist genau das der Grund — kein Bug, sondern ein fehlender Bereich.
+- ADMIN vergibt Zugriff als Daten: tenancy_set(identity, memory=, vault=, services=, skills=) /
+  tenancy_show / tenancy_list / tenancy_status / tenancy_unset. services/skills = "all" | "none" |
+  Liste von Namen/Kategorien. Admins selbst sind nie beschränkt.
 
 MULTI-AGENT (geteilter Koordinations-Layer — Mac, NAS-Ollama, Handy als EIN Team)
 - ANMELDEN = Präsenz-Herzschlag: agent_register(name, role, capabilities[, status])
@@ -182,8 +192,10 @@ SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
   ständig neue Sessions anlegen.
 
 AUFRÄUMEN (volles CRUD): zu jedem Anlegen gibt es ein Löschen — skill_delete,
-service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, scan_delete,
-task_delete, agent_remove, inbox_delete, session_delete (plus memory_delete /
+service_delete, mqtt_delete, ftp_delete, webdav_delete_endpoint, caldav_delete_endpoint,
+caldav_delete_event, ssh_delete_endpoint, mail_delete_account, imap_delete_account,
+mcp_delete, print_delete, scan_delete, webhook_delete, cron_delete, task_delete,
+agent_remove, inbox_delete, session_delete, tenancy_unset (plus memory_delete /
 secret_delete). Was du registrierst, kannst du auch per Connector entfernen.
 
 SECRETS — NUR Vault, NIEMALS .env
@@ -299,12 +311,22 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Read-only, does NOT mark seen (PEEK); attachments optionally → /data/work.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
-- Scheduled jobs (cron as data): cron_add(name, schedule, prompt) / cron_list / cron_delete.
-  A NAS runner triggers due jobs (cron_due/cron_mark_run) and reports the result.
+- Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner]) / cron_list / cron_delete.
+  owner = act-as: the job runs in that user's AREA (a non-admin may schedule only as themselves).
+  A NAS runner triggers due jobs: cron_due returns a short-lived act-as token per job →
+  act_as_begin/act_as_end wrap the run → cron_mark_run reports the result.
 - Webhooks: INBOUND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
   webhook_delete — public route POST /hooks/<name>, secured by secret token/HMAC, event →
   inbox (makes the brain event-driven). OUTBOUND webhook_send(url, json_body) — POST, outbound
   → confirm first. (Proxy: pass only /hooks/* without OIDC, never /mcp.)
+
+ACCESS & AREAS (multi-user — applies when AUTH_ENFORCE=1; homelab/AUTH_ENFORCE=0: no limits)
+- Non-admins are confined to their OWN memory scope (users/<sub>) + vault namespace and reach only
+  the services/skills an admin assigned (DEFAULT-DENY). If you hit an unexpected "denied", that's the
+  reason — not a bug, just a missing area grant.
+- ADMIN grants access as data: tenancy_set(identity, memory=, vault=, services=, skills=) /
+  tenancy_show / tenancy_list / tenancy_status / tenancy_unset. services/skills = "all" | "none" |
+  a list of names/categories. Admins themselves are never confined.
 
 MULTI-AGENT (shared coordination layer — desktop, NAS-Ollama, mobile as ONE team)
 - REGISTER = presence heartbeat: agent_register(name, role, capabilities[, status])
@@ -335,8 +357,10 @@ SESSION HANDOFF (resume seamlessly from any LLM/device)
   start a new one once), don't keep creating new sessions.
 
 CLEANUP (full CRUD): every register has a matching delete — skill_delete,
-service_delete, mqtt_delete, ftp_delete, mcp_delete, print_delete, scan_delete,
-task_delete, agent_remove, inbox_delete, session_delete (plus memory_delete /
+service_delete, mqtt_delete, ftp_delete, webdav_delete_endpoint, caldav_delete_endpoint,
+caldav_delete_event, ssh_delete_endpoint, mail_delete_account, imap_delete_account,
+mcp_delete, print_delete, scan_delete, webhook_delete, cron_delete, task_delete,
+agent_remove, inbox_delete, session_delete, tenancy_unset (plus memory_delete /
 secret_delete). Anything you register, you can also remove via the connector.
 
 SECRETS — VAULT ONLY, NEVER .env: store every API key/token/password via

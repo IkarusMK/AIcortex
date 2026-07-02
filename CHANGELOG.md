@@ -4,6 +4,16 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.7.2] — 2026-07-02
+### Changed
+- **Onboarding brought up to v1.7.** The connector `guide` (loaded by `bootstrap`
+  and sent as the server `instructions`) and `docs/client-project-instructions.md`
+  now cover what a fresh LLM was missing: **per-user areas / default-deny** and how
+  an admin grants them (`tenancy_set`), **cron act-as** (`owner`, `act_as_begin/end`,
+  the per-job token), and a **complete CRUD delete list** (imap / caldav /
+  caldav_delete_event / webhook / tenancy_unset). So a new session understands the
+  multi-tenant model — not just how to call individual tools.
+
 ## [1.7.1] — 2026-07-02
 ### Added
 - **`caldav_delete_event`** — completes CalDAV CRUD. Shipping `caldav_add_event`
