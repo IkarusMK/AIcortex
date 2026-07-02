@@ -6,6 +6,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 ### Added
+- **CalDAV — calendars as data.** `caldav_add` / `caldav_list_calendars` /
+  `caldav_list_events` / `caldav_add_event`: discover calendars, list events in a
+  time range, and create an event (PUT of an iCalendar object) — over CalDAV
+  (PROPFIND / REPORT calendar-query / PUT) with httpx, no extra dependency. Same
+  posture as WebDAV: SSRF-guarded connects, TLS verified by default, app-password
+  from the vault; `caldav_add`/`caldav_delete_endpoint` admin-only.
 - **IMAP — read incoming email.** The read-side counterpart to SMTP `mail_send`:
   `imap_add` / `imap_list` / `imap_search` / `imap_fetch`. Reads are read-only
   (BODY.PEEK, `readonly` select) so nothing is marked seen; attachments optionally

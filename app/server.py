@@ -29,6 +29,7 @@ import sessions
 import print_tools
 import scan_tools
 import webdav_tools
+import caldav_tools
 import fs_tools
 import ssh_tools
 import mail_tools
@@ -221,6 +222,9 @@ scan_tools.register(mcp)
 
 # WebDAV transfer: webdav_add / list / upload / download / mkdir / delete (cloud drives as data, e.g. Nextcloud)
 webdav_tools.register(mcp)
+
+# CalDAV: caldav_add / list_calendars / list_events / add_event (calendars as data, e.g. Nextcloud)
+caldav_tools.register(mcp)
 
 # Workspace files: fs_list / fs_read / fs_write / fs_move / fs_delete / fs_info (/data/work, sandboxed)
 fs_tools.register(mcp)
