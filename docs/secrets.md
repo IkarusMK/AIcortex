@@ -17,7 +17,7 @@ so you can be confident your secrets stay secret.
 - 🧱 **Fail-closed.** An unreadable/wrong-key vault is **never silently
   overwritten** — writes refuse and a `.bak` is kept. Plaintext storage is refused
   unless you explicitly opt in.
-- 👤 **Per-user isolation (multi-user).** With `TENANCY_ISOLATE=1`, an admin
+- 👤 **Per-user isolation (multi-user).** With `AUTH_ENFORCE=1`, an admin
   provisions per-user secrets; ordinary users can't create them and see only the
   shared names plus their own.
 
@@ -80,7 +80,7 @@ accident). `ALLOW_PLAINTEXT_VAULT=1` overrides this — **not recommended**.
 
 ## Multi-user: per-user secrets
 
-With `TENANCY_ISOLATE=1`, an **admin** can store a secret in a specific user's
+With `AUTH_ENFORCE=1`, an **admin** can store a secret in a specific user's
 private namespace:
 ```
 secret_set("API_TOKEN", "<value>", owner="<their-pocketid-sub>")
