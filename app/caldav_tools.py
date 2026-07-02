@@ -17,6 +17,13 @@ import re
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+# Parse server XML with defusedxml (blocks entity-expansion / billion-laughs DoS and
+# external-entity tricks from a malicious/compromised registered server). Fall back to
+# stdlib only if the dependency is somehow absent, so the connector still boots.
+try:
+    from defusedxml.ElementTree import fromstring as _xml_fromstring
+except Exception:  # pragma: no cover
+    _xml_fromstring = ET.fromstring
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -155,7 +162,7 @@ def register(mcp):
             return f"List returned HTTP {r.status_code}. Check base_url / credentials."
         out = []
         try:
-            root = ET.fromstring(r.content)
+            root = _xml_fromstring(r.content)
             for resp in root.findall("d:response", _NS):
                 is_cal = resp.find(".//c:calendar", _NS) is not None
                 if not is_cal:
@@ -206,7 +213,7 @@ def register(mcp):
             return f"Query returned HTTP {r.status_code}. Check the calendar href."
         out = []
         try:
-            root = ET.fromstring(r.content)
+            root = _xml_fromstring(r.content)
             for resp in root.findall("d:response", _NS):
                 cd = resp.find(".//c:calendar-data", _NS)
                 if cd is None or not (cd.text or "").strip():

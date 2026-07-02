@@ -4,6 +4,38 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.8.0] — 2026-07-02
+### Security
+Full-repo security audit (manual review + NAS security skills: MCP-server audit, XXE,
+indirect-prompt-injection, BFLA/BOLA). All findings fixed:
+
+- **Per-user areas now cover DEVICE endpoints** (were: services/skills only). Under
+  `AUTH_ENFORCE=1` a non-admin's use of `caldav`/`imap`/`webdav`/`ssh`/`mail`/`print`/
+  `scan`/`mqtt`/`ftp`/`mcp` action tools is confined to the endpoints an admin
+  assigned (**default-deny**) — closing an isolation gap (BOLA/BFLA) where these
+  registries were unguarded. Grant with `tenancy_set(identity, grant="caldav=…;
+  ssh=all")`. Enforced centrally in the authz middleware.
+- **Inbound webhook payloads are labeled UNTRUSTED** in the inbox (indirect
+  prompt-injection defense) — a reader is told to treat them as data, not instructions.
+- **`ssh_upload` path check uses ancestry, not string prefix** (the `/data-backup`
+  sibling bypass, missed in the 1.6.3 sweep).
+- **CalDAV/WebDAV XML parsed with `defusedxml`** (entity-expansion / billion-laughs
+  DoS from a malicious or compromised registered server).
+- **Webhook hardening:** shared token read from the `X-Webhook-Token` **header only**
+  (never a URL query — no secret in proxy logs); unknown-hook and bad-auth both return
+  a uniform `401` (no hook-name enumeration); byte-safe constant-time compare.
+- **IMAP search injection** — quotes/CRLF stripped from the free-text query.
+- **Published port binds to loopback by default** (`BIND_ADDR`, default `127.0.0.1`)
+  so `/mcp` and `/hooks/*` aren't reachable from the LAN past the reverse proxy.
+- **Supply-chain:** `defusedxml` added + floors tightened, a `pip-audit` advisory gate
+  in CI, and Dependabot for pip / GitHub-Actions / Docker.
+- **Hardening:** act-as replay-guard evicts the oldest jti (no wholesale clear);
+  documented the SSRF guard's reliance on the default (socket) DNS resolver.
+
+Verified clean: no committed secrets/data (only `.gitkeep`), container runs non-root,
+SSRF egress guard on every outbound path, act-as never escalates to admin, cron
+owner-scoping BOLA-safe, `*_add`/`*_delete` admin-gated, vault fail-closed.
+
 ## [1.7.2] — 2026-07-02
 ### Changed
 - **Onboarding brought up to v1.7.** The connector `guide` (loaded by `bootstrap`

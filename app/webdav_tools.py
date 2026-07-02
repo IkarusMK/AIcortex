@@ -18,6 +18,12 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+# defusedxml for untrusted server responses (billion-laughs / entity DoS defense);
+# fall back to stdlib only if the dependency is absent so the connector still boots.
+try:
+    from defusedxml.ElementTree import fromstring as _xml_fromstring
+except Exception:  # pragma: no cover
+    _xml_fromstring = ET.fromstring
 
 import httpx
 
@@ -146,7 +152,7 @@ def register(mcp):
         base_path = urlparse(base).path
         out = []
         try:
-            root = ET.fromstring(r.content)
+            root = _xml_fromstring(r.content)
             ns = {"d": "DAV:"}
             for resp in root.findall("d:response", ns):
                 href = resp.findtext("d:href", default="", namespaces=ns)

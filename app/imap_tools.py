@@ -93,7 +93,9 @@ def _criteria(query: str):
     q = (query or "unseen").strip()
     if q.lower() in _STATES:
         return (q.upper(),)
-    # free text → subject OR from (quoted); simple and useful for "find X"
+    # free text → subject OR from (quoted). Strip quotes/CR/LF so the term can't
+    # break out of the quoted string and inject extra SEARCH tokens (IMAP injection).
+    q = re.sub(r'["\r\n]', "", q)
     return ("OR", "SUBJECT", f'"{q}"', "FROM", f'"{q}"')
 
 

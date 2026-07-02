@@ -36,6 +36,13 @@ Areas ride on the same switch as authorization ("enforce means enforce" — no s
 `services`/`skills` entries match a **name OR a category**. Under enforce, a user with
 no entry (or no `services`/`skills` field) gets **nothing** for that class.
 
+**Device endpoints too (since 1.8.0).** The same model covers the device registries —
+`caldav`, `imap`, `webdav`, `ssh`, `mail`, `print`, `scan`, `mqtt`, `ftp`, `mcp`. Add a
+per-class key to the user's entry (`"caldav": ["nextcloud-cal"]`, `"ssh": "all"`, …) or
+set them with `tenancy_set(identity, grant="caldav=nextcloud-cal; ssh=all; imap=none")`.
+Default-deny under enforce; enforced centrally in the authz middleware for every device
+**action** tool (`caldav_add_event`, `ssh_run`, `imap_search`, `webdav_download`, …).
+
 Admin control plane: `tenancy_set(identity, services="github, Documents", skills="Web")`,
 `tenancy_show`, `tenancy_list`, `tenancy_status`.
 
