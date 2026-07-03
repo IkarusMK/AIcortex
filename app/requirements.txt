@@ -10,7 +10,7 @@ defusedxml>=0.7.1,<1
 # sanctioned way to keep DiskStore — ours is Fernet-encrypted, self-data only).
 # NOTE: bound this once a stable upper major is known; Dependabot + the CI pip-audit
 # step (see .github/) track advisories on all deps in the meantime.
-py-key-value-aio[disk]>=0.2
+py-key-value-aio[disk]>=0.4.5
 # Native (libuv) event loop. uvicorn — which FastMCP's HTTP transport runs on — picks it
 # up automatically, and server.py installs it explicitly at startup. Faster async I/O for
 # the connector's real bottleneck (network / event loop). Linux & macOS only (uvloop has
