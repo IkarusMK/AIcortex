@@ -67,7 +67,7 @@ The "LLM brain" space has some great projects — AICortex deliberately sits in 
 
 - **[GBrain](https://github.com/garrytan/gbrain)** is a *memory engine* — markdown-first, Postgres/PGLite-backed, with a self-wiring knowledge graph and hybrid/vector search. Deep retrieval, one concern.
 - **[CortexPrism](https://cortexprism.io/)** is a full *agent operating system* — its own runtime, ~30 LLM providers, a plugin marketplace, sandboxed code execution and multi-user teams. Batteries included, heavyweight.
-- **AICortex** is a single, lightweight *MCP connector*: one container that gives any MCP client a persistent brain — memory **and** skills, devices, sessions, secrets and scheduling — where new integrations are added as **data, no redeploy**. No database, no graph, no marketplace; you bring your own LLM client.
+- **AICortex** is a single, lightweight *MCP connector*: one container that gives any client a persistent brain — memory **and** skills, devices, sessions, secrets and scheduling — where new integrations are added as **data, no redeploy**. And unlike most brain projects it isn't MCP-only: the same tools are exposed over a **native REST API** with an auto-generated OpenAPI spec, so non-MCP clients (n8n, LangChain, a script) plug in too. No database, no graph, no marketplace; you bring your own client.
 
 Rule of thumb: want a dedicated memory/graph engine → GBrain; want a batteries-included agent OS → CortexPrism; want a minimal self-hosted connector that plugs your existing LLM app into your own stuff → AICortex.
 
