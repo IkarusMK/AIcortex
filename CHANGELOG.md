@@ -4,6 +4,32 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.0] — 2026-07-03
+### Added
+**Native REST API** — a plain-HTTP layer next to `/mcp` so non-MCP clients (n8n,
+LangChain, OpenAI-compatible tools, scripts) can call AICortex tools directly, through
+the **same** authorization and per-user areas as an OIDC session (no second permission
+model):
+
+- `GET /api/v1/tools` (tools this key may call, with JSON schemas), `POST
+  /api/v1/tools/<name>` (invoke; body = JSON args), `GET /api/v1/openapi.json`
+  (auto-generated OpenAPI 3.1 of this key's tools). Served outside the MCP OAuth, like
+  `/hooks/*`. Optional **SSE** (`?stream=1`) with heartbeats for long-running tools.
+- **Per-user API keys** (`apikey_create` / `apikey_list` / `apikey_revoke`, admin-only):
+  a key maps to an identity and runs the exact same authz/tenancy pipeline —
+  **never admin by default**. Keys are **hashed at rest** (SHA-256 of a 256-bit secret,
+  constant-time compare), **default-deny** with a per-key `scopes` allow-list, and a
+  hard **denylist** (`secret_*`, `apikey_*`, `tenancy_*`) no key can reach. Optional
+  expiry; full CRUD incl. revoke(=delete). Shown once at creation.
+- Per-key **rate limiting** (`API_RATE_PER_MIN`, default 60/min) and body cap
+  (`API_MAX_BODY_BYTES`). Whole layer toggles with `API_ENABLED`.
+- A request-scoped identity (`contextvars`) so concurrent REST requests never bleed
+  identity, and in-tool self-scoping (`service_list`/`secret_list`/memory) resolves to
+  the key's owner. New: `docs/rest-api.md`, `tests/test_apikeys.py`.
+
+**Proxy:** expose `/api/*` (like `/hooks/*`) past the reverse proxy without OIDC — never
+`/mcp`.
+
 ## [1.8.0] — 2026-07-02
 ### Security
 Full-repo security audit (manual review + NAS security skills: MCP-server audit, XXE,

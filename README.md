@@ -29,6 +29,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **IPP printing** & **eSCL scanning** (straight into Paperless-ngx) on LAN multifunction devices
 - **Event-driven:** inbound **webhooks** (`POST /hooks/<name>`, secret/HMAC-verified) turn external events into inbox items; outbound webhooks notify
 - An **MCP gateway** to use other MCP servers' tools — register any integration with one call, **no code, no redeploy**
+- A **native REST API** — call any tool over plain HTTP with a scoped, per-user **API key** and an auto-generated **OpenAPI** spec, so non-MCP clients (n8n, LangChain, scripts, OpenAI-compatible tools) use the *same* brain through the *same* per-user areas
 
 **👥 Team, autonomy & continuity**
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
@@ -301,6 +302,40 @@ AICortex has been through external security review (fail-closed vault, SSH host-
 
 > 🔐 **How your secrets stay secret** — encrypted at rest, never returned to the model, never in chat/repo, and how to set them safely (`secret_set` or `.env`): **[docs/secrets.md](docs/secrets.md)**.
 
+## REST API (for non-MCP clients)
+
+Not every client speaks MCP. The **native REST layer** exposes the same tools over plain HTTP, so n8n, LangChain, an OpenAI-compatible client or a shell script can drive AICortex directly — through the **same** authorization and per-user areas as an OIDC session.
+
+Three routes, served next to `/mcp` but authenticated by a **per-user API key** instead of OAuth:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/v1/tools` | The tools **this key** may call, with JSON schemas |
+| `POST /api/v1/tools/<name>` | Invoke a tool — request body is the JSON arguments |
+| `GET /api/v1/openapi.json` | An OpenAPI 3.1 spec of this key's tools — load AICortex into any function-calling framework |
+
+An admin mints keys (they run through the same policy, **never admin by default**):
+
+```
+apikey_create(identity="alice", scopes="memory, fs_read", ttl_days=90)
+# → ak_ab12cd34ef56_XXXXXXXX…   (shown ONCE — store it now)
+apikey_list        # keyid prefixes, scopes, expiry — never the secret
+apikey_revoke("ab12cd34ef56")
+```
+
+Call it with the key as a bearer token:
+
+```bash
+curl -X POST https://agent.example.com/api/v1/tools/memory_search \
+  -H "Authorization: Bearer ak_ab12cd34ef56_XXXXXXXX…" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "trading rules"}'
+```
+
+Security, by design: keys are **hashed at rest** (constant-time compare) and **default-deny** — a key reaches only the tools in its `scopes` allow-list, further narrowed by the identity's role and device areas. Secret-, key- and tenancy-management tools are **never** reachable via a key. Each key is **rate-limited**; pass `?stream=1` (or `Accept: text/event-stream`) for **SSE** on long-running tools. Full detail: **[docs/rest-api.md](docs/rest-api.md)**.
+
+> **Proxy:** expose `/api/*` (and `/hooks/*`) past the reverse proxy **without** OIDC — the API authenticates itself by key. Never expose `/mcp` that way.
+
 ## Configuration
 
 All config lives in `.env` (copy from `.env.example`):
@@ -311,6 +346,8 @@ All config lives in `.env` (copy from `.env.example`):
 | `BIND_ADDR` | `127.0.0.1` | Address the published port binds to. Loopback = only this host's reverse proxy reaches it, not the LAN. Set `0.0.0.0` if your proxy is a **separate bridge-network container** |
 | `PUID` / `PGID` | `1000` | User/group ID the process runs as (file ownership) |
 | `TZ`        | `UTC`   | Container timezone |
+| `API_ENABLED` | `1` | Native REST API (`/api/v1/*`) on/off — keys are minted with `apikey_create` |
+| `API_RATE_PER_MIN` | `60` | Per-key REST rate limit (requests/minute; `0` = unlimited) |
 
 OIDC, authorization and hardening variables are documented inline in [`.env.example`](.env.example) and the [Authentication & authorization](#authentication--authorization) section.
 
@@ -382,6 +419,8 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral. Persistent `data/auth` fixes it; to clear a stuck client, remove the connector, fully quit & reopen the app, re-add. |
 | Connector won't connect; proxy returns a login **web page** | Reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer. |
 | After setting **`BIND_ADDR=127.0.0.1`** the connector goes unreachable / the client says *"registration with the sign-in service failed"* (OAuth) | The published port now listens on **loopback only**, but your reverse proxy still forwards to the host's **LAN IP** (`<nas-ip>:8787`), so it can't reach the container. Point the proxy's **upstream/origin at `127.0.0.1:8787`** (plain HTTP — a host-network proxy shares the host loopback and reaches it fine). **Order matters to avoid downtime:** change the upstream to loopback **first** (still works while the port is bound to `0.0.0.0`, which covers loopback), verify `/mcp` → `401`, **then** flip `BIND_ADDR`. If your proxy is a **separate bridge-network container** it can't reach the host loopback at all — keep `BIND_ADDR=0.0.0.0` (OIDC still gates `/mcp`) or put both on a shared Docker network. |
+| REST call `POST /api/v1/tools/<name>` returns **401** with a valid-looking key | The key is disabled/expired, or `/api/*` isn't reaching the app. Check `apikey_list` (status/expiry); confirm the proxy forwards `/api/*` to the container **without** OIDC (like `/hooks/*`). A **403** instead means the tool is outside the key's `scopes` or the identity's role — re-mint with wider `scopes` or grant the device area with `tenancy_set`. |
+| REST call returns **404 `{"error":"REST API disabled"}`** | `API_ENABLED=0`. Set it to `1` (the default) and `docker compose up -d --force-recreate`. |
 | IdP consent button spins forever; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` carried **no `scope`** (some IdP UIs crash on `scope=null`). Already sent via `extra_authorize_params`; override with `OIDC_SCOPE`. |
 | `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** and restart. |
 | **Scan / WebDAV fails or falls back to plain HTTP** (e.g. *"did not start a job … 404"*) | The LAN device serves HTTPS with a **self-signed certificate**, which is verified by default. Confirm with `curl -k https://<device-ip>/...` → if that returns `200`, register it self-signed: `scan_add`/`webdav_add` with **`tls_insecure=true`** (or point `ca_bundle` at its cert). |
