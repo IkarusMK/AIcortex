@@ -20,6 +20,7 @@ import guide
 import sessions
 import memory
 import coordination
+import catalog_cache
 import version
 
 MEMORY_DIR = Path(os.environ.get("MEMORY_DIR", "/data/memory"))
@@ -134,27 +135,47 @@ def _section(title: str, lines: list[str], empty: str) -> str:
 
 
 def _catalog() -> str:
-    """A live snapshot of everything currently on the NAS brain."""
-    # All memory scopes, shared first. The reserved 'candidates' scope is NOT
-    # listed here (it's not live memory) — it's surfaced separately below.
-    mem_lines: list[str] = []
-    if MEMORY_DIR.exists():
-        scopes = sorted(
-            (d for d in MEMORY_DIR.iterdir()
-             if d.is_dir() and d.name != memory.CANDIDATES_SCOPE),
-            key=lambda d: (d.name != "shared", d.name),
-        )
-        for sc in scopes:
-            entries = memory.scope_tiered_lines(sc)
-            if entries:
-                mem_lines.append(f"  [{sc.name}]")
-                mem_lines.extend(entries)
-        if mem_lines:
-            mem_lines.append("  ⏱ Short-term / current state → see RESUME sessions "
-                             "above (session_load) — that's the short-term tier.")
+    """A live snapshot of everything currently on the NAS brain.
 
-    # Auto-memory: surface candidates awaiting review so any session closes the
-    # learning loop (promote/reject) without needing a background process.
+    Sections that READ FILES (memory scopes, skills, the JSON service/device
+    registries) are served through ``catalog_cache``: their rendered lines are reused
+    while the source directory's cheap stat signature is unchanged, so a warm bootstrap
+    opens ~no files (this is what turns a minutes-long cold scan into milliseconds and
+    keeps it fast as the brain fills up). Sections that are cheap or change on every
+    save (candidate count, recent sessions, team presence, task board) stay LIVE."""
+    # A cached JSON section (flat, or grouped-by-category) — the source dir's stat
+    # signature keys the cache, so unchanged registries cost only a metadata scan.
+    def _cj(key: str, d: Path, fields: tuple, grouped: bool = False) -> list[str]:
+        fn = ((lambda: _json_grouped(d, fields=fields)) if grouped
+              else (lambda: _json_names(d, fields=fields)))
+        return catalog_cache.cached_lines(key, [d], "*.json", fn)
+
+    # All memory scopes, shared first. The reserved 'candidates' scope is NOT listed
+    # here (it's not live memory) — it's surfaced separately below. Reading each scope's
+    # files is the cost, so cache it keyed by a signature over MEMORY_DIR's markdown.
+    def _render_mem_scopes() -> list[str]:
+        lines: list[str] = []
+        if MEMORY_DIR.exists():
+            scopes = sorted(
+                (d for d in MEMORY_DIR.iterdir()
+                 if d.is_dir() and d.name != memory.CANDIDATES_SCOPE),
+                key=lambda d: (d.name != "shared", d.name),
+            )
+            for sc in scopes:
+                entries = memory.scope_tiered_lines(sc)
+                if entries:
+                    lines.append(f"  [{sc.name}]")
+                    lines.extend(entries)
+            if lines:
+                lines.append("  ⏱ Short-term / current state → see RESUME sessions "
+                             "above (session_load) — that's the short-term tier.")
+        return lines
+
+    mem_lines = list(catalog_cache.cached_lines(
+        "memory", [MEMORY_DIR], "**/*.md", _render_mem_scopes))
+
+    # Auto-memory: candidates awaiting review — always LIVE (never cached), so a freshly
+    # staged candidate always shows. Appended after the cached scope lines.
     try:
         n_cand = memory.candidate_count()
     except Exception:
@@ -164,7 +185,8 @@ def _catalog() -> str:
                          f"memory_candidates() · memory_promote/memory_reject")
 
     # Where we left off: surface the most recent sessions so a fresh LLM (or a
-    # different model entirely) can continue exactly where another stopped.
+    # different model entirely) can continue exactly where another stopped. Cheap and
+    # changes on every save → kept live.
     resume = ""
     try:
         recent = sessions.recent(5)
@@ -187,35 +209,36 @@ def _catalog() -> str:
         f"===== LIVE BRAIN CATALOG (AICortex v{version.__version__} · current NAS state) =====",
         _section("MEMORY (facts about the user & projects)", mem_lines,
                  "empty — nothing stored yet; capture facts with memory_write"),
-        _section("SKILLS (reusable know-how)", _skill_list(),
+        _section("SKILLS (reusable know-how)",
+                 catalog_cache.cached_lines("skills", [SKILLS_DIR], "*/SKILL.md", _skill_list),
                  "none yet — author with skill_write"),
         _section("SERVICES (HTTP integrations)",
-                 _json_grouped(SERVICES_DIR, fields=("base_url", "description")),
+                 _cj("services", SERVICES_DIR, ("base_url", "description"), grouped=True),
                  "none — add with service_add"),
-        _section("MQTT DEVICES", _json_names(MQTT_DIR, fields=("host", "description")),
+        _section("MQTT DEVICES", _cj("mqtt", MQTT_DIR, ("host", "description")),
                  "none — add with mqtt_add"),
-        _section("FTP/FTPS ENDPOINTS", _json_names(FTP_DIR, fields=("host", "description")),
+        _section("FTP/FTPS ENDPOINTS", _cj("ftp", FTP_DIR, ("host", "description")),
                  "none — add with ftp_add"),
-        _section("WEBDAV ENDPOINTS", _json_names(WEBDAV_DIR, fields=("base_url", "description")),
+        _section("WEBDAV ENDPOINTS", _cj("webdav", WEBDAV_DIR, ("base_url", "description")),
                  "none — add with webdav_add"),
-        _section("CALDAV ENDPOINTS", _json_names(CALDAV_DIR, fields=("base_url", "description")),
+        _section("CALDAV ENDPOINTS", _cj("caldav", CALDAV_DIR, ("base_url", "description")),
                  "none — add with caldav_add"),
-        _section("SSH HOSTS", _json_names(SSH_DIR, fields=("host", "description")),
+        _section("SSH HOSTS", _cj("ssh", SSH_DIR, ("host", "description")),
                  "none — add with ssh_add"),
-        _section("SMTP ACCOUNTS", _json_names(MAIL_DIR, fields=("from_addr", "host")),
+        _section("SMTP ACCOUNTS", _cj("mail", MAIL_DIR, ("from_addr", "host")),
                  "none — add with mail_add"),
-        _section("IMAP ACCOUNTS", _json_names(IMAP_DIR, fields=("username", "host")),
+        _section("IMAP ACCOUNTS", _cj("imap", IMAP_DIR, ("username", "host")),
                  "none — add with imap_add"),
-        _section("MCP SERVERS (gateway)", _json_names(MCP_DIR, fields=("url", "description")),
+        _section("MCP SERVERS (gateway)", _cj("mcp", MCP_DIR, ("url", "description")),
                  "none — add with mcp_add"),
-        _section("PRINTERS (IPP)", _json_names(PRINT_DIR, fields=("host", "description")),
+        _section("PRINTERS (IPP)", _cj("print", PRINT_DIR, ("host", "description")),
                  "none — add with print_add"),
-        _section("SCANNERS (eSCL)", _json_names(SCAN_DIR, fields=("host", "description")),
+        _section("SCANNERS (eSCL)", _cj("scan", SCAN_DIR, ("host", "description")),
                  "none — add with scan_add"),
-        _section("SCHEDULED JOBS (cron)", _json_names(CRON_DIR, fields=("schedule", "prompt")),
+        _section("SCHEDULED JOBS (cron)", _cj("cron", CRON_DIR, ("schedule", "prompt")),
                  "none — add with cron_add"),
         _section("INBOUND WEBHOOKS (POST /hooks/<name> → inbox)",
-                 _json_names(WEBHOOK_DIR, fields=("notify", "description")),
+                 _cj("webhooks", WEBHOOK_DIR, ("notify", "description")),
                  "none — add with webhook_add"),
         _section("TEAM (agents — live presence, online first)", _agents(),
                  "none registered — agent_register(name, role, capabilities)"),
@@ -232,6 +255,7 @@ def _catalog() -> str:
         "stop so the next LLM/device can resume.",
     ]
     body = "\n\n".join(parts)
+    catalog_cache.flush()   # persist any re-rendered sections for the next bootstrap
     return (resume + "\n\n" + body) if resume else body
 
 
