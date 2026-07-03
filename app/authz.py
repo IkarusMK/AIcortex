@@ -25,6 +25,8 @@ Roles:
 - user   → everything EXCEPT the admin tools (registration / secrets / identity).
 - viewer → read-only tools only.
 """
+import contextlib
+import contextvars
 import json
 import os
 import re
@@ -56,6 +58,8 @@ ADMIN_TOOLS = {
     "agent_register", "agent_remove",
     # Per-user data areas (who-may-see-what) — identity/policy management.
     "tenancy_set", "tenancy_unset", "tenancy_show", "tenancy_list", "tenancy_status",
+    # REST API key control plane — minting/revoking credentials is admin-only.
+    "apikey_create", "apikey_list", "apikey_revoke",
 }
 
 # Read/list/search/load — safe for the viewer role.
@@ -107,6 +111,23 @@ _ENDPOINT_TOOLS = {
     "mcp_call": ("mcp", "server"), "mcp_tools": ("mcp", "server"),
     "ftp_upload": ("ftp", "endpoint"),
 }
+
+# Request-scoped effective identity for the REST layer (rest_api.py). Unlike the
+# process-global cron act-as, a contextvar is per-async-task, so concurrent REST
+# requests never bleed identity into one another. effective_identity() reads it FIRST.
+_REST_IDENTITY: contextvars.ContextVar = contextvars.ContextVar("rest_identity", default=None)
+
+
+@contextlib.contextmanager
+def rest_identity(sub: str, role: str):
+    """Bind (sub, role) as the effective identity for the current async task, so a
+    tool invoked from a REST handler self-scopes (memory/vault/services/skills) as the
+    key's owner. Auto-reset on exit; safe under concurrency (contextvar, not global)."""
+    token = _REST_IDENTITY.set((sub, role))
+    try:
+        yield
+    finally:
+        _REST_IDENTITY.reset(token)
 
 
 def enabled() -> bool:
@@ -239,12 +260,27 @@ def _actas_role(owner: str) -> str:
     return r if r in _VALID_ROLES else "user"
 
 
+def role_for_apikey(sub: str) -> str:
+    """Role for a REST API-key identity. Like the act-as owner, this NEVER falls back
+    to the default 'admin' an interactive OIDC caller gets — a key resolves to the
+    identity's explicit policy role, else 'user'. So a leaked key is never an
+    accidental super-user; grant admin in policy.json if a key truly needs it."""
+    return _actas_role(sub)
+
+
 def effective_identity():
-    """(identity, role) for the CURRENT call, honoring an active cron act-as binding.
-    When the runner is executing a job as an owner, that owner (at the owner's own
-    privilege) is the effective caller for both tool-gating and data-scoping — so the
-    job is confined to the owner's area, never the runner's. No binding → the real
-    caller. Fail-open to ('unknown','user') only on a hard resolution error."""
+    """(identity, role) for the CURRENT call, honoring (in order) a REST per-task
+    identity, then an active cron act-as binding, else the real caller. When the
+    runner is executing a job as an owner, that owner (at the owner's own privilege) is
+    the effective caller for both tool-gating and data-scoping — so the job is confined
+    to the owner's area, never the runner's. Fail-open to ('unknown','user') only on a
+    hard resolution error."""
+    try:
+        rest = _REST_IDENTITY.get()
+        if rest:
+            return rest
+    except Exception:
+        pass
     try:
         import actas
         owner = actas.current()
@@ -257,6 +293,47 @@ def effective_identity():
         return ident, role_for(ident, is_runner, claims)
     except Exception:
         return "unknown", "user"
+
+
+def enforce_rest(identity: str, role: str, tool: str, args) -> tuple[bool, str]:
+    """Policy gate for the REST layer — the MCP middleware's equivalent, but it
+    RETURNS ``(ok, reason)`` (a route can't raise ToolError) and audits the same way.
+    Mirrors on_call_tool exactly: role decide → attribution stamp → memory-scope
+    confine → per-user device-endpoint area. The caller wraps the subsequent
+    ``tool.run()`` in ``rest_identity(identity, role)`` so in-tool self-scoping
+    (service_list/secret_list/memory) resolves to the key's owner. `args` is mutated
+    in place (scope/attribution), matching the middleware."""
+    if not (enabled() and tool):
+        return True, "enforce off"
+    ok, reason = decide(role, tool)
+    if not ok or audit_all():
+        audit(identity, role, tool, "allow" if ok else "deny", reason)
+    if not ok:
+        return False, reason
+    try:
+        if isinstance(args, dict):
+            if identity and identity != "unknown":
+                if tool == "inbox_post":
+                    args["sender"] = identity
+                elif tool == "task_add":
+                    args["created_by"] = identity
+            import tenancy
+            if tool in tenancy.MEMORY_SCOPED_TOOLS:
+                args["scope"] = tenancy.confine_memory_scope(
+                    identity, role, args.get("scope", "shared"))
+            if tool in _ENDPOINT_TOOLS:
+                kind, arg = _ENDPOINT_TOOLS[tool]
+                if not tenancy.endpoint_allowed(identity, role, kind, args.get(arg, "")):
+                    audit(identity, role, tool, "deny",
+                          f"{kind} endpoint '{args.get(arg, '')}' not in caller's area")
+                    return False, (f"{kind} endpoint '{args.get(arg, '')}' is not in your "
+                                   f"allowed set (an admin grants it with tenancy_set)")
+    except Exception as exc:
+        # Fail-open like the middleware, but LEAVE A TRACE (a silent degrade-to-allow
+        # is exactly what an attacker would want to pass unnoticed).
+        audit(identity or "unknown", role or "?", tool or "?", "fail-open",
+              f"rest authz error, allowed without full scoping: {type(exc).__name__}: {exc}")
+    return True, "ok"
 
 
 def build_middleware():

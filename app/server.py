@@ -41,6 +41,8 @@ import bootstrap
 import learn
 import authz
 import tenancy
+import apikeys
+import rest_api
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -249,6 +251,13 @@ secrets_store.register(mcp)
 # unset / status — admin tools to configure who sees which data (memory now,
 # vault next). Enforcement of memory isolation lives in the authz middleware.
 tenancy.register(mcp)
+
+# REST API key control plane: apikey_create / apikey_list / apikey_revoke (admin-only)
+apikeys.register(mcp)
+
+# Native REST layer (routes served alongside /mcp, outside OAuth): GET /api/v1/tools,
+# POST /api/v1/tools/<name>, GET /api/v1/openapi.json — authenticated per-user API key.
+rest_api.register(mcp)
 
 # Self-describing usage guide (also sent as server `instructions` on connect)
 guide.register(mcp)

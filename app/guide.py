@@ -153,6 +153,11 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   webhook_delete — öffentliche Route POST /hooks/<name>, per Secret-Token/HMAC abgesichert,
   Event → Inbox (macht das Gehirn event-fähig). AUSGEHEND webhook_send(url, json_body) — POST,
   ausgehend → vorher bestätigen. (Proxy: nur /hooks/* ohne OIDC durchreichen, nie /mcp.)
+- REST-API (für Nicht-MCP-Clients wie n8n/LangChain/Skripte): apikey_create(identity, scopes[,
+  name, ttl_days]) / apikey_list / apikey_revoke(keyid) — nur Admin. Ein Key läuft durch DIESELBE
+  authz/Bereichs-Pipeline (nie admin per Default), ist default-deny + gescopet, gehasht at-rest,
+  Klartext wird EINMAL gezeigt. Aufruf: POST /api/v1/tools/<name> (Bearer-Key), GET /api/v1/tools,
+  GET /api/v1/openapi.json. (Proxy: /api/* wie /hooks/* ohne OIDC durchreichen, nie /mcp.)
 
 ZUGRIFF & BEREICHE (Multi-User — greift bei AUTH_ENFORCE=1; Homelab/AUTH_ENFORCE=0: keine Grenzen)
 - Nicht-Admins sind auf ihren EIGENEN Memory-Scope (users/<sub>) + Vault-Namespace beschränkt und
@@ -320,6 +325,11 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   webhook_delete — public route POST /hooks/<name>, secured by secret token/HMAC, event →
   inbox (makes the brain event-driven). OUTBOUND webhook_send(url, json_body) — POST, outbound
   → confirm first. (Proxy: pass only /hooks/* without OIDC, never /mcp.)
+- REST API (for non-MCP clients like n8n/LangChain/scripts): apikey_create(identity, scopes[,
+  name, ttl_days]) / apikey_list / apikey_revoke(keyid) — admin-only. A key runs the SAME
+  authz/areas pipeline (never admin by default), is default-deny + scoped, hashed at rest, and
+  shown ONCE in plaintext. Call: POST /api/v1/tools/<name> (bearer key), GET /api/v1/tools,
+  GET /api/v1/openapi.json. (Proxy: pass /api/* like /hooks/* without OIDC, never /mcp.)
 
 ACCESS & AREAS (multi-user — applies when AUTH_ENFORCE=1; homelab/AUTH_ENFORCE=0: no limits)
 - Non-admins are confined to their OWN memory scope (users/<sub>) + vault namespace and reach only
