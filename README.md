@@ -12,7 +12,7 @@
 
 <p align="center"><b>A private, self-hosted brain for your LLM — on your own NAS.</b></p>
 
-AICortex is a self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal LLM connector**: a persistent "brain" your assistant loads at the start of every session. Any MCP-capable LLM — Claude, ChatGPT, or a fully local model — gains a durable identity and real reach into your own services and devices, while running inside **your** network.
+AICortex is a self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal LLM connector**: a persistent "brain" your assistant loads at the start of every session. Any MCP-capable LLM — Claude, ChatGPT, or a fully local model — gains a durable identity and real reach into your own services and devices, while running inside **your** network. And non-MCP tools (n8n, LangChain, your own scripts) reach the *same* brain through a **native REST API** with scoped per-user keys.
 
 The model stays in its provider's cloud (or runs locally). **Your memory, skills and secrets stay on your NAS.** The assistant talks to AICortex over an HTTPS connector; the server uses your local credentials internally and never hands them to the model. New capabilities are added as **data** — a skill, a service config, a secret — with no redeploy.
 
@@ -29,7 +29,10 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **IPP printing** & **eSCL scanning** (straight into Paperless-ngx) on LAN multifunction devices
 - **Event-driven:** inbound **webhooks** (`POST /hooks/<name>`, secret/HMAC-verified) turn external events into inbox items; outbound webhooks notify
 - An **MCP gateway** to use other MCP servers' tools — register any integration with one call, **no code, no redeploy**
-- A **native REST API** — call any tool over plain HTTP with a scoped, per-user **API key** and an auto-generated **OpenAPI** spec, so non-MCP clients (n8n, LangChain, scripts, OpenAI-compatible tools) use the *same* brain through the *same* per-user areas
+
+**🌐 Beyond MCP — drive it over plain HTTP**
+- A **native REST API**: every tool as `POST /api/v1/tools/<name>` with an **auto-generated OpenAPI 3.1** spec — plug AICortex into n8n, LangChain, an OpenAI-compatible client or a shell script, no MCP client required
+- **Per-user API keys**: scoped (default-deny), hashed at rest, rate-limited, optional expiry — and a key runs the *same* per-user areas as an OIDC session, never admin by default
 
 **👥 Team, autonomy & continuity**
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
