@@ -265,6 +265,16 @@ guide.register(mcp)
 
 if __name__ == "__main__":
     print(f"[AICortex] version {version.__version__} starting")
+    # Native (libuv) event loop for faster async I/O — set the policy BEFORE any loop is
+    # created. uvicorn also auto-detects uvloop; installing it here makes it explicit and
+    # LOGS which loop is live so it's verifiable. Guarded: if uvloop is unavailable
+    # (e.g. Windows), silently fall back to the default asyncio loop.
+    try:
+        import uvloop
+        uvloop.install()
+        print("[AICortex] event loop: uvloop (libuv) — accelerated async I/O")
+    except Exception as exc:
+        print(f"[AICortex] event loop: default asyncio (uvloop unavailable: {type(exc).__name__})")
     # Fail closed: without OIDC the server has no auth. Rather than silently
     # listen on 0.0.0.0 (an accidental port-forward would expose every tool),
     # bind to localhost only — unless the operator explicitly opts in with

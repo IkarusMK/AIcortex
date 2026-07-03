@@ -95,11 +95,12 @@ def _prune(max_age_days: int = None) -> int:
 
 
 def recent(n: int = 5):
-    """The n most recently updated sessions (for bootstrap), newest first."""
-    _prune()
-    sessions = _all()
-    sessions.sort(key=lambda s: s.get("updated", ""), reverse=True)
-    return sessions[:n]
+    """The n most recently updated sessions (for bootstrap), newest first. Reads the
+    session files ONCE (was twice — _prune() + _all()); pruning runs on save/list/load,
+    not on this frequent bootstrap read, so a bootstrap never rewrites the directory."""
+    items = _all()
+    items.sort(key=lambda s: s.get("updated", ""), reverse=True)
+    return items[:n]
 
 
 def latest_open():

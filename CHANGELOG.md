@@ -4,6 +4,29 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.1] — 2026-07-03
+### Performance
+**bootstrap no longer re-scans the whole brain on every call.** The catalog rebuilt every
+section from scratch each time — most expensively reading ALL `SKILL.md` files just to
+count categories (hundreds of full-file reads per call), which is what made a cold
+bootstrap on NAS storage take minutes.
+
+- New `catalog_cache`: each file-reading section (skills, memory, the JSON service/device
+  registries) is cached, keyed by a **cheap stat signature** of its source directory
+  (file count + newest mtime + total size — metadata only, **no file reads**). Unchanged →
+  cached lines returned without opening a file; changed → only that one section
+  re-renders. Persisted to disk (`CATALOG_CACHE_FILE`, default `/data/.catalog_cache.json`)
+  so even the first bootstrap after a restart is fast. Fail-open: a cache error renders
+  live — never wrong, only faster. Scales as memory/skills/… fill up over months.
+- `sessions.recent()` reads the session files **once** (was twice — `_prune()` + `_all()`);
+  pruning stays on save/list/load, not on the frequent bootstrap read.
+- Output is byte-identical to before — tests assert cold == warm and that a content edit
+  invalidates + recounts. New `tests/test_catalog_cache.py`.
+- **`uvloop`** (libuv) is now the event loop: uvicorn auto-detects it and `server.py`
+  installs it explicitly at startup (logged, so it's verifiable), for faster async I/O on
+  the connector's real bottleneck — the network/event loop. Guarded fallback to the
+  default asyncio loop where uvloop isn't available (e.g. Windows).
+
 ## [1.9.0] — 2026-07-03
 ### Added
 **Native REST API** — a plain-HTTP layer next to `/mcp` so non-MCP clients (n8n,
