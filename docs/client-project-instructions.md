@@ -27,8 +27,9 @@ not an AICortex problem — and the model is right to say so rather than guess.
   `+` or tools icon) and make sure **AICortex is toggled on as a tool source** for
   the chat — not merely "present". If it won't stick, remove the connector, fully
   reopen the app, re-add it, and start a **fresh** chat.
-- **Open WebUI:** the connector lives under *Admin → External Tools*; make sure the
-  model you picked is allowed to use it.
+- **LibreChat:** the `aicortex` MCP server appears in the chat model's tool dropdown
+  (or add it to an Agent via *Add MCP Server Tools*); select it and **Authenticate** once
+  via OAuth, then the model you picked can use it.
 
 Once the tools are in the toolset, the assistant can call `bootstrap` — which the
 pinned block below tells it to do first.
