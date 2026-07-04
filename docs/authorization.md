@@ -30,16 +30,15 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 ## Defaults (what happens out of the box)
 
 - An interactive **OIDC login → `admin`** (the human operator; never locked out).
-- The shared **`RUNNER_TOKEN` → `user`** (the headless autonomy runner / a local
-  model behind Open WebUI): it can use and read everything but **cannot register
-  integrations, set secrets, or add cron jobs**. This is what contains a leaked
-  token or a prompt-injected model.
+- The shared **`RUNNER_TOKEN` → `user`** (the headless autonomy runner): it can use
+  and read everything but **cannot register integrations, set secrets, or add cron
+  jobs**. This is what contains a leaked token or a prompt-injected model.
 - Every denial is written to `data/auth/audit.log`.
 
-> **Note for the local-model setup:** Open WebUI connects with the `RUNNER_TOKEN`,
-> so by default it runs as `user`. To let your local model register integrations
-> or set secrets too, set `RUNNER_ROLE=admin` (see recipes) — or do those steps
-> from your OIDC (admin) client.
+> **Note for the local-model setup:** with the [LibreChat guide](local-llm-librechat.md)
+> your local model connects **per-person via OAuth**, so it runs with that person's role
+> and areas (an interactive operator is `admin` by default). A static `RUNNER_TOKEN` stays
+> an option for *headless* clients — that one is a `user`; raise it with `RUNNER_ROLE=admin`.
 
 ## Configure with environment variables
 
