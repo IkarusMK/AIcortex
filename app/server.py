@@ -50,6 +50,37 @@ HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
+def _host_guard():
+    """Allow-list for FastMCP's Host/Origin DNS-rebinding guard.
+
+    fastmcp 3.4.3 enforces Host/Origin validation on the HTTP transport. Behind a
+    reverse proxy the public domain must be allow-listed, or every proxied request
+    (incl. the OAuth discovery/registration) is rejected with 421 Misdirected
+    Request. Derived from BASE_URL — the public URL already required for OIDC — so
+    it can't drift; localhost/127.0.0.1 stay allowed by the guard's own defaults,
+    and MCP_ALLOWED_HOSTS (comma-separated) can add more for edge setups. Returns
+    (None, None) when no public URL is set, leaving the safe defaults untouched.
+    """
+    from urllib.parse import urlparse
+
+    hosts: list[str] = []
+    origins: list[str] = []
+    base = os.environ.get("BASE_URL", "")
+    parsed = urlparse(base) if base else None
+    if parsed and parsed.netloc:
+        netloc = parsed.netloc.split("@")[-1]  # drop any userinfo
+        host_only = netloc.split(":")[0]
+        scheme = parsed.scheme or "https"
+        hosts += [netloc, host_only, f"{host_only}:*"]
+        origins += [f"{scheme}://{netloc}", f"{scheme}://{host_only}", f"{scheme}://{host_only}:*"]
+    for extra in os.environ.get("MCP_ALLOWED_HOSTS", "").split(","):
+        if extra.strip():
+            hosts.append(extra.strip())
+    hosts = list(dict.fromkeys(hosts))  # de-dup, preserve order
+    origins = list(dict.fromkeys(origins))
+    return (hosts or None, origins or None)
+
+
 def _client_storage():
     """Persistent (optionally encrypted) disk store for OAuth client
     registrations, so they survive container restarts."""
@@ -293,4 +324,10 @@ if __name__ == "__main__":
         print(f"[AICortex] auth: OIDC proxy — binding {bind_host}:{PORT}")
     # Streamable-HTTP transport — what MCP custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
-    mcp.run(transport="http", host=bind_host, port=PORT)
+    allowed_hosts, allowed_origins = _host_guard()
+    if allowed_hosts:
+        print(f"[AICortex] host guard: also allowing {allowed_hosts}")
+    mcp.run(
+        transport="http", host=bind_host, port=PORT,
+        allowed_hosts=allowed_hosts, allowed_origins=allowed_origins,
+    )
