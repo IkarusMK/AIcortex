@@ -4,6 +4,29 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.3] — 2026-07-06
+### Changed
+- **Runtime bumped to Python 3.14** (`python:3.14-slim` base image) and dependencies
+  refreshed to current majors: **paramiko 5** (SSH/SFTP), **py-key-value-aio 0.4.5**
+  (encrypted DiskStore), **fastmcp 3.4.3**. Each was validated before merging — the exact
+  APIs used by `server.py`/`ssh_tools.py` still resolve, all `linux/cp314` wheels exist
+  (incl. `uvloop`), and the test scripts pass on 3.12 and 3.14. No behaviour or API change
+  for clients; a maintenance/hardening refresh.
+- CI actions pinned to current majors (checkout, buildx, login, metadata, build-push).
+
+### Added
+- **Real test signal on every PR and push** (`tests.yml`): installs the pinned deps on the
+  runtime Python, byte-compiles the app, and runs the `tests/` scripts. `build.yml` only
+  builds/pushes the image, so PRs previously had no automated check.
+- **Dependabot patch auto-merge** (`dependabot-auto-merge.yml`): patch-level dependency PRs
+  self-merge after an in-job gate (deps resolve + byte-compile + test scripts + advisory
+  `pip-audit`); minor/major bumps stay open for manual review. Self-contained — no branch
+  protection or required status checks needed.
+
+### Fixed
+- Test modules no longer hardcode an absolute local path on `sys.path`; the `app/` dir is
+  resolved relative to each test file, so the suite runs in any checkout and in CI.
+
 ## [1.9.2] — 2026-07-06
 ### Fixed
 - **skills:** the frontmatter parser now falls back to tolerant, line-based parsing (like
