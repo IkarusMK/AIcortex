@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # gosu lets the entrypoint drop privileges to PUID:PGID at runtime
 RUN apt-get update \
