@@ -1,0 +1,65 @@
+name: dependabot-auto-merge
+
+# Auto-merges ONLY patch-level Dependabot PRs (e.g. fastmcp 3.4.2 -> 3.4.3), after an
+# in-job validation gate. Minor and major bumps (e.g. paramiko 3 -> 5, python 3.12 ->
+# 3.14) are always left OPEN for manual review.
+#
+# Self-contained by design: the merge step only runs if the validation steps above it
+# succeed, so this needs NO branch protection and NO required status checks — and it
+# does not touch the direct-push release flow on main. Runs in the trusted base-branch
+# context (`pull_request`, not `pull_request_target`); the elevated GITHUB_TOKEN below
+# is what lets a Dependabot-triggered run merge its own PR.
+#
+# Trade-off (accepted for a homelab brain): a patch is merged without human eyes on the
+# diff. Mitigated by patch-only scope, dependency-resolution + byte-compile gate, and an
+# advisory pip-audit. Widen/narrow via the update-type guard below.
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Everything below runs ONLY for patch-level updates ---
+
+      - name: Checkout
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        uses: actions/checkout@v4
+
+      - name: Set up Python (matches the runtime base image)
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Gate — dependencies resolve and the app byte-compiles
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r app/requirements.txt
+          python -m compileall -q app
+
+      - name: Advisory audit (non-blocking, mirrors build.yml)
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        continue-on-error: true
+        run: |
+          python -m pip install --quiet pip-audit
+          pip-audit -r app/requirements.txt
+
+      - name: Squash-merge the patch update
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        run: gh pr merge --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
