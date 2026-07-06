@@ -19,8 +19,27 @@ def _slug(text: str) -> str:
     return s[:60] or "skill"
 
 
+def _fallback_parse(block: str) -> dict:
+    """Tolerant line-based frontmatter parse (same approach as memory.py):
+    ``key: value`` per line, split on the FIRST colon only — so values that
+    themselves contain colons (e.g. 'Quelle: Paul Hudson') survive intact.
+    Used when strict YAML parsing fails, so no skill ever silently loses its
+    category/description just because a value wasn't YAML-quoted."""
+    meta: dict = {}
+    for ln in block.strip().splitlines():
+        if ":" in ln:
+            k, v = ln.split(":", 1)
+            k = k.strip().lower()
+            if k:
+                meta[k] = v.strip().strip('"').strip("'")
+    return meta
+
+
 def _parse(text: str):
-    """Return (meta: dict, body: str) from SKILL.md with optional YAML frontmatter."""
+    """Return (meta: dict, body: str) from SKILL.md with optional YAML frontmatter.
+
+    Strict YAML first; if that fails (e.g. an unquoted ': ' inside a value),
+    fall back to tolerant line-based parsing instead of dropping the metadata."""
     meta, body = {}, text
     if text.startswith("---"):
         parts = text.split("---", 2)
@@ -29,13 +48,30 @@ def _parse(text: str):
                 meta = yaml.safe_load(parts[1]) or {}
             except Exception:
                 meta = {}
+            if not isinstance(meta, dict) or not meta:
+                meta = _fallback_parse(parts[1])
             body = parts[2].lstrip("\n")
     return (meta if isinstance(meta, dict) else {}), body
 
 
+def _frontmatter(name: str, description: str, category: str, tags: str) -> str:
+    """Serialize skill frontmatter as guaranteed-valid YAML. ``yaml.safe_dump``
+    quotes values automatically when needed (colons, quotes, '#', leading
+    symbols, unicode), so arbitrary descriptions can never corrupt the file."""
+    fields = {
+        "name": " ".join(str(name or "").split()),
+        "description": " ".join(str(description or "").split()),
+        "category": " ".join(str(category or "").split()),
+        "tags": " ".join(str(tags or "").split()),
+    }
+    dumped = yaml.safe_dump(fields, sort_keys=False, allow_unicode=True,
+                            default_flow_style=False, width=100000)
+    return f"---\n{dumped}---\n\n"
+
+
 def _category(meta: dict) -> str:
     """A skill's category — from `category` or its synonym `cluster`."""
-    c = (meta.get("category") or meta.get("cluster") or "").strip()
+    c = str(meta.get("category") or meta.get("cluster") or "").strip()
     return c or "uncategorized"
 
 
@@ -190,8 +226,7 @@ def register(mcp):
                     f"category=\"…\". {hint}")
         folder = SKILLS_DIR / _slug(name)
         folder.mkdir(parents=True, exist_ok=True)
-        fm = (f"---\nname: {name}\ndescription: {description}\n"
-              f"category: {category}\ntags: {tags}\n---\n\n")
+        fm = _frontmatter(name, description, category, tags)
         (folder / "SKILL.md").write_text(fm + (instructions or "").rstrip() + "\n", encoding="utf-8")
         return f"Saved skill '{folder.name}' [{category}]."
 
