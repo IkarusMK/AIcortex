@@ -13,7 +13,7 @@ from pathlib import Path
 
 _D = Path(tempfile.mkdtemp())
 os.environ["CATALOG_CACHE_FILE"] = str(_D / "cache.json")
-sys.path.insert(0, "/Users/steffenmac/Downloads/LLMConnector/app")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 import catalog_cache as cc  # noqa: E402
 

@@ -3,7 +3,7 @@ import importlib
 import os
 import sys
 
-sys.path.insert(0, "/Users/steffenmac/Downloads/LLMConnector/app")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 failures = []
 

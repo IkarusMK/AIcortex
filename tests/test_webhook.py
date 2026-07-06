@@ -6,7 +6,7 @@ import sys
 
 os.environ["HOOK_TOKEN"] = "s3cret-token"
 os.environ["HOOK_HMAC"] = "hmac-key"
-sys.path.insert(0, "/Users/steffenmac/Downloads/LLMConnector/app")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 import webhook_tools as w  # noqa: E402
 

@@ -1,0 +1,48 @@
+name: tests
+
+# Real green/red signal on every PR and every push to main: installs the pinned
+# deps on the SAME Python as the runtime image, byte-compiles the app, and runs the
+# standalone test scripts under tests/. This is what makes dependency bumps (incl.
+# Dependabot's) verifiable before they land — build.yml only builds/pushes the image.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (matches the runtime base image)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r app/requirements.txt
+
+      - name: Byte-compile the app
+        run: python -m compileall -q app
+
+      - name: Run test scripts
+        run: |
+          set -e
+          for t in tests/test_*.py; do
+            echo "== $t =="
+            python "$t"
+          done
+
+      - name: Dependency audit (advisory, non-blocking)
+        continue-on-error: true
+        run: |
+          python -m pip install --quiet pip-audit
+          pip-audit -r app/requirements.txt

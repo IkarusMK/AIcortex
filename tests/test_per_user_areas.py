@@ -15,7 +15,7 @@ from pathlib import Path
 _DIR = tempfile.mkdtemp()
 os.environ["AUTH_STORE_DIR"] = _DIR
 os.environ["STORAGE_ENCRYPTION_KEY"] = "test-key-for-actas"
-sys.path.insert(0, "/Users/steffenmac/Downloads/LLMConnector/app")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 import tenancy   # noqa: E402
 import authz     # noqa: E402

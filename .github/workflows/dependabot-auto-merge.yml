@@ -41,14 +41,16 @@ jobs:
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
-      - name: Gate — dependencies resolve and the app byte-compiles
+      - name: Gate — deps resolve, app byte-compiles, test scripts pass
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r app/requirements.txt
           python -m compileall -q app
+          set -e
+          for t in tests/test_*.py; do echo "== $t =="; python "$t"; done
 
       - name: Advisory audit (non-blocking, mirrors build.yml)
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
