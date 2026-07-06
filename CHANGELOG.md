@@ -4,6 +4,18 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.4] — 2026-07-06
+### Fixed
+- **auth/transport:** the connector no longer returns **421 Misdirected Request** on the
+  OAuth discovery/registration routes behind a reverse proxy. fastmcp 3.4.3 enforces the
+  MCP HTTP transport's Host/Origin DNS-rebinding guard, which rejected every request whose
+  `Host` was the public domain (e.g. `agent.example.com`) — so Claude's client registration
+  failed with "Registrierung beim Anmeldedienst fehlgeschlagen". The server now derives the
+  Host/Origin allow-list from `BASE_URL` (already required for OIDC, so it can't drift) and
+  passes it to `mcp.run(...)`; `localhost`/`127.0.0.1` stay allowed by the guard's defaults,
+  and `MCP_ALLOWED_HOSTS` (comma-separated) can add more for edge setups. Protection stays
+  **on** — unknown hosts are still rejected. Regression introduced by the 3.4.3 bump in 1.9.3.
+
 ## [1.9.3] — 2026-07-06
 ### Changed
 - **Runtime bumped to Python 3.14** (`python:3.14-slim` base image) and dependencies
