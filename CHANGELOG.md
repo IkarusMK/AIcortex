@@ -4,6 +4,16 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.2] — 2026-07-06
+### Fixed
+- **skills:** the frontmatter parser now falls back to tolerant, line-based parsing (like
+  `memory.py`) when strict YAML fails — so a skill whose `description` (or another value)
+  contains a colon (e.g. `Quelle: Paul Hudson`) no longer silently loses its category and
+  description and lands in "uncategorized". Already-affected files are repaired automatically
+  on read, without rewriting them.
+- **skills:** `skill_write` now serializes frontmatter via `yaml.safe_dump` (automatic
+  quoting for colons, quotes, `#`, unicode) — invalid frontmatter can no longer be written.
+
 ## [1.9.1] — 2026-07-03
 ### Performance
 **bootstrap no longer re-scans the whole brain on every call.** The catalog rebuilt every
