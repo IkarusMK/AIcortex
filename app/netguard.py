@@ -91,8 +91,8 @@ def tls_verify(cfg: dict):
       (the right way to trust a self-signed LAN device),
     - ``tls_insecure`` true → verification OFF — the operator's explicit choice
       for a self-signed device. These configs are written only by the admin-only
-      registration tools (scan_add / webdav_add), so a normal/non-admin caller
-      can't disable verification.
+      registration tools (scan_add / webdav_add / service_add), so a
+      normal/non-admin caller can't disable verification.
     - otherwise → ``True`` (verify).
 
     Returns a value suitable for httpx's ``verify=`` (bool or a path string).
