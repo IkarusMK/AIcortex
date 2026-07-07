@@ -27,5 +27,11 @@ secrets/*
 __pycache__/
 *.py[cod]
 
+# Test / coverage artifacts
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
 # OS
 .DS_Store

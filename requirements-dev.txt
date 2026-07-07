@@ -1,0 +1,4 @@
+# Test-only dependencies (not baked into the runtime image). CI installs these
+# alongside app/requirements.txt to run the pytest suite with coverage.
+pytest>=8,<9
+pytest-cov>=5,<8

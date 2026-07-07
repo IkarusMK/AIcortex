@@ -11,8 +11,8 @@ name: dependabot-auto-merge
 # is what lets a Dependabot-triggered run merge its own PR.
 #
 # Trade-off (accepted for a homelab brain): a patch is merged without human eyes on the
-# diff. Mitigated by patch-only scope, dependency-resolution + byte-compile gate, and an
-# advisory pip-audit. Widen/narrow via the update-type guard below.
+# diff. Mitigated by patch-only scope, a dependency-resolution + byte-compile + pytest
+# gate, and an advisory pip-audit. Widen/narrow via the update-type guard below.
 
 on: pull_request
 
@@ -43,14 +43,13 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Gate — deps resolve, app byte-compiles, test scripts pass
+      - name: Gate — deps resolve, app byte-compiles, tests pass
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r app/requirements.txt
+          python -m pip install -r app/requirements.txt -r requirements-dev.txt
           python -m compileall -q app
-          set -e
-          for t in tests/test_*.py; do echo "== $t =="; python "$t"; done
+          python -m pytest tests/ -q
 
       - name: Advisory audit (non-blocking, mirrors build.yml)
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
