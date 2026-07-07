@@ -50,7 +50,8 @@ def register(mcp):
     def service_add(name: str, base_url: str, token_env: str = "",
                     auth_scheme: str = "Bearer", description: str = "",
                     auth_header: str = "Authorization",
-                    write_only: bool = False, category: str = "") -> str:
+                    write_only: bool = False, category: str = "",
+                    tls_insecure: bool = False, ca_bundle: str = "") -> str:
         """Register/update a callable service (stored as DATA — no redeploy).
         token_env = the NAME of the secret holding the auth token (store it with
         secret_set). The token itself is never stored here.
@@ -64,7 +65,12 @@ def register(mcp):
         service_list first and REUSE an existing category where it fits; service_add
         REFUSES a missing one. Updates are MERGE-safe: fields you don't pass keep
         their existing value, so you can update one field without restating the rest
-        (to clear a field, service_delete and re-add)."""
+        (to clear a field, service_delete and re-add).
+
+        TLS is VERIFIED by default (#10, same as scan_add/webdav_add). For a
+        self-signed LAN service, point ``ca_bundle`` at its CA/cert file (the
+        safe way), or set ``tls_insecure=true`` to skip verification. This tool
+        is admin-only, so only an operator can relax TLS."""
         if not category.strip():
             existing = _load(name)
             if not (existing and str(existing.get("category", "")).strip()):
@@ -84,6 +90,8 @@ def register(mcp):
                 "description": description,
                 "category": category.strip(),
                 "write_only": bool(write_only),
+                "tls_insecure": bool(tls_insecure),
+                "ca_bundle": ca_bundle.strip(),
             }
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
@@ -111,6 +119,8 @@ def register(mcp):
                 if not tenancy.caller_service_allowed(p.stem, cat):
                     continue
                 lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
+                if c.get("tls_insecure"):
+                    lock += " — [TLS-INSECURE]"
                 rows.append((cat, f"- {p.stem} — {c.get('base_url', '')} — "
                                   f"{c.get('description', '')}{lock}"))
             except Exception:
@@ -177,7 +187,8 @@ def register(mcp):
             headers[header_name] = f"{scheme} {token}".strip() if scheme else token
         try:
             with netguard.guard(urlparse(url).hostname or ""):
-                r = httpx.request(m, url, json=json_body, params=params, headers=headers, timeout=30)
+                r = httpx.request(m, url, json=json_body, params=params, headers=headers,
+                                  timeout=30, verify=netguard.tls_verify(cfg))
             body = r.text
             if len(body) > 4000:
                 body = body[:4000] + "\n…(truncated)"

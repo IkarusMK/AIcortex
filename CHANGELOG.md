@@ -4,6 +4,22 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.9.5] — 2026-07-07
+### Added
+- **Per-service TLS options** — `service_add` now accepts `tls_insecure` and `ca_bundle`,
+  and `call_service` honours them via the existing `netguard.tls_verify()` resolver
+  (secure by default, #10 pattern — same as `scan_add`/`webdav_add`). This makes
+  self-signed LAN services (e.g. a Crafty panel, which failed with
+  `SSL: CERTIFICATE_VERIFY_FAILED`) reachable without weakening the default:
+  verification stays ON unless an admin explicitly opts out, `ca_bundle` (pinned cert)
+  takes precedence over `tls_insecure`, and `service_list` visibly flags such services
+  with `[TLS-INSECURE]`. Merge-safe: updating other fields never resets a configured
+  TLS opt-out. New tests: `tests/test_service_tls.py`.
+
+### Changed
+- `netguard.tls_verify` docstring now lists `service_add` among the admin-only writers
+  of TLS opt-out configs.
+
 ## [1.9.4] — 2026-07-06
 ### Fixed
 - **auth/transport:** the connector no longer returns **421 Misdirected Request** on the
