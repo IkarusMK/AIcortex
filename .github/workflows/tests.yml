@@ -2,8 +2,9 @@ name: tests
 
 # Real green/red signal on every PR and every push to main: installs the pinned
 # deps on the SAME Python as the runtime image, byte-compiles the app, and runs the
-# standalone test scripts under tests/. This is what makes dependency bumps (incl.
-# Dependabot's) verifiable before they land — build.yml only builds/pushes the image.
+# pytest suite (with coverage) under tests/. This is what makes dependency bumps
+# (incl. Dependabot's) verifiable before they land — build.yml only builds/pushes
+# the image.
 
 on:
   pull_request:
@@ -25,21 +26,16 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install pinned dependencies
+      - name: Install dependencies (runtime + test)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r app/requirements.txt
+          python -m pip install -r app/requirements.txt -r requirements-dev.txt
 
       - name: Byte-compile the app
         run: python -m compileall -q app
 
-      - name: Run test scripts
-        run: |
-          set -e
-          for t in tests/test_*.py; do
-            echo "== $t =="
-            python "$t"
-          done
+      - name: Run tests (pytest + coverage)
+        run: python -m pytest tests/ -q --cov=app --cov-report=term-missing
 
       - name: Dependency audit (advisory, non-blocking)
         continue-on-error: true
