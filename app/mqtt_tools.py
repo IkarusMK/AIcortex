@@ -69,11 +69,7 @@ def _new_client(cfg):
         client.username_pw_set(username, password)
 
     if cfg.get("tls"):
-        ctx = ssl.create_default_context()
-        if cfg.get("tls_insecure"):
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-        client.tls_set_context(ctx)
+        client.tls_set_context(netguard.ssl_context(cfg))  # ca_bundle > tls_insecure > verify (shared)
 
     state = {"rc": None}
     connected = threading.Event()
@@ -101,16 +97,16 @@ def _new_client(cfg):
 def register(mcp):
     @mcp.tool
     def mqtt_add(name: str, host: str, port: int = 8883, tls: bool = True,
-                 tls_insecure: bool = False, username: str = "",
+                 tls_insecure: bool = False, ca_bundle: str = "", username: str = "",
                  password_env: str = "", client_id: str = "",
                  description: str = "") -> str:
         """Register/update an MQTT broker or device as DATA (no redeploy).
 
         password_env = NAME of the secret holding the password (store it with
         secret_set); never stored here. TLS certificates are VERIFIED by default;
-        only set tls_insecure=true for a self-signed LAN device. Example for such a
-        device: host=<device-ip>, port=8883, tls=true, tls_insecure=true,
-        username=<user>, password_env=<secret-name>."""
+        for a self-signed LAN device point `ca_bundle` at its CA/cert (the safe way)
+        or set tls_insecure=true. Example: host=<device-ip>, port=8883, tls=true,
+        tls_insecure=true, username=<user>, password_env=<secret-name>."""
         try:
             MQTT_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -119,6 +115,7 @@ def register(mcp):
                 "port": int(port),
                 "tls": bool(tls),
                 "tls_insecure": bool(tls_insecure),
+                "ca_bundle": ca_bundle.strip(),
                 "username": username,
                 "password_env": password_env,
                 "client_id": client_id,

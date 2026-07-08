@@ -85,10 +85,7 @@ def _connect(cfg):
         raise ConnectionError(f"Blocked by network policy — {reason}")
     port = int(cfg.get("port") or 21)
     mode = (cfg.get("tls") or "none").lower()  # none | explicit | implicit
-    ctx = ssl.create_default_context()
-    if cfg.get("tls_insecure", False):  # default: verify (only self-signed LAN devices opt out)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+    ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
 
     if mode == "implicit":
         ftp = _ImplicitFTP_TLS(context=ctx)
@@ -125,14 +122,15 @@ def _safe_source(nas_path: str):
 def register(mcp):
     @mcp.tool
     def ftp_add(name: str, host: str, port: int = 21, tls: str = "none",
-                tls_insecure: bool = False, username: str = "",
+                tls_insecure: bool = False, ca_bundle: str = "", username: str = "",
                 password_env: str = "", description: str = "") -> str:
         """Register/update an FTP/FTPS endpoint as DATA (no redeploy).
         tls: "none" | "explicit" | "implicit". password_env = NAME of the secret
-        (store it with secret_set). TLS certificates are VERIFIED by default; only
-        set tls_insecure=true for a self-signed LAN device (e.g. a 3D printer's SD
-        card over implicit FTPS). Example: host=<device-ip>, port=990,
-        tls="implicit", tls_insecure=true, username=<user>, password_env=<secret>."""
+        (store it with secret_set). TLS certificates are VERIFIED by default; for a
+        self-signed LAN device (e.g. a 3D printer's SD over implicit FTPS) point
+        `ca_bundle` at its CA/cert (the safe way) or set tls_insecure=true. Example:
+        host=<device-ip>, port=990, tls="implicit", tls_insecure=true,
+        username=<user>, password_env=<secret>."""
         try:
             FTP_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {
@@ -141,6 +139,7 @@ def register(mcp):
                 "port": int(port),
                 "tls": (tls or "none").lower(),
                 "tls_insecure": bool(tls_insecure),
+                "ca_bundle": ca_bundle.strip(),
                 "username": username,
                 "password_env": password_env,
                 "description": description,

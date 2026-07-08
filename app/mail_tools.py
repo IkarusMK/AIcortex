@@ -68,14 +68,17 @@ def register(mcp):
     @mcp.tool
     def mail_add(name: str, host: str, from_addr: str, port: int = 587,
                  username: str = "", password_env: str = "", security: str = "starttls",
-                 description: str = "") -> str:
+                 tls_insecure: bool = False, ca_bundle: str = "", description: str = "") -> str:
         """Register/update an SMTP account as DATA (no redeploy). security:
         "starttls" (587) | "ssl" (465) | "none" (25). password_env = NAME of a vault
-        secret with the (app) password. from_addr = the From address."""
+        secret with the (app) password. from_addr = the From address. TLS is VERIFIED
+        by default; for a self-signed LAN server point `ca_bundle` at its CA/cert (the
+        safe way) or set tls_insecure=true."""
         try:
             MAIL_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port), "from_addr": from_addr,
                    "username": username, "password_env": password_env,
+                   "tls_insecure": bool(tls_insecure), "ca_bundle": ca_bundle.strip(),
                    "security": (security or "starttls").lower(), "description": description}
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
@@ -160,14 +163,15 @@ def register(mcp):
             # guard() wraps the actual connect so the SSRF egress policy is
             # re-applied at resolve time (anti DNS-rebinding), not just at the
             # check_host() preflight above.
+            ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
             with netguard.guard(host):
                 if sec == "ssl":
-                    server = smtplib.SMTP_SSL(host, port, timeout=30)
+                    server = smtplib.SMTP_SSL(host, port, timeout=30, context=ctx)
                 else:
                     server = smtplib.SMTP(host, port, timeout=30)
                 with server:
                     if sec == "starttls":
-                        server.starttls()
+                        server.starttls(context=ctx)
                     if cfg.get("username") and cfg.get("password_env"):
                         pw = secrets_store.get_secret(cfg["password_env"])
                         if not pw:
