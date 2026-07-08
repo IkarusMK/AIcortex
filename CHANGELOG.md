@@ -4,7 +4,15 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
-## [1.10.1] — 2026-07-08
+## [1.10.2] — 2026-07-08
+### Fixed
+- **FTPS upload to Bambu Lab printers (and other `require_ssl_reuse` servers) no longer
+  hangs → "read operation timed out".** `ftp_upload` over implicit FTPS opened the data
+  channel with a *fresh* TLS session; servers that require the data connection to **resume
+  the control channel's TLS session** (vsftpd `require_ssl_reuse`, Bambu P1S SD store)
+  stall such transfers. `_ImplicitFTP_TLS` now overrides `ntransfercmd` to wrap the data
+  socket with `session=self.sock.session`, so the session is reused as required. This
+  unblocks sending sliced `.gcode.3mf` jobs to the printer's SD for a `project_file` start.
 ### Fixed
 - **`scan_document` left the scanner "busy" → the next scan failed with HTTP 503.** eSCL
   requires GETting `NextDocument` repeatedly until it returns **404** — that both yields

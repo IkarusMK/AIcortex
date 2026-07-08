@@ -41,6 +41,23 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
             value = self.context.wrap_socket(value, server_hostname=self.host)
         self._sock = value
 
+    def ntransfercmd(self, cmd, rest=None):
+        """Reuse the control channel's TLS session on the DATA connection.
+
+        Servers with TLS session-resumption required (vsftpd `require_ssl_reuse`,
+        Bambu Lab printers' implicit-FTPS SD store) stall the data transfer otherwise
+        — Python's ftplib negotiates a fresh session for the data socket, which these
+        servers reject/hang → "read operation timed out". Passing the control socket's
+        session makes the data channel resume it, as required.
+        """
+        conn, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
+        if getattr(self, "_prot_p", False):
+            conn = self.context.wrap_socket(
+                conn, server_hostname=self.host,
+                session=self.sock.session,
+            )
+        return conn, size
+
 
 def _slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
