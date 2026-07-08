@@ -1,8 +1,9 @@
 """Workspace file tools — manage the /data/work scratch area.
 
 The file hub of the connector: scans (scan_document), downloads (webdav/sftp) and
-print sources all live under /data/work, but until now nothing could *see* or
-tidy it. These tools list / read / write / move / delete inside the workspace.
+print sources all live under /data/work. These tools list / read (text) / view
+(fs_view renders images & PDFs so the assistant can SEE them with vision, not just
+OCR) / write / move / delete inside the workspace.
 
 Hard sandbox: every path resolves under WORK_DIR (/data/work). Paths that escape
 it are rejected — so memory, the vault, skills etc. are never touched here.
@@ -13,9 +14,19 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Image/PDF rendering for fs_view. Guarded so the connector still starts (and every
+# text tool keeps working) even if an optional imaging wheel is ever missing.
+try:
+    import imaging
+except Exception:  # pragma: no cover
+    imaging = None
+
 WORK_DIR = Path(os.environ.get("WORK_DIR", "/data/work")).resolve()
 _MAX_READ = 200_000        # default bytes returned by fs_read (text)
 _READ_CEILING = 5_000_000  # hard cap a caller may request, even with a big max_bytes
+# Largest file fs_view will pull into memory to render (a 300-dpi colour A4 scan is a
+# few MB; keep headroom for multi-page PDFs). Tunable via env.
+_VIEW_CEILING = int(os.environ.get("FS_VIEW_CEILING_BYTES", str(30_000_000)))
 _MAX_WRITE = int(os.environ.get("FS_MAX_WRITE_BYTES", str(5_000_000)))  # per fs_write
 # Total workspace size cap (default 2 GB). Set FS_WORKSPACE_QUOTA_BYTES to tune.
 _WORKSPACE_QUOTA = int(os.environ.get("FS_WORKSPACE_QUOTA_BYTES", str(2_000_000_000)))
@@ -98,6 +109,39 @@ def register(mcp):
         total = p.stat().st_size
         more = "" if total <= len(data) else f"\n…(truncated; returned {_size(len(data))} of {_size(total)})"
         return text + more
+
+    @mcp.tool
+    def fs_view(path: str, page: int = 0, max_pages: int = 4):
+        """SEE a workspace image or PDF with vision (not OCR). Returns the file as
+        image content the assistant reads directly — scanned pages (scan_document),
+        e-mail attachments (imap_fetch save_attachments), webdav/ftp downloads, print
+        sources. Raster images are downscaled; PDFs are rendered from `page` (0-based)
+        up to `max_pages`. For TEXT files use fs_read instead."""
+        if imaging is None or not imaging.available():
+            return "Image viewing is unavailable on this server (Pillow not installed)."
+        p = _resolve(path)
+        if p is None:
+            return "Path escapes the workspace."
+        if not p.is_file():
+            return f"No file at '{path}'."
+        size = p.stat().st_size
+        if size > _VIEW_CEILING:
+            return (f"Refused: '{path}' is {_size(size)}, over the {_size(_VIEW_CEILING)} "
+                    "view cap. Move it out (webdav) or view a smaller copy.")
+        try:
+            data = p.read_bytes()
+            jpegs, note = imaging.render(data, p.suffix.lower(),
+                                         first=max(0, int(page)),
+                                         count=max(1, int(max_pages)))
+        except Exception as exc:
+            return f"Could not render '{path}': {type(exc).__name__}: {exc}"
+        if not jpegs:
+            return note or f"'{path}' is not a viewable image/PDF (for text use fs_read)."
+        blocks = []
+        if note:
+            blocks.append(imaging.text_block(note))
+        blocks.extend(imaging.image_block(j) for j in jpegs)
+        return blocks if len(blocks) > 1 else blocks[0]
 
     @mcp.tool
     def fs_write(path: str, content: str, append: bool = False) -> str:

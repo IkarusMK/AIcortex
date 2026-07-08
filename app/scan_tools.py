@@ -169,7 +169,11 @@ def register(mcp):
         source: platen (flatbed) | adf (feeder). format: pdf | jpeg. Optionally push
         the result straight into Paperless: pass paperless=<a service name registered
         with service_add> (base_url of your Paperless, token_env -> API token in the
-        vault); the scan is uploaded to its /api/documents/post_document/."""
+        vault); the scan is uploaded to its /api/documents/post_document/.
+
+        To SEE the scan afterwards, call fs_view('<the saved filename>') — it renders the
+        page as an image the assistant reads with vision (don't push private scans through
+        Paperless just to OCR them)."""
         cfg = _load(scanner)
         if not cfg:
             return f"Unknown scanner '{scanner}'. Use scan_list / scan_add."

@@ -4,6 +4,28 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.10.0] — 2026-07-07
+### Added
+- **`fs_view` — the assistant can now SEE workspace files with vision, not just OCR.**
+  A new workspace tool renders any image or PDF under `/data/work` into image content the
+  model reads directly: scanned pages (`scan_document`), e-mail attachments
+  (`imap_fetch save_attachments`), webdav/ftp downloads and print sources. This closes a
+  real gap — until now a scan came back only as a saved path or (via Paperless) mangled
+  OCR text, so multi-card scans and decorative titles were unreadable. `fs_view(path[,
+  page, max_pages])` downscales raster images (Pillow, EXIF-aware) and rasterizes PDF
+  pages (pypdfium2). Same hard sandbox as the other `fs_*` tools, a size cap
+  (`FS_VIEW_CEILING_BYTES`, default 30 MB) and graceful degradation (a clear message if an
+  optional wheel is missing) instead of a crash.
+### Changed
+- New deps: `pillow>=11,<13`, `pypdfium2>=4,<6` — both have manylinux **cp314** wheels,
+  verified via `uv pip compile --only-binary :all:` against the runtime image's Python
+  before adding (pypdfium2 is Apache/BSD, bundles PDFium, needs no system libs like poppler).
+- Docstrings + bootstrap catalog: `scan_document` and `imap_fetch` now point at `fs_view`
+  for viewing; the workspace catalog line lists it.
+### Tests
+- `tests/test_imaging.py` — image normalize/downscale + PDF render round-trips (synthetic
+  inputs, no fixture files).
+
 ## [1.9.5] — 2026-07-07
 ### Added
 - **Per-service TLS options** — `service_add` now accepts `tls_insecure` and `ca_bundle`,

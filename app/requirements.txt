@@ -16,3 +16,9 @@ py-key-value-aio[disk]>=0.4.5
 # the connector's real bottleneck (network / event loop). Linux & macOS only (uvloop has
 # no Windows wheels), so it's gated by a marker; the startup import is guarded too.
 uvloop>=0.19; platform_system != "Windows"
+# Image handling for fs_view / seeing workspace files with vision (scans, e-mail
+# attachments, downloads) — Pillow downscales/normalizes raster images, pypdfium2
+# rasterizes PDF pages (Apache/BSD, bundles PDFium, no system libs like poppler).
+# cp314 linux wheels verified via `uv pip compile --only-binary :all:` before adding.
+pillow>=11,<13
+pypdfium2>=4,<6

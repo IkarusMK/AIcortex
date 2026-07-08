@@ -134,9 +134,10 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   direkt im LAN. Physische Ausgabe → vorher bestätigen.
 - Scanner (eSCL/AirScan): scan_add(name, host) / scan_list /
   scan_document(scanner[, color, source, format, paperless]). Scannt direkt im LAN,
-  speichert nach /data/work, optional gleich nach Paperless (paperless=<Service-Name>).
-- Workspace-Dateien (/data/work): fs_list / fs_read / fs_write / fs_move / fs_delete /
-  fs_info. Die Datei-Drehscheibe (Scans/Downloads/Druck-Vorlagen) ansehen & ordnen.
+  speichert nach /data/work (mit fs_view ansehen), optional nach Paperless (paperless=<Service-Name>).
+- Workspace-Dateien (/data/work): fs_list / fs_read (Text) / fs_view (Bild/PDF mit VISION
+  ansehen — Scans, Foto-/PDF-Anhänge, Downloads direkt lesen statt nur OCR) / fs_write /
+  fs_move / fs_delete / fs_info. Die Datei-Drehscheibe (Scans/Downloads/Druck-Vorlagen) ansehen & ordnen.
 - SSH/SFTP-Server: ssh_add(name, host, username[, password_env|key_env]) / ssh_run
   (Befehl, zustandsändernd → bestätigen) / ssh_upload / ssh_download / ssh_list_dir.
 - E-Mail senden (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
@@ -306,9 +307,10 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   directly on the LAN. Physical output → confirm first.
 - Scanners (eSCL/AirScan): scan_add(name, host) / scan_list /
   scan_document(scanner[, color, source, format, paperless]). Scans on the LAN,
-  saves to /data/work, optionally straight into Paperless (paperless=<service name>).
-- Workspace files (/data/work): fs_list / fs_read / fs_write / fs_move / fs_delete /
-  fs_info. See & tidy the file hub (scans, downloads, print sources).
+  saves to /data/work (view it with fs_view), optionally into Paperless (paperless=<service name>).
+- Workspace files (/data/work): fs_list / fs_read (text) / fs_view (SEE an image/PDF with
+  VISION — scans, photo/PDF attachments, downloads read directly, not just OCR) / fs_write /
+  fs_move / fs_delete / fs_info. See & tidy the file hub (scans, downloads, print sources).
 - SSH/SFTP hosts: ssh_add(name, host, username[, password_env|key_env]) / ssh_run
   (command, state-changing → confirm) / ssh_upload / ssh_download / ssh_list_dir.
 - Send email (SMTP): mail_add(name, host, from_addr[, port, username, password_env, security]) /
