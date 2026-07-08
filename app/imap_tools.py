@@ -75,13 +75,14 @@ def _open(cfg):
         pw = secrets_store.get_secret(cfg["password_env"])
         if not pw:
             return None, f"Account needs secret '{cfg['password_env']}'. Use secret_set."
+    ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
     try:
         with netguard.guard(host):
             if sec == "starttls":
                 M = imaplib.IMAP4(host, port or 143, timeout=30)
-                M.starttls()
+                M.starttls(ssl_context=ctx)
             else:
-                M = imaplib.IMAP4_SSL(host, port or 993, timeout=30)
+                M = imaplib.IMAP4_SSL(host, port or 993, timeout=30, ssl_context=ctx)
         M.login(cfg.get("username", ""), pw)
     except Exception as exc:
         return None, f"IMAP connect/login failed: {exc}"
@@ -102,14 +103,18 @@ def _criteria(query: str):
 def register(mcp):
     @mcp.tool
     def imap_add(name: str, host: str, username: str, password_env: str = "",
-                 port: int = 0, security: str = "ssl", description: str = "") -> str:
+                 port: int = 0, security: str = "ssl", tls_insecure: bool = False,
+                 ca_bundle: str = "", description: str = "") -> str:
         """Register/update an IMAP account as DATA (no redeploy). security: "ssl"
         (993, default) | "starttls" (143). password_env = NAME of a vault secret with
-        the (app) password. Leave port=0 to use the default for the security mode."""
+        the (app) password. Leave port=0 to use the default for the security mode.
+        TLS is VERIFIED by default; for a self-signed LAN server point `ca_bundle` at
+        its CA/cert (the safe way) or set tls_insecure=true."""
         try:
             IMAP_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port), "username": username,
-                   "password_env": password_env,
+                   "password_env": password_env, "tls_insecure": bool(tls_insecure),
+                   "ca_bundle": ca_bundle.strip(),
                    "security": (security or "ssl").lower(), "description": description}
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""

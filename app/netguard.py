@@ -105,6 +105,26 @@ def tls_verify(cfg: dict):
     return not bool(cfg.get("tls_insecure", False))
 
 
+def ssl_context(cfg: dict):
+    """Build an ``ssl.SSLContext`` from the SAME knobs as ``tls_verify`` — for the
+    socket clients that need a context object rather than httpx's ``verify=``
+    (ftp / mqtt / imap / smtp). One shared TLS policy across every integration.
+    Precedence: ``ca_bundle`` (trust a pinned CA/cert) > ``tls_insecure``
+    (verification OFF) > default (verify). Secure by default; only the admin-only
+    ``*_add`` tools ever set these keys.
+    """
+    import ssl
+    ctx = ssl.create_default_context()
+    cfg = cfg if isinstance(cfg, dict) else {}
+    ca = (cfg.get("ca_bundle") or "").strip()
+    if ca:
+        ctx.load_verify_locations(ca)
+    elif cfg.get("tls_insecure", False):
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
 def _ip_allowed(ip, nets) -> bool:
     """Egress policy for one IP: public is fine; private/link-local/etc only if
     inside an operator allow-listed CIDR."""

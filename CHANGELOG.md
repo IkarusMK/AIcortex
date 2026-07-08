@@ -4,6 +4,21 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.11.0] — 2026-07-08
+### Changed
+- **Unified TLS handling across every integration.** A single `netguard.ssl_context(cfg)`
+  now builds the SSL context for the socket-based clients (FTP, MQTT, IMAP, SMTP) from the
+  SAME two knobs the HTTP clients already resolve via `netguard.tls_verify` — `ca_bundle`
+  (pin a CA/cert — the safe way) and `tls_insecure` (verification off). Secure by default
+  everywhere; only the admin-only `*_add` tools ever set these.
+### Added
+- **`ca_bundle` / `tls_insecure` now offered on ALL TLS endpoints.** Previously only
+  `service_add` / `scan_add` / `webdav_add` / `caldav_add` had the full pair. `ftp_add` and
+  `mqtt_add` gained `ca_bundle`; `imap_add` and `mail_add` gained BOTH — they had *no* TLS
+  opt-out at all, so a self-signed LAN mail server was unreachable. One consistent
+  convention across services, scan, webdav, caldav, ftp, mqtt, imap and smtp — no more
+  per-device patching (includes the v1.10.2 FTPS session-reuse fix).
+
 ## [1.10.2] — 2026-07-08
 ### Fixed
 - **FTPS upload to Bambu Lab printers (and other `require_ssl_reuse` servers) no longer
