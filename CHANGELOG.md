@@ -4,6 +4,24 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.10.1] — 2026-07-08
+### Fixed
+- **`scan_document` left the scanner "busy" → the next scan failed with HTTP 503.** eSCL
+  requires GETting `NextDocument` repeatedly until it returns **404** — that both yields
+  each page AND tells the device the job is finished so it releases. The tool stopped after
+  the first page, so the scanner never got the end-of-job signal and stayed occupied; the
+  operator had to cancel at the device panel and the following scan came back 503. It now
+  drains to 404 (also riding out `503` warm-up) and correctly handles multi-page ADF scans
+  (page 1 keeps the given filename, extra pages get `-N`; each is pushed to Paperless when
+  requested). New tests: `tests/test_scan_drain.py`.
+### Audited — no change needed
+- **IPP printing** was checked for the same class of bug (requested alongside the scan
+  fix). `print_document` submits an **atomic IPP `Print-Job`** — all operation attributes
+  + `end-of-attributes` + the document bytes go in a single POST with `Content-Length`, so
+  there is no poll-until-done step to forget and the printer is not left waiting/occupied.
+  The other device tools (mqtt / ftp / webdav / ssh) are fire-and-forget or atomic too;
+  only eSCL scanning had the drain-until-done pattern.
+
 ## [1.10.0] — 2026-07-07
 ### Added
 - **`fs_view` — the assistant can now SEE workspace files with vision, not just OCR.**
