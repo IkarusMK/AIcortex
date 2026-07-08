@@ -192,7 +192,8 @@ def register(mcp):
                    save_attachments: bool = False) -> str:
         """Read one message by its uid (from imap_search): headers + text body
         (truncated). Read-only (BODY.PEEK) — it is NOT marked seen. Set
-        save_attachments=true to write attachments into /data/work."""
+        save_attachments=true to write attachments into /data/work — image/PDF
+        attachments can then be viewed with fs_view (vision, not just text)."""
         cfg = _load(account)
         if not cfg:
             return f"Unknown IMAP account '{account}'. Use imap_list / imap_add."
