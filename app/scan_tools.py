@@ -227,35 +227,48 @@ def register(mcp):
                         "and that network scanning (eSCL/AirScan) is enabled on the device.")
             return f"Scanner '{scanner}' did not start a job. Tried: {detail}.{hint}"
 
-        # 2) Pull the scanned document (first page; ADF could yield more).
-        doc = None
-        for _ in range(3):
+        # 2) Pull the scanned pages. eSCL contract: keep GETting NextDocument until it
+        #    returns 404 — that both yields each page AND tells the device the job is
+        #    finished so it releases. The old code stopped after the FIRST 200 page, so
+        #    the scanner stayed "busy" (job never closed) and the NEXT scan came back
+        #    HTTP 503. Draining to 404 is the fix; it also rides out 503 warm-up.
+        pages = []
+        next_url = f"{job_url.rstrip('/')}/NextDocument"
+        waits = 0
+        while len(pages) < 100 and waits < 15:      # bound pages + 503/warm-up retries
             try:
                 with netguard.guard(host):
-                    rd = httpx.get(f"{job_url.rstrip('/')}/NextDocument", timeout=180,
-                                   verify=netguard.tls_verify(cfg))
+                    rd = httpx.get(next_url, timeout=180, verify=netguard.tls_verify(cfg))
             except Exception as exc:
+                if pages:
+                    break  # already have content — don't fail the scan on a late error
                 return f"Scan started but fetching the page failed: {exc}"
             if rd.status_code == 200 and rd.content:
-                doc = rd.content
-                break
+                pages.append(rd.content)
+                continue   # next GET → the following page, or the 404 that ends the job
             if rd.status_code == 404:
-                break
-            time.sleep(2)  # device may still be warming up / scanning
-        if not doc:
+                break      # end of job — scanner released, ready for the next request
+            waits += 1
+            time.sleep(2)  # 503 / still warming up / scanning — wait briefly and retry
+        if not pages:
             return "Scan job created but no document came back (empty/timeout)."
 
-        # 3) Save under /data/work.
+        # 3) Save under /data/work (all pages: page 1 keeps the given name, extras get -N).
         WORK_DIR.mkdir(parents=True, exist_ok=True)
         ext = _EXT.get(fmt, "pdf")
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        name = filename or f"scan-{ts}.{ext}"
-        name = re.sub(r"[^A-Za-z0-9._-]+", "_", name)
-        out_path = WORK_DIR / name
-        out_path.write_bytes(doc)
-        result = f"Scanned {len(doc)} bytes → {out_path}."
+        base = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or f"scan-{ts}.{ext}")
+        stem, dot, suf = base.partition(".")
+        saved = []  # (filename, page_bytes)
+        for i, page in enumerate(pages):
+            name = base if i == 0 else (f"{stem}-{i + 1}{dot}{suf}" if dot else f"{base}-{i + 1}")
+            (WORK_DIR / name).write_bytes(page)
+            saved.append((name, page))
+        total = sum(len(p) for p in pages)
+        listed = ", ".join(f"/data/work/{n}" for n, _ in saved)
+        result = f"Scanned {total} bytes, {len(saved)} page(s) → {listed}."
 
-        # 4) Optional: push into Paperless (multipart upload, token from the vault).
+        # 4) Optional: push into Paperless (each page as its own document).
         if paperless:
             svc = services_mod._load(paperless)
             if not svc:
@@ -272,14 +285,17 @@ def register(mcp):
                 if not token:
                     return result + f" (Paperless needs secret '{tok_env}' — set it with secret_set.)"
                 headers["Authorization"] = f"Token {token}"
+            from urllib.parse import urlparse as _urlparse
+            uploaded = 0
             try:
-                from urllib.parse import urlparse as _urlparse
                 with netguard.guard(_urlparse(up_url).hostname or ""):
-                    ru = httpx.post(up_url, headers=headers,
-                                    files={"document": (name, doc, fmt)}, timeout=180)
-                if ru.status_code in (200, 201):
-                    return result + f" Uploaded to Paperless ('{paperless}')."
-                return result + f" Paperless upload returned HTTP {ru.status_code}."
+                    for name, page in saved:
+                        ru = httpx.post(up_url, headers=headers,
+                                        files={"document": (name, page, fmt)}, timeout=180)
+                        if ru.status_code not in (200, 201):
+                            return result + f" Paperless upload returned HTTP {ru.status_code} for {name}."
+                        uploaded += 1
+                return result + f" Uploaded {uploaded} page(s) to Paperless ('{paperless}')."
             except Exception as exc:
                 return result + f" Paperless upload failed: {exc}"
         return result
