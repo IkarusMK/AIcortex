@@ -15,7 +15,7 @@ py-key-value-aio[disk]>=0.4.5
 # up automatically, and server.py installs it explicitly at startup. Faster async I/O for
 # the connector's real bottleneck (network / event loop). Linux & macOS only (uvloop has
 # no Windows wheels), so it's gated by a marker; the startup import is guarded too.
-uvloop>=0.19; platform_system != "Windows"
+uvloop>=0.22.1; platform_system != "Windows"
 # Image handling for fs_view / seeing workspace files with vision (scans, e-mail
 # attachments, downloads) — Pillow downscales/normalizes raster images, pypdfium2
 # rasterizes PDF pages (Apache/BSD, bundles PDFium, no system libs like poppler).
