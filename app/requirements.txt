@@ -21,4 +21,4 @@ uvloop>=0.19; platform_system != "Windows"
 # rasterizes PDF pages (Apache/BSD, bundles PDFium, no system libs like poppler).
 # cp314 linux wheels verified via `uv pip compile --only-binary :all:` before adding.
 pillow>=11,<13
-pypdfium2>=4,<6
+pypdfium2>=5.11.0,<6
