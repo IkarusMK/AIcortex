@@ -35,7 +35,7 @@ jobs:
 
       - name: Checkout
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python (matches the runtime base image)
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
