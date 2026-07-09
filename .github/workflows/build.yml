@@ -30,7 +30,7 @@ jobs:
           pip-audit -r app/requirements.txt
 
       - name: Set up QEMU (for multi-arch)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
