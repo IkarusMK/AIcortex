@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIcortex — Admin</title>
+  <link rel="icon" href="/ui/assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/assets/style.css?v={{v}}">
+</head>
+<body>
+  <div class="glow" aria-hidden="true"></div>
+
+  <!-- ── Login ─────────────────────────────────────────────────────────── -->
+  <section id="view-login" class="login hidden">
+    <div class="login-card panel">
+      <div class="brand-row center">
+        <img class="logo lg" src="/ui/assets/logo.svg" alt="">
+        <span class="brand">AI<em>cortex</em></span>
+      </div>
+      <p class="tagline" data-i18n="tagline">A SELF-HOSTED MCP BRAIN FOR ANY LLM</p>
+      <div class="term-chip"><span class="term-icon">&gt;_</span>
+        <span class="term-text">Your brain. Your hardware. <b>Any LLM</b></span>
+        <span class="cursor" aria-hidden="true"></span>
+      </div>
+      <button id="btn-login" class="btn primary big" data-i18n="login_btn">Anmelden mit SSO</button>
+      <p id="login-error" class="err hidden"></p>
+      <p class="dim small" data-i18n="login_hint"></p>
+    </div>
+  </section>
+
+  <!-- ── Kein Admin ────────────────────────────────────────────────────── -->
+  <section id="view-denied" class="login hidden">
+    <div class="login-card panel">
+      <div class="brand-row center">
+        <img class="logo lg" src="/ui/assets/logo.svg" alt="">
+        <span class="brand">AI<em>cortex</em></span>
+      </div>
+      <h2 data-i18n="denied_title"></h2>
+      <p class="dim" data-i18n="denied_text"></p>
+      <button id="btn-logout-denied" class="btn ghost" data-i18n="logout"></button>
+    </div>
+  </section>
+
+  <!-- ── App ───────────────────────────────────────────────────────────── -->
+  <div id="app" class="app hidden">
+    <aside class="rail">
+      <div class="brand-row">
+        <img class="logo" src="/ui/assets/logo.svg" alt="">
+        <span class="brand">AI<em>cortex</em></span>
+      </div>
+      <nav class="nav">
+        <a href="#overview" data-nav="overview"><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
+        <a href="#vault"    data-nav="vault"><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
+        <a href="#skills"   data-nav="skills"><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
+        <a href="#services" data-nav="services"><span class="ico">⇄</span><span data-i18n="nav_services"></span></a>
+        <a href="#users"    data-nav="users"><span class="ico">◉</span><span data-i18n="nav_users"></span></a>
+        <a href="#logs"     data-nav="logs"><span class="ico">≣</span><span data-i18n="nav_logs"></span></a>
+      </nav>
+      <div class="rail-foot">
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button id="lang-de" data-setlang="de">DE</button><button id="lang-en" data-setlang="en">EN</button>
+        </div>
+        <div class="user-chip">
+          <span class="dot"></span>
+          <span id="user-name" class="ellip"></span>
+          <button id="btn-logout" class="linkish" data-i18n="logout"></button>
+        </div>
+        <div class="version mono" id="ui-version"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- Overview -->
+      <section id="view-overview" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_overview"></h1>
+          <span id="ov-enforce" class="badge"></span>
+        </header>
+        <div class="stat-grid" id="ov-grid"></div>
+        <div class="term-chip wide"><span class="term-icon">&gt;_</span>
+          <span class="term-text" data-i18n="ov_footer"></span><span class="cursor" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <!-- Vault -->
+      <section id="view-vault" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_vault"></h1>
+          <span class="badge cyan" data-i18n="vault_badge"></span>
+        </header>
+        <div class="grid-2">
+          <div class="panel">
+            <h3 data-i18n="vault_list_title"></h3>
+            <p class="dim small" data-i18n="vault_list_hint"></p>
+            <table class="tbl" id="vault-table">
+              <thead><tr>
+                <th data-i18n="vault_col_name"></th>
+                <th data-i18n="vault_col_owner"></th><th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+            <p id="vault-empty" class="dim hidden" data-i18n="vault_empty"></p>
+          </div>
+          <div class="panel accent">
+            <h3 data-i18n="vault_add_title"></h3>
+            <form id="form-secret" autocomplete="off">
+              <label data-i18n="vault_f_name"></label>
+              <input id="sec-name" class="inp mono" required
+                     pattern="[^/]+" data-i18n-ph="vault_ph_name">
+              <label data-i18n="vault_f_value"></label>
+              <div class="pw-row">
+                <input id="sec-value" class="inp mono" type="password" required
+                       data-i18n-ph="vault_ph_value">
+                <button type="button" id="sec-toggle" class="btn ghost sm">👁</button>
+              </div>
+              <label data-i18n="vault_f_owner"></label>
+              <input id="sec-owner" class="inp mono" data-i18n-ph="vault_ph_owner">
+              <p class="dim small" data-i18n="vault_writeonly"></p>
+              <button class="btn primary" data-i18n="vault_save"></button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Skills -->
+      <section id="view-skills" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_skills"></h1>
+          <button id="btn-skill-new" class="btn primary sm" data-i18n="sk_new"></button>
+        </header>
+        <div class="chips" id="sk-cats"></div>
+        <div class="grid-2 skills-layout">
+          <div class="panel scroll" id="sk-list"></div>
+          <div class="panel accent hidden" id="sk-editor">
+            <h3 id="sk-editor-title"></h3>
+            <form id="form-skill" autocomplete="off">
+              <label data-i18n="sk_f_name"></label>
+              <input id="sk-name" class="inp" required>
+              <div class="row-2">
+                <div>
+                  <label data-i18n="sk_f_category"></label>
+                  <input id="sk-category" class="inp" list="sk-cat-list" required>
+                  <datalist id="sk-cat-list"></datalist>
+                </div>
+                <div>
+                  <label data-i18n="sk_f_tags"></label>
+                  <input id="sk-tags" class="inp">
+                </div>
+              </div>
+              <label data-i18n="sk_f_desc"></label>
+              <input id="sk-desc" class="inp" required>
+              <label data-i18n="sk_f_body"></label>
+              <textarea id="sk-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+              <div class="btn-row">
+                <button class="btn primary" data-i18n="save"></button>
+                <button type="button" id="btn-skill-close" class="btn ghost" data-i18n="cancel"></button>
+                <span class="spacer"></span>
+                <button type="button" id="btn-skill-delete" class="btn danger hidden" data-i18n="delete"></button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users -->
+      <section id="view-users" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_users"></h1>
+          <span id="us-enforce" class="badge"></span>
+        </header>
+        <div class="grid-2">
+          <div class="panel">
+            <h3 data-i18n="us_list_title"></h3>
+            <p class="dim small" data-i18n="us_list_hint"></p>
+            <table class="tbl" id="us-table">
+              <thead><tr>
+                <th data-i18n="us_col_identity"></th>
+                <th data-i18n="us_col_role"></th>
+                <th data-i18n="us_col_area"></th><th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+            <p id="us-empty" class="dim hidden" data-i18n="us_empty"></p>
+          </div>
+          <div class="panel accent">
+            <h3 id="us-editor-title" data-i18n="us_add_title"></h3>
+            <form id="form-user" autocomplete="off">
+              <label data-i18n="us_f_identity"></label>
+              <input id="us-identity" class="inp mono" required data-i18n-ph="us_ph_identity">
+              <div class="row-2">
+                <div>
+                  <label data-i18n="us_f_role"></label>
+                  <select id="us-role" class="inp">
+                    <option value="default" data-i18n="us_role_default"></option>
+                    <option value="admin">admin</option>
+                    <option value="user">user</option>
+                    <option value="viewer">viewer</option>
+                  </select>
+                </div>
+                <div>
+                  <label data-i18n="us_f_memory"></label>
+                  <select id="us-memory" class="inp">
+                    <option value="">—</option>
+                    <option value="own" data-i18n="us_own"></option>
+                    <option value="all" data-i18n="us_all"></option>
+                  </select>
+                </div>
+              </div>
+              <div class="row-2">
+                <div>
+                  <label data-i18n="us_f_services"></label>
+                  <input id="us-services" class="inp mono" data-i18n-ph="us_ph_access">
+                </div>
+                <div>
+                  <label data-i18n="us_f_skills"></label>
+                  <input id="us-skills" class="inp mono" data-i18n-ph="us_ph_access">
+                </div>
+              </div>
+              <label data-i18n="us_f_devices"></label>
+              <input id="us-devices" class="inp mono" data-i18n-ph="us_ph_devices">
+              <label data-i18n="us_f_note"></label>
+              <input id="us-note" class="inp">
+              <div class="btn-row">
+                <button class="btn primary" data-i18n="save"></button>
+                <button type="button" id="btn-user-clear" class="btn ghost" data-i18n="clear"></button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Services & devices (read-only) -->
+      <section id="view-services" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_services"></h1>
+          <span class="badge cyan" data-i18n="sv_badge"></span>
+        </header>
+        <div class="chips" id="sv-kinds"></div>
+        <div class="panel">
+          <p class="dim small" data-i18n="sv_hint"></p>
+          <table class="tbl" id="sv-table">
+            <thead><tr>
+              <th data-i18n="sv_col_kind"></th>
+              <th data-i18n="sv_col_name"></th>
+              <th data-i18n="sv_col_target"></th>
+              <th data-i18n="sv_col_secret"></th>
+              <th data-i18n="sv_col_desc"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <p id="sv-empty" class="dim hidden" data-i18n="sv_empty"></p>
+        </div>
+      </section>
+
+      <!-- Audit log -->
+      <section id="view-logs" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_logs"></h1>
+          <span class="badge" data-i18n="lg_badge"></span>
+        </header>
+        <div class="panel">
+          <p class="dim small" data-i18n="lg_hint"></p>
+          <div class="log-bar">
+            <input id="lg-filter" class="inp mono" data-i18n-ph="lg_filter_ph">
+            <button id="lg-refresh" class="btn ghost sm" data-i18n="lg_refresh"></button>
+          </div>
+          <table class="tbl" id="lg-table">
+            <thead><tr>
+              <th data-i18n="lg_col_time"></th>
+              <th data-i18n="lg_col_identity"></th>
+              <th data-i18n="lg_col_tool"></th>
+              <th data-i18n="lg_col_decision"></th>
+              <th data-i18n="lg_col_reason"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <p id="lg-empty" class="dim hidden" data-i18n="lg_empty"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- confirm modal + toast -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card panel">
+      <p id="modal-text"></p>
+      <div class="btn-row">
+        <button id="modal-ok" class="btn danger" data-i18n="confirm"></button>
+        <button id="modal-cancel" class="btn ghost" data-i18n="cancel"></button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="/ui/assets/app.js?v={{v}}"></script>
+</body>
+</html>

@@ -304,6 +304,29 @@ Security, by design: keys are **hashed at rest** (constant-time compare) and **d
 
 > **Proxy:** expose `/api/*` (and `/hooks/*`) past the reverse proxy **without** OIDC — the API authenticates itself by key. Never expose `/mcp` that way.
 
+## Admin WebUI
+
+Not everyone wants to manage secrets from a terminal or chat. **`/ui`** is a built-in,
+self-contained admin panel (no extra container, no build step, no CDNs — strict CSP),
+language-switchable **DE/EN**:
+
+| Page | What you can do |
+|------|-----------------|
+| **Overview** | Version, enforce status, live counts (skills, secrets, services, devices, users) |
+| **Vault** | See secret **names**, add tokens/API keys/passwords (shared or per-user), delete. Values are **write-only** — they never leave the vault |
+| **Skills** | Browse by category, view, create/edit/delete skills (same house rules as `skill_write`) |
+| **Users** | Roles (`admin`/`user`/`viewer`) + per-user areas (memory, vault, services, skills, device grants) in `policy.json` |
+| **Services & devices** | Read-only inventory of every registry (services, MQTT, FTP, printers, scanners, WebDAV, CalDAV, SSH, mail, IMAP, MCP, webhooks) — target + referenced secret **name** |
+| **Logs** | The authz audit log — who called which tool, allowed/denied and why; filterable, newest first |
+
+Login rides on your existing IdP (authorization code + **PKCE**): register **one extra
+redirect URI** in the OIDC client — `<BASE_URL>/ui/callback` — and open `<BASE_URL>/ui`.
+Only the **admin** role may manage; sessions are signed HttpOnly cookies, mutations are
+CSRF-guarded, every action lands in the audit log (names only, never values). The UI calls
+the **same module functions** as the MCP tools, so browser and assistant can't drift.
+Without OIDC (local testing) the UI is open on the localhost-only bind — the same trust
+model as the MCP endpoint itself. Opt-out: `UI_ENABLED=0`.
+
 ## Configuration
 
 All config lives in `.env` (copy from `.env.example`):
@@ -316,6 +339,7 @@ All config lives in `.env` (copy from `.env.example`):
 | `TZ`        | `UTC`   | Container timezone |
 | `API_ENABLED` | `1` | Native REST API (`/api/v1/*`) on/off — keys are minted with `apikey_create` |
 | `API_RATE_PER_MIN` | `60` | Per-key REST rate limit (requests/minute; `0` = unlimited) |
+| `UI_ENABLED` | `1` | Admin WebUI (`/ui`) on/off — browser login via your IdP (redirect URI `<BASE_URL>/ui/callback`) |
 
 OIDC, authorization and hardening variables are documented inline in [`.env.example`](.env.example) and the [Authentication & authorization](#authentication--authorization) section.
 

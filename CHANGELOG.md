@@ -4,6 +4,46 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.12.0] — 2026-07-12
+### Added
+- **Admin WebUI at `/ui` — manage the brain from a browser, no terminal needed.**
+  Served by the same container alongside `/mcp` (no extra service, no extra port), in the
+  AICortex banner look, language switchable **DE/EN**. Login is a standard OIDC
+  authorization-code flow **with PKCE against your own IdP** (e.g. Pocket ID) — register
+  ONE extra redirect URI: `<BASE_URL>/ui/callback`. Sessions are signed HttpOnly cookies;
+  every management endpoint is **admin-only** (role via the same `authz.role_for` chain as
+  MCP), mutations carry a CSRF header, and the app is fully self-contained (strict CSP, no
+  CDNs, no build step). Without OIDC (local testing) the UI is open on the
+  localhost-only bind, mirroring the server's own trust model. Pages:
+  - **Overview** — version, enforce status, counts (skills/categories/secrets/services/
+    devices/users).
+  - **Vault** — see secret NAMES (values never leave the vault), add tokens/API keys/
+    passwords (shared or per-user), delete. Write-only by design.
+  - **Skills** — browse by category, view, create/edit (name, category, description,
+    tags, Markdown), delete. Same house rules as `skill_write` (category required).
+  - **Users** — roles (admin/user/viewer) + per-user areas (memory/vault/services/skills/
+    device grants) in `policy.json`, add/edit/remove.
+  - **Services & devices** — read-only inventory of EVERY registry (services, mqtt, ftp,
+    printers, scanners, webdav, caldav, ssh, mail, imap, mcp, webhooks) with target and
+    the referenced secret NAME. Only constructed fields leave the endpoint — an unknown
+    config key can never leak through the UI.
+  - **Logs** — the authz audit log (who called which tool, allowed/denied and why),
+    newest first, filterable; reads at most the last 1 MB per request.
+  The endpoints call the SAME module-level functions as the MCP tools
+  (`secrets_store.vault_*`, `skills` helpers, `tenancy._write_policy`) — UI and assistant
+  cannot drift. UI actions are audited (`ui:*` in the authz audit log; never a value).
+  New: `app/webui.py`, `app/webui_static/`, `tests/test_webui.py`. Opt-out: `UI_ENABLED=0`.
+### Fixed
+- **Bambu FTPS upload now goes through `curl` — the v1.10.2 session-reuse shim was not
+  enough.** Python's ftplib still failed to resume the TLS session on the DATA channel
+  against the P1S SD store, so `STOR` kept hanging into "read operation timed out". FTPS
+  uploads (implicit *and* explicit) now shell out to `curl` (config via stdin — the
+  password never touches argv), which implements FTPS session reuse natively and is the
+  community-proven path for these printers. The vetted egress IP is pinned into curl
+  (`resolve=`) so the SSRF/anti-rebinding guarantee survives the external process; TLS
+  knobs (`ca_bundle` > `tls_insecure` > verify) match `netguard.ssl_context`. Plain FTP
+  keeps the ftplib path. `curl` added to the image. New tests: `tests/test_ftp_curl.py`.
+
 ## [1.11.0] — 2026-07-08
 ### Changed
 - **Unified TLS handling across every integration.** A single `netguard.ssl_context(cfg)`

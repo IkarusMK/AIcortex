@@ -43,6 +43,7 @@ import authz
 import tenancy
 import apikeys
 import rest_api
+import webui
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
@@ -289,6 +290,10 @@ apikeys.register(mcp)
 # Native REST layer (routes served alongside /mcp, outside OAuth): GET /api/v1/tools,
 # POST /api/v1/tools/<name>, GET /api/v1/openapi.json — authenticated per-user API key.
 rest_api.register(mcp)
+
+# Admin WebUI at /ui — browser OIDC login (same IdP), admin-only management of
+# vault (names only), skills, and users. Static, self-contained, no build step.
+webui.register(mcp)
 
 # Self-describing usage guide (also sent as server `instructions` on connect)
 guide.register(mcp)
