@@ -4,6 +4,22 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.12.2] — 2026-07-12
+### Fixed
+- **Connector login REALLY fixed: the OIDC proxy no longer forwards `resource` upstream —
+  and the v1.12.1 pin alone was NOT enough.** Deeper finding: fastmcp **3.4.3 already
+  contains** the new authorize flow (CIMD, `/consent`, RFC 8707 `resource` forwarding);
+  v1.11.0 only *appeared* fine because existing connector sessions renew via refresh
+  tokens — the last FRESH login predated the 3.4.x flow, so the regression stayed
+  invisible until a reconnect was needed. The real, version-independent fix is
+  configuration: the proxy is now built with **`forward_resource=False`** (Pocket ID
+  never sees the parameter it rejects) and **`require_authorization_consent="external"`**
+  (no `/consent` interstitial — the IdP's passkey login IS the consent, restoring the
+  familiar flow). Both are signature-checked so a fastmcp without these kwargs can never
+  break boot. New guard tests (`tests/test_oauth_upstream.py`) pin this contract against
+  the installed fastmcp, so a future version bump that renames or breaks either knob
+  fails CI instead of breaking logins in production.
+
 ## [1.12.1] — 2026-07-12
 ### Fixed
 - **Claude custom-connector login broke after the v1.12.0 image rebuild — fastmcp is now

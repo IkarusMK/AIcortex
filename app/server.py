@@ -131,6 +131,20 @@ def _build_auth():
             "scope": os.environ.get("OIDC_SCOPE", "openid profile email"),
         },
     )
+    # fastmcp ≥3.4 rebuilt the authorize flow with two behaviours that regress
+    # IdPs without RFC 8707 support: the `resource` parameter MCP clients send is
+    # now FORWARDED to the upstream authorize request — Pocket ID rejects it with
+    # `invalid_request — "The 'resource' or 'scope' parameter is invalid"` and the
+    # connector login dies at the IdP — and a /consent interstitial appears before
+    # the IdP. Restore the proven behaviour: never send `resource` upstream, and
+    # let the IdP login itself be the consent step ("external"). Signature-checked
+    # so a fastmcp without these kwargs can never break boot.
+    import inspect
+    proxy_params = inspect.signature(OIDCProxy.__init__).parameters
+    if "forward_resource" in proxy_params:
+        kwargs["forward_resource"] = False
+    if "require_authorization_consent" in proxy_params:
+        kwargs["require_authorization_consent"] = "external"
     storage = _client_storage()
     if storage is not None:
         kwargs["client_storage"] = storage

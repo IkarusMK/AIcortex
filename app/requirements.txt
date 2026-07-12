@@ -1,7 +1,9 @@
-# EXACT pin. 3.4.4 rebuilt the OAuth authorization flow (new /consent interstitial,
-# CIMD) and broke the Claude custom-connector login against this deployment; 3.4.3
-# is the proven-good version. Bump ONLY via a tested Dependabot PR — a loose range
-# here means every image rebuild can silently change the auth stack.
+# EXACT pin — the auth stack must never change as a side effect of an image
+# rebuild. fastmcp ≥3.4 forwards the RFC 8707 `resource` parameter to the
+# upstream IdP and adds a /consent interstitial; server.py neutralizes both
+# (forward_resource=False, require_authorization_consent="external") and
+# tests/test_oauth_upstream.py pins that contract, so version bumps arrive
+# ONLY via Dependabot PRs that pass those guards.
 fastmcp==3.4.4
 paho-mqtt>=2.1,<3
 # SSH / SFTP for ssh_tools (remote commands + file transfer)
