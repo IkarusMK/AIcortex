@@ -106,6 +106,73 @@ def get_secret(name: str):
     return data.get(name)
 
 
+# ── Core vault operations ────────────────────────────────────────────────────
+# Module-level so BOTH front doors (the MCP tools below and the admin WebUI)
+# share one implementation — same refusal logic, same guards, no drift.
+
+def vault_set(name: str, value: str, owner: str = "") -> str:
+    """Store a secret (shared, or in `owner`'s private namespace). Returns a
+    user-facing message; the value is never echoed back."""
+    name = (name or "").strip()
+    if not name or "/" in name:
+        return "Refused: secret name is required and may not contain '/'."
+    if _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
+        return ("Refusing to store: STORAGE_ENCRYPTION_KEY is not set, so the vault "
+                "would be PLAINTEXT despite the .enc name. Generate a key with "
+                "`python -c \"from cryptography.fernet import Fernet; "
+                "print(Fernet.generate_key().decode())\"`, set it as "
+                "STORAGE_ENCRYPTION_KEY and restart — or set ALLOW_PLAINTEXT_VAULT=1 "
+                "to override (NOT recommended).")
+    try:
+        d = _read_all(strict=True)
+    except VaultUnreadable as exc:
+        return ("Refusing to write: the existing vault exists but could NOT be "
+                f"decrypted/parsed ({exc}). This usually means STORAGE_ENCRYPTION_KEY "
+                "changed or the file is corrupt. Writing now would DESTROY the stored "
+                "secrets. Fix the key (or restore data/vault/secrets.enc from "
+                "secrets.enc.bak), then retry — nothing was changed.")
+    owner = (owner or "").strip()
+    key = f"{_owner_prefix(owner)}/{name}" if owner else name
+    d[key] = value
+    _write_all(d)
+    where = f"in {owner}'s private vault" if owner else "as a shared secret"
+    return f"Stored '{name}' {where} (encrypted on the NAS). It will not be shown again."
+
+
+def vault_delete(name: str, owner: str = "") -> str:
+    """Delete a secret by name (shared, or from `owner`'s private namespace)."""
+    name = (name or "").strip()
+    try:
+        d = _read_all(strict=True)
+    except VaultUnreadable as exc:
+        return ("Refusing to modify: the vault could not be decrypted/parsed "
+                f"({exc}) — changing it now would destroy the other secrets. Fix "
+                "STORAGE_ENCRYPTION_KEY (or restore secrets.enc.bak) and retry.")
+    owner = (owner or "").strip()
+    key = f"{_owner_prefix(owner)}/{name}" if owner else name
+    if key in d:
+        del d[key]
+        _write_all(d)
+        where = f" from {owner}'s vault" if owner else ""
+        return f"Deleted secret '{name}'{where}."
+    return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
+
+
+def vault_entries() -> list:
+    """NAMES ONLY, structured, unconfined — for the admin WebUI (which enforces
+    the admin role itself). Each entry: {"name", "owner"} with owner="" = shared.
+    Values never leave this module."""
+    out = []
+    for key in sorted(_read_all().keys()):
+        if key.startswith("users/"):
+            parts = key.split("/", 2)
+            if len(parts) == 3:
+                out.append({"name": parts[2], "owner": parts[1]})
+                continue
+        out.append({"name": key, "owner": ""})
+    return out
+
+
 def _fmt_key(key: str, own_ns: str) -> str:
     """Render a stored key as a name line (never a value), tagging ownership."""
     if key.startswith("users/"):
@@ -127,30 +194,7 @@ def register(mcp):
         THAT user's private vault namespace (only their own service calls resolve
         it). Leave empty for a shared secret. Users can't set secrets themselves —
         an admin grants vault access this way."""
-        name = (name or "").strip()
-        if not name or "/" in name:
-            return "Refused: secret name is required and may not contain '/'."
-        if _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
-            return ("Refusing to store: STORAGE_ENCRYPTION_KEY is not set, so the vault "
-                    "would be PLAINTEXT despite the .enc name. Generate a key with "
-                    "`python -c \"from cryptography.fernet import Fernet; "
-                    "print(Fernet.generate_key().decode())\"`, set it as "
-                    "STORAGE_ENCRYPTION_KEY and restart — or set ALLOW_PLAINTEXT_VAULT=1 "
-                    "to override (NOT recommended).")
-        try:
-            d = _read_all(strict=True)
-        except VaultUnreadable as exc:
-            return ("Refusing to write: the existing vault exists but could NOT be "
-                    f"decrypted/parsed ({exc}). This usually means STORAGE_ENCRYPTION_KEY "
-                    "changed or the file is corrupt. Writing now would DESTROY the stored "
-                    "secrets. Fix the key (or restore data/vault/secrets.enc from "
-                    "secrets.enc.bak), then retry — nothing was changed.")
-        owner = (owner or "").strip()
-        key = f"{_owner_prefix(owner)}/{name}" if owner else name
-        d[key] = value
-        _write_all(d)
-        where = f"in {owner}'s private vault" if owner else "as a shared secret"
-        return f"Stored '{name}' {where} (encrypted on the NAS). It will not be shown again."
+        return vault_set(name, value, owner)
 
     @mcp.tool
     def secret_list() -> str:
@@ -184,18 +228,4 @@ def register(mcp):
     def secret_delete(name: str, owner: str = "") -> str:
         """Delete a stored secret by name. ADMIN-ONLY. `owner` = a user's Pocket ID
         `sub` to delete from that user's private vault; empty for a shared secret."""
-        name = (name or "").strip()
-        try:
-            d = _read_all(strict=True)
-        except VaultUnreadable as exc:
-            return ("Refusing to modify: the vault could not be decrypted/parsed "
-                    f"({exc}) — changing it now would destroy the other secrets. Fix "
-                    "STORAGE_ENCRYPTION_KEY (or restore secrets.enc.bak) and retry.")
-        owner = (owner or "").strip()
-        key = f"{_owner_prefix(owner)}/{name}" if owner else name
-        if key in d:
-            del d[key]
-            _write_all(d)
-            where = f" from {owner}'s vault" if owner else ""
-            return f"Deleted secret '{name}'{where}."
-        return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
+        return vault_delete(name, owner)
