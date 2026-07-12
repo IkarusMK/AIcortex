@@ -225,17 +225,22 @@ async function loadOverview() {
   const badge = $("#ov-enforce");
   badge.textContent = d.enforce ? t("enforce_on") : t("enforce_off");
   badge.className = "badge " + (d.enforce ? "on" : "off");
+  // Each tile links to its section — a tile that looks clickable must BE clickable.
   const cells = [
-    [d.skills, "ov_skills"], [d.categories, "ov_categories"],
-    [d.secrets, "ov_secrets"], [d.services, "ov_services"],
-    [d.devices, "ov_devices"], [d.users, "ov_users"],
-    ["v" + d.version, "ov_version"],
+    [d.skills, "ov_skills", "skills"], [d.categories, "ov_categories", "skills"],
+    [d.secrets, "ov_secrets", "vault"], [d.services, "ov_services", "services"],
+    [d.devices, "ov_devices", "services"], [d.users, "ov_users", "users"],
+    ["v" + d.version, "ov_version", null],
   ];
   const grid = $("#ov-grid");
   grid.textContent = "";
-  cells.forEach(([k, l]) => {
-    const card = document.createElement("div");
-    card.className = "stat";
+  cells.forEach(([k, l, target]) => {
+    const card = document.createElement(target ? "button" : "div");
+    card.className = "stat" + (target ? " link" : "");
+    if (target) {
+      card.type = "button";
+      card.addEventListener("click", () => { location.hash = "#" + target; });
+    }
     const kv = document.createElement("div"); kv.className = "k"; kv.textContent = k;
     const lv = document.createElement("div"); lv.className = "l"; lv.textContent = t(l);
     card.append(kv, lv);
