@@ -2,3 +2,5 @@
 # alongside app/requirements.txt to run the pytest suite with coverage.
 pytest>=8,<9
 pytest-cov>=5,<8
+# For the async OAuth-proxy guard tests (tests/test_oauth_upstream.py)
+pytest-asyncio>=0.24,<2
