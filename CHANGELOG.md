@@ -4,6 +4,23 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [1.12.1] — 2026-07-12
+### Fixed
+- **Claude custom-connector login broke after the v1.12.0 image rebuild — fastmcp is now
+  EXACT-pinned to 3.4.3.** The v1.12.0 image silently picked up fastmcp **3.4.4** (the
+  requirement was a loose `>=3.4.2,<4`), which changes the OIDC proxy's upstream
+  behaviour: the RFC 8707 `resource` parameter that MCP clients (Claude) send with
+  `/authorize` is now **forwarded to the upstream IdP**. IdPs without Resource-Indicator
+  support (e.g. Pocket ID) reject the authorize request with `invalid_request — "The
+  'resource' or 'scope' parameter is invalid"`, so the connector login fails after the
+  (also new) `/consent` interstitial. Root cause proven end-to-end: container logs show
+  the IdP callback error, and the same Pocket ID authorize URL succeeds without
+  `resource` and fails with it. 3.4.3 dropped the parameter upstream, which is why
+  v1.11.0 logged in fine — nothing in the deployment (callback URIs, env, client
+  registration) was at fault. Lesson applied: the auth-critical dependency is pinned
+  exactly and only bumped via a tested Dependabot PR — an image rebuild can no longer
+  silently change the auth stack.
+
 ## [1.12.0] — 2026-07-12
 ### Added
 - **Admin WebUI at `/ui` — manage the brain from a browser, no terminal needed.**

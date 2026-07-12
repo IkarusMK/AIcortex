@@ -10,4 +10,4 @@ keeps the last released number and new notes go under `## [Unreleased]` in
 CHANGELOG.md; the next release then adopts them under its number.
 """
 
-__version__ = "1.12.0"
+__version__ = "1.12.1"

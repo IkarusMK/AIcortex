@@ -1,4 +1,8 @@
-fastmcp>=3.4.2,<4
+# EXACT pin. 3.4.4 rebuilt the OAuth authorization flow (new /consent interstitial,
+# CIMD) and broke the Claude custom-connector login against this deployment; 3.4.3
+# is the proven-good version. Bump ONLY via a tested Dependabot PR — a loose range
+# here means every image rebuild can silently change the auth stack.
+fastmcp==3.4.3
 paho-mqtt>=2.1,<3
 # SSH / SFTP for ssh_tools (remote commands + file transfer)
 paramiko>=5.0.0,<6
