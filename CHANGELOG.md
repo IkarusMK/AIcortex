@@ -4,6 +4,13 @@ All notable changes to AICortex are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/). Full notes for each version are on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
+## [Unreleased]
+### Fixed
+- **WebUI: overview tiles now navigate to their section.** Tiles looked clickable but
+  did nothing; each stat tile is now a real `<button>` that jumps to its page
+  (skills/categories → Skills, secrets → Vault, services/devices → Services & devices,
+  users → Users) with hover + focus-visible states; the version tile stays passive.
+
 ## [1.12.2] — 2026-07-12
 ### Fixed
 - **Connector login REALLY fixed: the OIDC proxy no longer forwards `resource` upstream —
