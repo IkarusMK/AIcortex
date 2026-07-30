@@ -4,7 +4,7 @@
 # (forward_resource=False, require_authorization_consent="external") and
 # tests/test_oauth_upstream.py pins that contract, so version bumps arrive
 # ONLY via Dependabot PRs that pass those guards.
-fastmcp==3.4.4
+fastmcp==3.4.5
 paho-mqtt>=2.1,<3
 # SSH / SFTP for ssh_tools (remote commands + file transfer)
 paramiko>=5.0.0,<6
