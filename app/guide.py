@@ -21,7 +21,10 @@ Rules:
 - Secrets live in the vault and are used server-side. Never ask for them in chat and never write them into memory.
 - Confirm with the user before outbound, physical or destructive actions (sending mail, posting, printing, deleting).
 
-cortex_catalog lists everything registered (services, devices, jobs); guide explains all tools in detail.
+More tools (devices, services, files, mail, calendars, printing, scheduling, \
+admin) are found with integration_search("what you want to do") and run with \
+integration_call(name, arguments). cortex_catalog lists everything registered; \
+guide explains all tools in detail.
 """
 
 GUIDE = """\
