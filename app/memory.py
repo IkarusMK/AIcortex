@@ -25,6 +25,9 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 
 import store
 
@@ -240,7 +243,8 @@ def register(mcp):
     """Register the memory_* tools on a FastMCP instance."""
 
     @mcp.tool
-    def memory_write(title: str, content: str, type: str = "",
+    def memory_write(title: str, content: str,
+                     type: Annotated[str, Field(json_schema_extra={"enum": list(CANON_TYPES)})],
                      scope: str = "shared", tags: str = "",
                      source: str = "", review: str = "", project: str = "") -> str:
         """Save a durable, TYPED memory and write it back to the brain.

@@ -45,6 +45,18 @@ def _load(name: str):
         return None
 
 
+def _page(text: str, offset: int = 0, max_chars: int = 8000) -> str:
+    """One piece of a long text plus how to fetch the next one."""
+    start = max(0, int(offset or 0))
+    size = max(500, min(int(max_chars or 8000), 40000))
+    piece = text[start:start + size]
+    rest = len(text) - (start + len(piece))
+    if rest > 0:
+        piece += (f"\n…({rest} more characters — call again with "
+                  f"offset={start + len(piece)})")
+    return piece
+
+
 def register(mcp):
     @mcp.tool
     def service_add(name: str, base_url: str, token_env: str = "",
@@ -148,9 +160,12 @@ def register(mcp):
 
     @mcp.tool
     def call_service(service: str, path: str = "/", method: str = "GET",
-                     json_body: dict = None, params: dict = None) -> str:
+                     json_body: dict | list | str | int | float | bool | None = None,
+                     params: dict = None, offset: int = 0, max_chars: int = 8000) -> str:
         """Call a registered service's API. Only configured services can be reached;
-        the auth token is injected server-side from its token_env. Returns status + body."""
+        the auth token is injected server-side from its token_env. Returns status + body.
+        json_body = any JSON value (object, array, …). A long body comes in pieces of
+        max_chars; the reply says which offset to pass to read on."""
         cfg = _load(service)
         if not cfg:
             return f"Unknown service '{service}'. Use service_list / service_add."
@@ -189,9 +204,6 @@ def register(mcp):
             with netguard.guard(urlparse(url).hostname or ""):
                 r = httpx.request(m, url, json=json_body, params=params, headers=headers,
                                   timeout=30, verify=netguard.tls_verify(cfg))
-            body = r.text
-            if len(body) > 4000:
-                body = body[:4000] + "\n…(truncated)"
-            return f"HTTP {r.status_code}\n{body}"
+            return f"HTTP {r.status_code}\n" + _page(r.text, offset, max_chars)
         except Exception as exc:
             return f"Request failed: {exc}"
