@@ -44,6 +44,19 @@ const I18N = {
     vault_f_owner: "Besitzer (optional)", vault_ph_owner: "leer = geteiltes Secret",
     vault_writeonly: "Der Wert wird verschlüsselt gespeichert und nie wieder angezeigt.",
     vault_save: "Verschlüsselt speichern",
+    vault_col_used: "Benutzt von", vault_col_updated: "Geändert",
+    vault_f_desc: "Beschreibung (optional)", vault_ph_desc: "Wofür ist das Secret?",
+    vault_state_empty: "Vault leer — noch nichts gespeichert.",
+    vault_state_encrypted: "Vault verschlüsselt und lesbar.",
+    vault_state_plaintext: "Vault liegt im KLARTEXT. Schlüssel setzen und neu verschlüsseln.",
+    vault_state_unreadable: "Vault NICHT lesbar — falscher STORAGE_ENCRYPTION_KEY? Nichts wurde verändert.",
+    vault_state_rotating: "Schlüssel-Wechsel aktiv (alter Schlüssel gesetzt) — jetzt neu verschlüsseln.",
+    vault_state_nokey: "Kein STORAGE_ENCRYPTION_KEY gesetzt — Speichern ist gesperrt.",
+    vault_rekey: "Neu verschlüsseln",
+    vault_missing: "Werden verwendet, sind aber nicht gespeichert: {0}",
+    vault_unused: "nicht verwendet", vault_env: "Umgebungsvariable hat Vorrang",
+    confirm_overwrite_secret: "„{0}“ existiert schon ({1}). Wert überschreiben?",
+    confirm_rekey: "Den ganzen Vault mit dem aktuellen Schlüssel neu verschlüsseln?",
     shared: "geteilt",
     confirm_del_secret: "Secret „{0}“ endgültig löschen?",
     sk_new: "+ Neuer Skill",
@@ -109,6 +122,19 @@ const I18N = {
     vault_f_owner: "Owner (optional)", vault_ph_owner: "empty = shared secret",
     vault_writeonly: "The value is stored encrypted and will never be shown again.",
     vault_save: "Store encrypted",
+    vault_col_used: "Used by", vault_col_updated: "Changed",
+    vault_f_desc: "Description (optional)", vault_ph_desc: "What is this secret for?",
+    vault_state_empty: "Vault empty — nothing stored yet.",
+    vault_state_encrypted: "Vault encrypted and readable.",
+    vault_state_plaintext: "Vault is in PLAINTEXT. Set a key and re-encrypt.",
+    vault_state_unreadable: "Vault NOT readable — wrong STORAGE_ENCRYPTION_KEY? Nothing was changed.",
+    vault_state_rotating: "Key rotation active (old key set) — re-encrypt now.",
+    vault_state_nokey: "No STORAGE_ENCRYPTION_KEY set — storing is blocked.",
+    vault_rekey: "Re-encrypt",
+    vault_missing: "Used but not stored: {0}",
+    vault_unused: "not used", vault_env: "environment variable takes precedence",
+    confirm_overwrite_secret: "“{0}” already exists ({1}). Overwrite its value?",
+    confirm_rekey: "Re-encrypt the whole vault with the current key?",
     shared: "shared",
     confirm_del_secret: "Permanently delete secret “{0}”?",
     sk_new: "+ New skill",
@@ -248,19 +274,62 @@ async function loadOverview() {
   });
 }
 
+let SECRETS = [];
+
+function renderVaultState(st, missing) {
+  const key = !st.key ? "vault_state_nokey"
+    : st.rotating ? "vault_state_rotating" : `vault_state_${st.state}`;
+  $("#vault-state-text").textContent = t(key);
+  $("#vault-state").classList.toggle("bad", ["plaintext", "unreadable"].includes(st.state) || !st.key);
+  $("#btn-vault-rekey").classList.toggle("hidden",
+    !(st.key && (st.rotating || st.state === "plaintext")));
+  $("#vault-missing").textContent = missing.length ? t("vault_missing", missing.join(", ")) : "";
+  $("#vault-missing").classList.toggle("hidden", !missing.length);
+}
+
+async function loadOwnerPicker() {
+  try {
+    const d = await api("/ui/api/identities");
+    const list = $("#sec-owner-list");
+    list.textContent = "";
+    d.identities.forEach((id) => {
+      const o = document.createElement("option"); o.value = id; list.append(o);
+    });
+  } catch (e) { /* picker is a convenience; free text still works */ }
+}
+
 async function loadVault() {
   const d = await api("/ui/api/secrets");
+  SECRETS = d.secrets;
+  renderVaultState(d.status || { state: "encrypted", key: true }, d.missing || []);
+  loadOwnerPicker();
   const tbody = $("#vault-table tbody");
   tbody.textContent = "";
   $("#vault-empty").classList.toggle("hidden", d.secrets.length > 0);
   d.secrets.forEach((s) => {
     const tr = document.createElement("tr");
-    const n = document.createElement("td"); n.className = "mono"; n.textContent = s.name;
+    const n = document.createElement("td");
+    const nm = document.createElement("div"); nm.className = "mono"; nm.textContent = s.name;
+    n.append(nm);
+    if (s.description) {
+      const ds = document.createElement("div"); ds.className = "dim small"; ds.textContent = s.description;
+      n.append(ds);
+    }
+    if (s.env_override) {
+      const ev = document.createElement("span"); ev.className = "tag warn"; ev.textContent = t("vault_env");
+      n.append(ev);
+    }
     const o = document.createElement("td");
     const tag = document.createElement("span");
     tag.className = "tag" + (s.owner ? " owner" : "");
-    tag.textContent = s.owner || t("shared");
+    tag.textContent = s.owner_label || s.owner || t("shared");
+    if (s.owner) tag.title = s.owner;
     o.append(tag);
+    const used = document.createElement("td"); used.className = "small";
+    used.textContent = (s.used_by && s.used_by.length) ? s.used_by.join(", ") : t("vault_unused");
+    if (!(s.used_by && s.used_by.length)) used.classList.add("dim");
+    const upd = document.createElement("td"); upd.className = "dim small";
+    upd.textContent = [(s.updated || "").slice(0, 10), s.updated_by].filter(Boolean).join(" · ");
     const del = document.createElement("td");
     const btn = document.createElement("button");
     btn.className = "btn danger sm"; btn.textContent = t("delete");
@@ -271,7 +340,7 @@ async function loadVault() {
       toast(r.message, r.ok); loadVault();
     });
     del.append(btn);
-    tr.append(n, o, del);
+    tr.append(n, o, used, upd, del);
     tbody.append(tr);
   });
 }
@@ -514,13 +583,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const v = $("#sec-value");
     v.type = v.type === "password" ? "text" : "password";
   });
+  $("#btn-vault-rekey").addEventListener("click", async () => {
+    if (!(await confirmModal(t("confirm_rekey")))) return;
+    try {
+      const r = await api("/ui/api/secrets/rekey", { method: "POST", body: {} });
+      toast(r.message, r.ok); loadVault();
+    } catch (err2) { toast(t("toast_error", err2.message), false); }
+  });
   $("#form-secret").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const name = $("#sec-name").value.trim();
+    const owner = $("#sec-owner").value.trim();
+    const existing = SECRETS.find((s) => s.name === name
+      && (s.owner === owner || s.owner_label === owner || (!s.owner && !owner)));
+    if (existing && !(await confirmModal(t("confirm_overwrite_secret", name,
+      existing.owner_label || existing.owner || t("shared"))))) return;
     try {
       const r = await api("/ui/api/secrets", { method: "POST", body: {
-        name: $("#sec-name").value.trim(),
-        value: $("#sec-value").value,
-        owner: $("#sec-owner").value.trim(),
+        name, value: $("#sec-value").value, owner,
+        description: $("#sec-desc").value.trim(),
       }});
       toast(r.message, r.ok);
       if (r.ok) { $("#form-secret").reset(); loadVault(); }

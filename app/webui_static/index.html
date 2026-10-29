@@ -88,6 +88,13 @@
           <h1 data-i18n="nav_vault"></h1>
           <span class="badge cyan" data-i18n="vault_badge"></span>
         </header>
+        <div class="term-chip wide" id="vault-state">
+          <span class="term-icon">🗝</span>
+          <span class="term-text" id="vault-state-text"></span>
+          <span class="spacer"></span>
+          <button id="btn-vault-rekey" class="btn ghost sm hidden" data-i18n="vault_rekey"></button>
+        </div>
+        <p id="vault-missing" class="err small hidden"></p>
         <div class="grid-2">
           <div class="panel">
             <h3 data-i18n="vault_list_title"></h3>
@@ -95,7 +102,9 @@
             <table class="tbl" id="vault-table">
               <thead><tr>
                 <th data-i18n="vault_col_name"></th>
-                <th data-i18n="vault_col_owner"></th><th></th>
+                <th data-i18n="vault_col_owner"></th>
+                <th data-i18n="vault_col_used"></th>
+                <th data-i18n="vault_col_updated"></th><th></th>
               </tr></thead>
               <tbody></tbody>
             </table>
@@ -113,8 +122,11 @@
                        data-i18n-ph="vault_ph_value">
                 <button type="button" id="sec-toggle" class="btn ghost sm">👁</button>
               </div>
+              <label data-i18n="vault_f_desc"></label>
+              <input id="sec-desc" class="inp" maxlength="300" data-i18n-ph="vault_ph_desc">
               <label data-i18n="vault_f_owner"></label>
-              <input id="sec-owner" class="inp mono" data-i18n-ph="vault_ph_owner">
+              <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
+              <datalist id="sec-owner-list"></datalist>
               <p class="dim small" data-i18n="vault_writeonly"></p>
               <button class="btn primary" data-i18n="vault_save"></button>
             </form>

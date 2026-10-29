@@ -223,7 +223,11 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .btn.danger:hover { background: rgba(248, 113, 113, .12); }
 
 /* ── tables ────────────────────────────────────────────────────────────── */
-.grid-2 { display: grid; grid-template-columns: 1.25fr .95fr; gap: 20px; align-items: start; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .95fr);
+  gap: 20px; align-items: start; }
+/* wide tables scroll inside their panel instead of pushing the page sideways */
+.panel:has(> .tbl) { overflow-x: auto; }
+@media (max-width: 1100px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 .tbl { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .tbl th { text-align: left; font-size: 11px; letter-spacing: .13em;
   text-transform: uppercase; color: var(--dim); padding: 8px 10px;
@@ -294,3 +298,7 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
   .main { padding: 22px 16px 48px; }
   .grid-2, .skills-layout, .row-2 { grid-template-columns: 1fr; }
 }
+
+/* vault state banner: red when the vault is plaintext, unreadable or keyless */
+.term-chip.bad { border-color: var(--danger); }
+.term-chip.bad .term-text { color: var(--danger); }
