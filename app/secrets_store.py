@@ -78,16 +78,46 @@ def _owner_prefix(owner: str) -> str:
     return f"users/{tenancy._safe(owner)}"
 
 
+# The server's OWN settings are never handed to an integration as a "secret".
+# Every *_env field (service token_env, webhook secret_env, …) is resolved here, and
+# some of those tools send the value to a URL the caller chooses — so without this
+# a non-admin could point one at STORAGE_ENCRYPTION_KEY and receive it as a header.
+_INTERNAL_ENV = frozenset({
+    "STORAGE_ENCRYPTION_KEY", "JWT_SIGNING_KEY", "RUNNER_TOKEN", "RUNNER_ROLE",
+    "BASE_URL", "DATA_ROOT", "INTERNAL_ALLOW_CIDRS", "ALLOW_INSECURE",
+    "ALLOW_PLAINTEXT_VAULT", "LEARN_AUTOCAPTURE", "SESSION_RETENTION_DAYS",
+    "MAIL_ALLOWED_RECIPIENTS", "SSH_STRICT_HOST_KEYS", "CATALOG_CACHE_FILE",
+    "AGENT_IDLE_SECS", "AGENT_ONLINE_SECS",
+    "API_ENABLED", "API_MAX_BODY_BYTES", "API_RATE_PER_MIN",
+    "UI_ENABLED", "UI_MAX_BODY_BYTES", "UI_SESSION_TTL",
+    "MCP_ALLOWED_HOSTS", "MCP_HOST", "MCP_PORT",
+    "FS_MAX_WRITE_BYTES", "FS_VIEW_CEILING_BYTES", "FS_WORKSPACE_QUOTA_BYTES",
+    "IMAP_MAX_ATTACH_BYTES", "IMAP_MAX_BODY_BYTES", "MAIL_MAX_ATTACH_BYTES",
+    "PRINT_MAX_BYTES", "WEBHOOK_MAX_BODY_BYTES", "FTP_CURL_MAX_TIME",
+    # generic process environment
+    "PATH", "HOME", "HOSTNAME", "PWD", "USER", "LANG", "TZ", "PUID", "PGID",
+})
+_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON")
+_INTERNAL_SUFFIXES = ("_DIR",)
+
+
+def is_internal_env(name: str) -> bool:
+    """True for names that belong to the server itself, never to an integration."""
+    return (name in _INTERNAL_ENV or name.startswith(_INTERNAL_PREFIXES)
+            or name.endswith(_INTERNAL_SUFFIXES))
+
+
 def get_secret(name: str):
     """Server-side lookup: environment first, then the encrypted vault.
     NOT exposed as a tool — secret values never go back to the model.
+    The server's own settings (see ``is_internal_env``) are never resolved.
 
     Per-user vault (P2): when the call happens for a CONFINED caller, their OWN
     secret (``users/<sub>/<name>``) is preferred over the shared/flat one — so an
     admin can hand a single user their own token for a shared service. Fail-open:
     if the caller can't be resolved, only env + the flat secret are used (the
     original behaviour)."""
-    if not name:
+    if not name or is_internal_env(name):
         return None
     env = os.environ.get(name)
     if env:
