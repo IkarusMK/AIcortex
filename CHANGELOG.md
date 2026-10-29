@@ -8,6 +8,32 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 Proposed as **2.0.0** when released — optimized and updated, nothing removed
 (`bootstrap` and all tools keep working).
 
+### Upgrading from 1.x
+Pull the new image and restart with the same `data/` folder and `.env`; there is no
+migration step. Checked end to end against a real 1.12.2 installation
+(`tests/upgrade_check`): connected apps stay signed in (access tokens, refresh tokens
+and registered clients carry over), `RUNNER_TOKEN` and REST API keys keep working, and
+memory, skills, vault, services, tasks, sessions, agents and cron jobs are read as they
+are. What changes for you:
+- **Clients see eleven tools up front** (profile `core`), not all 128. Every tool can
+  still be called by its name, and `integration_search` / `integration_call` reach all
+  of them. To keep the old full list, set `TOOL_PROFILE_DEFAULT=full`.
+- **`bootstrap` is still listed** and now returns the short `cortex_start` briefing;
+  project instructions that say "call bootstrap" can stay.
+- **Notes with umlauts or other non-ASCII titles** get readable file names now
+  (`größe-der-düse.md`); notes 1.x saved under its ASCII names are still found and
+  updated in place.
+- **Shared skills** can be changed only by an admin or their author when `AUTH_ENFORCE`
+  is on (1.x let every user role overwrite them). Skills from 1.x have no author, so
+  admins change them.
+- **Per-person views** of tasks, inbox and sessions apply under `AUTH_ENFORCE`; items
+  from 1.x have no owner and stay visible to everyone, as before.
+- **Without OIDC**: `ALLOW_INSECURE=1` setups stay open as before. Without OIDC and
+  without `ALLOW_INSECURE`, 1.x listened on localhost only, without a token; 2.0 listens
+  on `MCP_HOST` and asks for a bearer token (`RUNNER_TOKEN` or an agent key), and the
+  WebUI's no-login admin works only on the machine itself.
+- Start a new session in your AI apps after the update so they load the new tool list.
+
 ### Added
 - **Any AI client can connect.** Per-agent keys (`ak_…`) and `RUNNER_TOKEN` work as
   bearer tokens on `/mcp`, with or without OIDC (Hermes, OpenClaw, Codex, Claude Code,
@@ -20,8 +46,8 @@ Proposed as **2.0.0** when released — optimized and updated, nothing removed
 - **Projects**: `project` on `memory_write`, `session_save` and `task_add`;
   `memory_search(project=…)`; `cortex_start` brings the project's notes, open tasks and
   last session along.
-- **Tool profiles**: `core` (default) lists ten tools (5,134 instead of 51,164
-  characters); `integration_search` / `integration_call` reach every other tool under the
+- **Tool profiles**: `core` (default) lists eleven tools (5,675 instead of 50,667
+  characters of descriptions and schemas); `integration_search` / `integration_call` reach every other tool under the
   same permissions. `full` lists everything. Per agent key or `TOOL_PROFILE_DEFAULT`.
 - **Tool annotations** (title, read-only, destructive, open-world) on all 128 tools.
 - **Multi-agent**: everyone can `agent_register` (names belong to their person),

@@ -167,7 +167,7 @@ Test: ask the model *"call the `ping` tool"* → it should return the AICortex v
 
 ### 5 — Build a Lite-Agent (recommended)
 
-AICortex lists only ten tools by default (tool profile `core`); everything else is
+AICortex lists only eleven tools by default (tool profile `core`); everything else is
 found with `integration_search` and run with `integration_call`, so a mid-size local
 model isn't flooded. For a curated agent:
 

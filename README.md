@@ -103,6 +103,11 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 > In `docker-compose.yml`, comment out `build: .`, uncomment
 > `image: ghcr.io/ikarusmk/aicortex:latest`, then `docker compose pull && docker compose up -d`.
 
+> **Updating from 1.x:** pull the new image and restart with the same `data/` folder and
+> `.env` — there is no migration step. Connected apps stay signed in; memory, skills,
+> vault, services, tasks, sessions and API keys carry over. What changes is listed in
+> [CHANGELOG.md](CHANGELOG.md#upgrading-from-1x).
+
 **Expose it & add the connector:**
 
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.

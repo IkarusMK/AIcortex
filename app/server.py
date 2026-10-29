@@ -214,7 +214,7 @@ except Exception as exc:
 # "left out" from "set to empty" (see cfgstore.write_merged).
 mcp.add_middleware(cfgstore.build_middleware())
 
-# Tool profiles: "core" lists ten tools (the router reaches the rest), "full" all.
+# Tool profiles: "core" lists eleven tools (the router reaches the rest), "full" all.
 mcp.add_middleware(profiles.build_middleware())
 
 # Title + read-only / destructive / open-world hints for every tool (one rule set).

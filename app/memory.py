@@ -71,6 +71,22 @@ def _slug(text: str) -> str:
     return "m-" + hashlib.sha1((text or "").encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
 
 
+def _legacy_slug(text: str) -> str:
+    """The file-name rule up to v1.12: ASCII only ("Größe" → "gr-e")."""
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:60]
+
+
+def _note_path(directory: Path, name: str) -> Path:
+    """The file of note `name` in `directory`. A note saved before v2 under the old
+    ASCII name is used when only that file exists, so updating to v2 neither hides
+    it nor duplicates it. (v1's catch-all untitled.md is never taken over.)"""
+    path = directory / f"{_slug(name)}.md"
+    legacy = _legacy_slug(name)
+    if not path.exists() and legacy and (directory / f"{legacy}.md").exists():
+        return directory / f"{legacy}.md"
+    return path
+
+
 def project_key(name: str) -> str:
     """Normalized project name for matching ("Birdhouse", "birdhouse " → "birdhouse")."""
     return re.sub(r"[^\w]+", "-", (name or "").lower()).strip("-_")[:60]
@@ -272,8 +288,8 @@ def stage_candidate(title: str, content: str, type_: str = "reference",
     """Write a candidate (not live!) into the reserved candidates scope. Used by
     learn.py (auto-capture) and by the memory_note tool. Returns the slug."""
     t = canon_type(type_) or "reference"
-    slug = _slug(title)
-    path = _scope_dir(CANDIDATES_SCOPE) / f"{slug}.md"
+    path = _note_path(_scope_dir(CANDIDATES_SCOPE), title)
+    slug = path.stem
     today = _today()
     created = today
     if path.exists():  # keep original created date if we overwrite
@@ -316,8 +332,8 @@ def register(mcp):
                     "how to work (corrections, confirmed approaches) · project = "
                     "ongoing work/goals (add a review date) · reference = pointers "
                     "to resources/URLs/IDs.")
-        slug = _slug(title)
-        path = _scope_dir(scope) / f"{slug}.md"
+        path = _note_path(_scope_dir(scope), title)
+        slug = path.stem
         today = _today()
         with store.locked(path):
             created, current, last_author = today, 0, ""
@@ -371,7 +387,7 @@ def register(mcp):
     @mcp.tool
     def memory_read(name: str, scope: str = "shared") -> str:
         """Read a memory's full content by its name (as shown by memory_list)."""
-        path = _scope_dir(scope) / f"{_slug(name)}.md"
+        path = _note_path(_scope_dir(scope), name)
         if not path.exists():
             return f"No memory named '{name}' in scope '{scope}'."
         return path.read_text(encoding="utf-8")
@@ -413,7 +429,7 @@ def register(mcp):
     @mcp.tool
     def memory_delete(name: str, scope: str = "shared") -> str:
         """Delete a memory by its name."""
-        path = _scope_dir(scope) / f"{_slug(name)}.md"
+        path = _note_path(_scope_dir(scope), name)
         if not path.exists():
             return f"No memory named '{name}' in scope '{scope}'."
         path.unlink()
@@ -441,14 +457,14 @@ def register(mcp):
     def memory_promote(name: str, scope: str = "shared", type: str = "") -> str:
         """Promote a reviewed candidate into live memory (default scope 'shared').
         Optionally override its type. Removes it from the candidates queue."""
-        src = _scope_dir(CANDIDATES_SCOPE) / f"{_slug(name)}.md"
+        src = _note_path(_scope_dir(CANDIDATES_SCOPE), name)
         if not src.exists():
             return f"No candidate named '{name}'. Use memory_candidates."
         meta, body = read_meta(src)
         t = canon_type(type) or canon_type(meta.get("type", "")) or "reference"
         title = meta.get("title", name)
         today = _today()
-        dst = _scope_dir(scope) / f"{_slug(title)}.md"
+        dst = _note_path(_scope_dir(scope), title)
         fm = _frontmatter(title=title, type_=t, tags=meta.get("tags", []),
                           source=(meta.get("source", "auto") + " · promoted"),
                           created=meta.get("created", today), updated=today)
@@ -459,7 +475,7 @@ def register(mcp):
     @mcp.tool
     def memory_reject(name: str) -> str:
         """Reject (delete) a memory candidate without promoting it."""
-        src = _scope_dir(CANDIDATES_SCOPE) / f"{_slug(name)}.md"
+        src = _note_path(_scope_dir(CANDIDATES_SCOPE), name)
         if not src.exists():
             return f"No candidate named '{name}'."
         src.unlink()

@@ -257,7 +257,7 @@ def register(mcp):
         `scopes` = a comma-separated allow-list (DEFAULT-DENY — required): exact tool
         names, '<prefix>_*' globs, friendly aliases (memory, skills, files, calendar,
         mail, tasks, sessions), or 'all'. Secret/key/tenancy tools are NEVER reachable
-        via a key. `ttl_days` > 0 sets an expiry. `profile` = "core" (ten tools up
+        via a key. `ttl_days` > 0 sets an expiry. `profile` = "core" (eleven tools up
         front, the rest via integration_search) or "full" (every tool listed).
 
         The full key is shown ONCE in the result — store it now; only its hash is

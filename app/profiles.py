@@ -1,7 +1,9 @@
 """Tool profiles — how many tools a client sees up front.
 
 - ``core`` (default): the ten tools a conversation needs, two of which —
-  ``integration_search`` and ``integration_call`` — reach every other tool.
+  ``integration_search`` and ``integration_call`` — reach every other tool —
+  plus ``bootstrap``, the old name of ``cortex_start`` that existing project
+  instructions still call.
   Small models and clients with tool limits (OpenAI: 128 incl. the agent's own)
   stay within budget; Anthropic reports tool choice degrading past 30–50 tools.
 - ``full``: every tool is listed (strong clients with their own tool search).
@@ -23,6 +25,7 @@ CORE_TOOLS = (
     "cortex_start", "memory_search", "memory_read", "memory_write",
     "skill_search", "skill_load", "session_save", "task_list",
     "integration_search", "integration_call",
+    "bootstrap",   # alias of cortex_start; existing project instructions call it
 )
 _ROUTER = ("integration_search", "integration_call")
 _NAMES = {"core": "core", "kern": "core", "full": "full", "voll": "full"}
