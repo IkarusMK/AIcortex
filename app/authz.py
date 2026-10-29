@@ -241,7 +241,11 @@ def _identity():
     try:
         from fastmcp.server.dependencies import get_access_token
         tok = get_access_token()
-        cid = getattr(tok, "client_id", None) or "unknown"
+        # MultiAuth (fastmcp 4) rewrites client_id to a JSON-qualified string and
+        # keeps the verifier's own id in original_client_id — compare on that one,
+        # or the runner token stops being the (least-privilege) runner.
+        cid = (getattr(tok, "original_client_id", None)
+               or getattr(tok, "client_id", None) or "unknown")
         claims = getattr(tok, "claims", None) or {}
         # Per-person identity from the forwarded upstream 'sub' if present,
         # else the client_id. is_runner stays tied to the static token's client_id.
