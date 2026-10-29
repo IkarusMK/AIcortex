@@ -63,6 +63,11 @@ def _slug(text: str) -> str:
     return s[:60] or "untitled"
 
 
+def project_key(name: str) -> str:
+    """Normalized project name for matching ("Birdhouse", "birdhouse " → "birdhouse")."""
+    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:60]
+
+
 def _scope_dir(scope: str) -> Path:
     """Resolve (and create) the directory for a scope, guarding against traversal."""
     safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", scope or "shared") or "shared"
@@ -92,8 +97,10 @@ def _tag_list(tags) -> list[str]:
 
 def _frontmatter(*, title: str, type_: str, tags: list[str], source: str,
                  created: str, updated: str, review: str = "",
-                 status: str = "") -> str:
+                 status: str = "", project: str = "") -> str:
     lines = ["---", f"title: {title}", f"type: {type_}"]
+    if project:
+        lines.append(f"project: {project}")
     if tags:
         lines.append("tags: " + ", ".join(tags))
     lines.append(f"source: {source or 'unknown'}")
@@ -235,7 +242,7 @@ def register(mcp):
     @mcp.tool
     def memory_write(title: str, content: str, type: str = "",
                      scope: str = "shared", tags: str = "",
-                     source: str = "", review: str = "") -> str:
+                     source: str = "", review: str = "", project: str = "") -> str:
         """Save a durable, TYPED memory and write it back to the brain.
         type (REQUIRED) = one of: user (who the user is / preferences) ·
         feedback (how you should work — corrections & confirmed approaches) ·
@@ -244,9 +251,10 @@ def register(mcp):
         (house rule, like skill_write needs a category) so the brain stays sorted.
         Only store DURABLE facts (not session chatter), nothing already in
         code/git, and NEVER secrets (those go to the vault via secret_set).
-        Search first — overwriting the same title MERGES; for related-but-different
-        facts the dedup hint flags overlaps so you can merge instead of duplicate.
-        Overwrites an existing memory with the same title."""
+        project = the project this fact belongs to (e.g. "Birdhouse"); cortex_start
+        and memory_search(project=…) bring it along when that project is worked on.
+        Writing the same title again REPLACES that memory (read it first and fold
+        the old content in); the dedup hint flags related titles to merge."""
         t = canon_type(type)
         if not t:
             return ("Refused: a memory MUST be typed (house rule, so the brain "
@@ -264,7 +272,8 @@ def register(mcp):
             created = meta.get("created", today)
         fm = _frontmatter(title=title, type_=t, tags=_tag_list(tags),
                           source=source or "session", created=created,
-                          updated=today, review=review.strip())
+                          updated=today, review=review.strip(),
+                          project=(project or "").strip())
         store.write_text_atomic(path, f"{fm}\n\n{content.strip()}\n")
         hits = _overlap_hits(scope, title, slug)
         note = ""
@@ -306,11 +315,15 @@ def register(mcp):
         return path.read_text(encoding="utf-8")
 
     @mcp.tool
-    def memory_search(query: str, scope: str = "shared") -> str:
-        """Search a scope's memories for a keyword; returns matching names + snippets."""
+    def memory_search(query: str, scope: str = "shared", project: str = "") -> str:
+        """Search a scope's memories for a keyword; returns matching names + snippets.
+        project = only memories of that project (as set by memory_write)."""
         q = (query or "").lower()
+        want = project_key(project)
         hits = []
         for p in sorted(_scope_dir(scope).glob("*.md")):
+            if want and project_key(read_meta(p)[0].get("project", "")) != want:
+                continue
             text = p.read_text(encoding="utf-8")
             if q and q in text.lower():
                 snippet = next((ln for ln in text.splitlines()

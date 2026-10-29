@@ -120,6 +120,14 @@ def agent_rows() -> list[str]:
     return out
 
 
+def open_tasks(project: str = "") -> list:
+    """Tasks not done yet, optionally only those of `project` (normalized match)."""
+    import memory
+    want = memory.project_key(project)
+    return [t for t in _read(TASKS_FILE) if t.get("status") != "done"
+            and (not want or memory.project_key(t.get("project", "")) == want)]
+
+
 def board_counts() -> dict:
     counts: dict = {}
     for t in _read(TASKS_FILE):
@@ -197,17 +205,19 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def task_add(title: str, detail: str = "", created_by: str = "",
-                 needs: str = "", for_agent: str = "", session_id: str = "") -> str:
+                 needs: str = "", for_agent: str = "", session_id: str = "",
+                 project: str = "") -> str:
         """Add a task to the shared board (status=open) for any agent to claim.
         needs = capability tag(s) an agent should have (e.g. "mql5, build"); used by
         task_next to route work. for_agent = assign it to a specific agent by name.
         session_id = link to a work session (sessions.py) so whoever picks it up can
-        session_load the full context — the basis for clean handoffs."""
+        session_load the full context — the basis for clean handoffs.
+        project = the project the task belongs to (shown by cortex_start)."""
         items = _read(TASKS_FILE)
         t = {"id": _id(), "ts": _now(), "title": title, "detail": detail,
              "status": "open", "owner": "", "created_by": created_by or "unknown",
              "needs": needs, "assigned": for_agent, "session_id": session_id,
-             "updated": _now(), "notes": []}
+             "project": (project or "").strip(), "updated": _now(), "notes": []}
         items.append(t)
         _write(TASKS_FILE, items)
         extra = []

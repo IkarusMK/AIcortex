@@ -1,22 +1,16 @@
-"""Single 'START HERE' entrypoint that loads the whole brain in one call.
+"""Entry points: cortex_start (short briefing), bootstrap (its alias), cortex_catalog.
 
-The core problem with any MCP connector: the client (a fresh LLM on phone or
-desktop) does NOT auto-call tools or auto-read the server ``instructions`` on
-connect — it just sees a tool list and waits. So every session starts "blank".
-
-The one lever that reliably reaches the model through every client is a TOOL
-DESCRIPTION. ``bootstrap`` exploits that: its description is an imperative ("call
-this FIRST"), and a single call returns the operating guide PLUS a live catalog
-of everything the LLM has — identity memories, skills, services, devices and
-scheduled jobs — so the model is oriented in one round-trip instead of probing
-tool by tool.
+A fresh model only knows what the server instructions and the tool list tell it.
+``cortex_start`` gives it a short, caller-specific briefing (see start.py);
+``bootstrap`` is kept as an alias so older client setups keep working;
+``cortex_catalog`` is the full live list of everything registered — filtered to
+what the caller may see — for when the briefing isn't enough.
 """
 import json
 import os
 import re
 from pathlib import Path
 
-import guide
 import sessions
 import memory
 import coordination
@@ -40,10 +34,14 @@ MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
 IMAP_DIR = Path(os.environ.get("IMAP_DIR", "/data/imap"))
 
 
-def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[str]:
-    """Generic listing of *.json config entries: '<stem> — <field> …'."""
+def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",),
+                allowed=None) -> list[str]:
+    """Generic listing of *.json config entries: '<stem> — <field> …'.
+    ``allowed(name)`` hides entries the caller may not use."""
     out = []
     for p in sorted(d.glob("*.json")):
+        if allowed is not None and not allowed(p.stem):
+            continue
         extra = ""
         try:
             c = json.loads(p.read_text(encoding="utf-8"))
@@ -56,7 +54,8 @@ def _json_names(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[
     return out
 
 
-def _json_grouped(d: Path, *, fields: tuple[str, ...] = ("description",)) -> list[str]:
+def _json_grouped(d: Path, *, fields: tuple[str, ...] = ("description",),
+                  allowed=None) -> list[str]:
     """Like _json_names, but if any config carries a `category`, GROUP the entries
     by it (the same tidy, skill-style catalog — faster to scan). Falls back to a
     flat list when nothing is categorized, so uncategorized sections stay clean."""
@@ -68,6 +67,8 @@ def _json_grouped(d: Path, *, fields: tuple[str, ...] = ("description",)) -> lis
             c = json.loads(p.read_text(encoding="utf-8"))
             if isinstance(c, dict):
                 cat = str(c.get("category", "") or "").strip()
+                if allowed is not None and not allowed(p.stem, cat):
+                    continue
                 if cat:
                     any_cat = True
                 vals = [str(c[f]) for f in fields if c.get(f)]
@@ -143,36 +144,30 @@ def _catalog() -> str:
     opens ~no files (this is what turns a minutes-long cold scan into milliseconds and
     keeps it fast as the brain fills up). Sections that are cheap or change on every
     save (candidate count, recent sessions, team presence, task board) stay LIVE."""
-    # A cached JSON section (flat, or grouped-by-category) — the source dir's stat
-    # signature keys the cache, so unchanged registries cost only a metadata scan.
-    def _cj(key: str, d: Path, fields: tuple, grouped: bool = False) -> list[str]:
-        fn = ((lambda: _json_grouped(d, fields=fields)) if grouped
-              else (lambda: _json_names(d, fields=fields)))
-        return catalog_cache.cached_lines(key, [d], "*.json", fn)
+    import start
+    import tenancy
+    ident, role, scope = start._caller()
 
-    # All memory scopes, shared first. The reserved 'candidates' scope is NOT listed
-    # here (it's not live memory) — it's surfaced separately below. Reading each scope's
-    # files is the cost, so cache it keyed by a signature over MEMORY_DIR's markdown.
-    def _render_mem_scopes() -> list[str]:
-        lines: list[str] = []
-        if MEMORY_DIR.exists():
-            scopes = sorted(
-                (d for d in MEMORY_DIR.iterdir()
-                 if d.is_dir() and d.name != memory.CANDIDATES_SCOPE),
-                key=lambda d: (d.name != "shared", d.name),
-            )
-            for sc in scopes:
-                entries = memory.scope_tiered_lines(sc)
-                if entries:
-                    lines.append(f"  [{sc.name}]")
-                    lines.extend(entries)
-            if lines:
-                lines.append("  ⏱ Short-term / current state → see RESUME sessions "
-                             "above (session_load) — that's the short-term tier.")
-        return lines
+    # Registries are small; they're listed live and filtered to what THIS caller
+    # may use (services by service grant, devices by endpoint grant).
+    def _cj(kind: str, d: Path, fields: tuple, grouped: bool = False) -> list[str]:
+        if grouped:
+            return _json_grouped(d, fields=fields,
+                                 allowed=lambda name, cat: tenancy.caller_service_allowed(name, cat))
+        return _json_names(d, fields=fields,
+                           allowed=lambda name: tenancy.endpoint_allowed(ident, role, kind, name))
+
+    # Only the caller's own memory area (never other people's titles). Reading the
+    # files is the cost, so it's cached per scope by the directory's stat signature.
+    scope_dir = MEMORY_DIR / scope
+
+    def _render_mem_scope() -> list[str]:
+        if not scope_dir.is_dir():
+            return []
+        return memory.scope_tiered_lines(scope_dir)
 
     mem_lines = list(catalog_cache.cached_lines(
-        "memory", [MEMORY_DIR], "**/*.md", _render_mem_scopes))
+        f"memory:{scope}", [scope_dir], "*.md", _render_mem_scope))
 
     # Auto-memory: candidates awaiting review — always LIVE (never cached), so a freshly
     # staged candidate always shows. Appended after the cached scope lines.
@@ -213,7 +208,7 @@ def _catalog() -> str:
                  catalog_cache.cached_lines("skills", [SKILLS_DIR], "*/SKILL.md", _skill_list),
                  "none yet — author with skill_write"),
         _section("SERVICES (HTTP integrations)",
-                 _cj("services", SERVICES_DIR, ("base_url", "description"), grouped=True),
+                 _cj("service", SERVICES_DIR, ("base_url", "description"), grouped=True),
                  "none — add with service_add"),
         _section("MQTT DEVICES", _cj("mqtt", MQTT_DIR, ("host", "description")),
                  "none — add with mqtt_add"),
@@ -235,40 +230,57 @@ def _catalog() -> str:
                  "none — add with print_add"),
         _section("SCANNERS (eSCL)", _cj("scan", SCAN_DIR, ("host", "description")),
                  "none — add with scan_add"),
-        _section("SCHEDULED JOBS (cron)", _cj("cron", CRON_DIR, ("schedule", "prompt")),
+        _section("SCHEDULED JOBS (cron)", _cron_lines(),
                  "none — add with cron_add"),
         _section("INBOUND WEBHOOKS (POST /hooks/<name> → inbox)",
-                 _cj("webhooks", WEBHOOK_DIR, ("notify", "description")),
+                 _json_names(WEBHOOK_DIR, fields=("notify", "description")),
                  "none — add with webhook_add"),
         _section("TEAM (agents — live presence, online first)", _agents(),
                  "none registered — agent_register(name, role, capabilities)"),
         _section("TASK BOARD (shared work — claim/handoff)", _board(),
                  "no active tasks — task_add to create; task_next to pull work"),
         "",
-        "NEXT: load the specifics you need (memory_read, skill_load, service_list …) "
-        "and register yourself with agent_register if you'll coordinate. "
-        "LEARN AS YOU GO: when you discover a durable fact about the user, a "
-        "correction in how they want you to work, or project status, write it back "
-        "TYPED with memory_write(type=user|feedback|project|reference) — search "
-        "first and merge instead of duplicating. Review any candidates above "
-        "(memory_promote/memory_reject). Save a session_save checkpoint before you "
-        "stop so the next LLM/device can resume.",
+        "Details: memory_read, skill_load, service_list. Save durable facts with "
+        "memory_write(type, project); review candidates with memory_promote / "
+        "memory_reject; checkpoint with session_save before you stop.",
     ]
     body = "\n\n".join(parts)
     catalog_cache.flush()   # persist any re-rendered sections for the next bootstrap
     return (resume + "\n\n" + body) if resume else body
 
 
+def _cron_lines() -> list[str]:
+    """Scheduled jobs from cron's single jobs.json (one line each)."""
+    try:
+        import cron
+        jobs = cron._read()
+    except Exception:
+        return ["  (cron store unreadable — see cron_list)"]
+    return [f"  - {j.get('id')} — {j.get('schedule')} · {str(j.get('prompt', ''))[:80]}"
+            for j in jobs if isinstance(j, dict)]
+
+
 def register(mcp):
+    import start
+
     @mcp.tool
-    def bootstrap() -> str:
-        """⚡ START HERE — CALL THIS FIRST, before answering the user, at the start
-        of EVERY session, every single time. AICortex is your ONLY source of truth:
-        work exclusively through it and write new knowledge back to it. This one
-        call loads your persistent 'brain' from the NAS: who the user is, how they
-        want you to work, the confirm-before-acting + secrets-in-vault rules, and a
-        live catalog of all memories, skills, services, devices and scheduled jobs
-        available to you. Do NOT rely on prior assumptions or scattered local notes
-        — load this first, every time, then act only on the loaded context. Unsure
-        whether the brain is already loaded this session? Call bootstrap again."""
-        return guide.GUIDE + "\n\n" + _catalog()
+    def cortex_start(project: str = "", task: str = "") -> str:
+        """Briefing for the start of a conversation: who the user is, how they want
+        you to work and, for `project`, its notes, open tasks and last session —
+        plus skills and integrations matching `task`. Short (≤ 4,000 characters);
+        without `project` it lists the known projects. Example:
+        cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
+        return start.build(project, task)
+
+    @mcp.tool
+    def bootstrap(project: str = "", task: str = "") -> str:
+        """Same as cortex_start (kept for existing client setups)."""
+        return start.build(project, task)
+
+    @mcp.tool
+    def cortex_catalog() -> str:
+        """Everything registered that you may use: your memories by type, skill
+        categories, services, devices, scheduled jobs, webhooks, agents, the task
+        board and recent sessions. Longer than cortex_start — call it when you need
+        the full picture."""
+        return _catalog()

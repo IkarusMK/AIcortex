@@ -106,31 +106,38 @@ def _canonical_category(category: str) -> str:
     return cat
 
 
+def search(query: str, category: str = "", limit: int = 10) -> list[tuple]:
+    """Skills relevant to `query` that the caller may use: [(score, name, description)],
+    best first. Words shorter than 3 letters are ignored (they match everything)."""
+    import tenancy
+    words = [w for w in (query or "").lower().split() if len(w) >= 3]
+    cat = (category or "").strip().lower()
+    results = []
+    for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        meta, body = _parse(sk.read_text(encoding="utf-8"))
+        if cat and _category(meta).lower() != cat:
+            continue
+        # Per-user capability area: hide skills this caller may not use.
+        if not tenancy.caller_skill_allowed(sk.parent.name, _category(meta)):
+            continue
+        hay = f"{sk.parent.name} {meta.get('name','')} {meta.get('description','')} {meta.get('tags','')} {body}".lower()
+        score = sum(1 for w in words if w in hay)
+        if score:
+            results.append((score, sk.parent.name, str(meta.get("description", ""))))
+    results.sort(reverse=True)
+    return results[:limit]
+
+
 def register(mcp):
     @mcp.tool
     def skill_search(query: str, category: str = "") -> str:
         """Find skills relevant to a task (ranked name — description). Call this
         before specialized work, then skill_load the best match. Optionally narrow
         to one category (see skill_list for the categories)."""
-        import tenancy
-        q = (query or "").lower()
-        cat = (category or "").strip().lower()
-        results = []
-        for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
-            meta, body = _parse(sk.read_text(encoding="utf-8"))
-            if cat and _category(meta).lower() != cat:
-                continue
-            # Per-user capability area: hide skills this caller may not use.
-            if not tenancy.caller_skill_allowed(sk.parent.name, _category(meta)):
-                continue
-            hay = f"{sk.parent.name} {meta.get('name','')} {meta.get('description','')} {meta.get('tags','')} {body}".lower()
-            score = sum(1 for w in q.split() if w in hay)
-            if score:
-                results.append((score, sk.parent.name, str(meta.get("description", ""))))
+        results = search(query, category)
         if not results:
             return f"No skills matched '{query}'. (Use skill_write to add one.)"
-        results.sort(reverse=True)
-        return "\n".join(f"- {n} — {d}" for _, n, d in results[:10])
+        return "\n".join(f"- {n} — {d}" for _, n, d in results)
 
     @mcp.tool
     def skill_list(category: str = "") -> str:

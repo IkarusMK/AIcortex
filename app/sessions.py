@@ -103,6 +103,15 @@ def recent(n: int = 5):
     return items[:n]
 
 
+def latest_for_project(key: str):
+    """Newest session whose project matches the normalized project `key`, or None."""
+    import memory
+    for s in recent(len(_all()) or 1):
+        if memory.project_key(s.get("project", "")) == key:
+            return s
+    return None
+
+
 def latest_open():
     """The single most recently updated session. None if none exist."""
     items = recent(1)
@@ -137,12 +146,13 @@ def register(mcp):
     @_serialized
     def session_save(summary: str, title: str = "", session_id: str = "",
                      next_steps: str = "", status: str = "open",
-                     model: str = "") -> str:
+                     model: str = "", project: str = "") -> str:
         """Append a checkpoint to a work session so another LLM/device can resume it.
         Keep `summary` short (what happened, current state); `next_steps` = what to do
         next. `model` = which LLM you are (e.g. "claude", "chatgpt"). Omit `session_id`
         to start a new session (returns its id); pass it to continue an existing one.
-        Old sessions auto-expire after SESSION_RETENTION_DAYS."""
+        project = the project this work belongs to — cortex_start shows the project's
+        latest session. Old sessions auto-expire after SESSION_RETENTION_DAYS."""
         if not (summary or "").strip():
             return "Nothing to save: 'summary' is required."
         now = _now()
@@ -164,6 +174,8 @@ def register(mcp):
             data["updated"] = now
             data["status"] = entry["status"]
             data.setdefault("entries", []).append(entry)
+        if (project or "").strip():
+            data["project"] = project.strip()
         _save_file(data)
         pruned = _prune()
         note = f" ({pruned} stale session(s) auto-removed)" if pruned else ""

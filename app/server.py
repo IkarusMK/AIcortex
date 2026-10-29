@@ -188,7 +188,7 @@ def _build_auth():
 auth = _build_auth()
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
-mcp = FastMCP("AICortex", auth=auth, instructions=guide.GUIDE)
+mcp = FastMCP("AICortex", auth=auth, instructions=guide.INSTRUCTIONS)
 
 
 # Authorization (Welle 3): central, FAIL-OPEN policy gate. OFF unless
