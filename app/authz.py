@@ -282,14 +282,17 @@ def effective_identity():
     except Exception:
         pass
     try:
+        ident, is_runner, claims = _identity()
+    except Exception:
+        return "unknown", "user"
+    try:
         import actas
-        owner = actas.current()
+        owner = actas.current(ident)    # only the caller that started the run
         if owner:
             return owner, _actas_role(owner)
     except Exception:
         pass
     try:
-        ident, is_runner, claims = _identity()
         return ident, role_for(ident, is_runner, claims)
     except Exception:
         return "unknown", "user"

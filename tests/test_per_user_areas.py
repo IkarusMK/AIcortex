@@ -72,9 +72,12 @@ def test_per_user_areas_and_actas(monkeypatch):
     assert tenancy.act_as_owner(BOB, "user", ALICE)[0] is False, "actas-owner: user other refused"
 
     # ── authz.effective_identity honors act-as, never defaults owner to admin ──
-    actas.end()
+    # The binding belongs to the caller that started it; outside a request that
+    # caller is whatever authz._identity() resolves to.
+    CALLER = authz._identity()[0]
+    actas.end(CALLER)
     tok = actas.issue("job1", ALICE)
-    ok, _ = actas.begin(tok, "job1")
+    ok, _ = actas.begin(tok, "job1", caller=CALLER)
     assert ok, "actas: begin ok"
     ident, role = authz.effective_identity()
     assert ident == ALICE, "effective: identity is owner"
@@ -83,20 +86,20 @@ def test_per_user_areas_and_actas(monkeypatch):
     assert tenancy.caller_service_allowed("github", "Dev"), "act-as run: alice may use github"
     assert not tenancy.caller_service_allowed("crafty", "Gaming"), "act-as run: alice may NOT use crafty"
     # owner that IS an admin in policy.roles resolves to admin
-    actas.end()
-    ok, _ = actas.begin(actas.issue("j2", "boss@x.com"), "j2")
+    actas.end(CALLER)
+    ok, _ = actas.begin(actas.issue("j2", "boss@x.com"), "j2", caller=CALLER)
     _, boss_role = authz.effective_identity()
     assert boss_role == "admin", "effective: policy-admin owner → admin role"
 
     # ── single-use: consume() then the same token can't begin again ──
-    actas.end()
+    actas.end(CALLER)
     t3 = actas.issue("j3", ALICE)
-    assert actas.begin(t3, "j3")[0] is True, "replay: first begin ok"
-    actas.consume()
-    assert actas.current() is None, "replay: binding cleared after consume"
-    assert actas.begin(t3, "j3")[0] is False, "replay: reused token refused"
-    actas.end()
-    assert actas.current() is None, "no binding: current() None"
+    assert actas.begin(t3, "j3", caller=CALLER)[0] is True, "replay: first begin ok"
+    actas.consume(CALLER)
+    assert actas.current(CALLER) is None, "replay: binding cleared after consume"
+    assert actas.begin(t3, "j3", caller=CALLER)[0] is False, "replay: reused token refused"
+    actas.end(CALLER)
+    assert actas.current(CALLER) is None, "no binding: current() None"
 
     # ── H1: per-user DEVICE/endpoint areas (caldav/imap/webdav/ssh/…) ──
     set_policy({"users": {

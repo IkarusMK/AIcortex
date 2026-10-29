@@ -111,7 +111,7 @@ def _runner_plumbing_ok():
     harvest other jobs' tokens or nest identities. Closes that escalation."""
     try:
         import actas
-        if actas.current():
+        if actas.current(_caller()[0]):
             return False, "not allowed while an act-as run is active"
     except Exception:
         pass
@@ -207,7 +207,7 @@ def register(mcp):
         if not ok:
             return f"Denied: act_as_begin is {reason}."
         import actas
-        good, res = actas.begin(act_as_token, job_id or None)
+        good, res = actas.begin(act_as_token, job_id or None, caller=_caller()[0])
         if not good:
             return f"Refused: {res}"
         return f"Acting as {res['sub']} for job {res['job']} (until token expiry)."
@@ -215,12 +215,13 @@ def register(mcp):
     @mcp.tool
     def act_as_end() -> str:
         """For the NAS runner: end the current act-as run and INVALIDATE its token
-        (single-use), so the next job runs under the correct identity. Runner/admin."""
-        ok, _ = _runner_or_admin()
+        (single-use), so the next job runs under the correct identity. Runner/admin;
+        ends only the caller's own run."""
+        ok, ident = _runner_or_admin()
         if not ok:
             return "Denied: only the NAS runner or an admin may end an act-as run."
         import actas
-        actas.consume()
+        actas.consume(ident)
         return "act-as ended (token invalidated)."
 
     @mcp.tool

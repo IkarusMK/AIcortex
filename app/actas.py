@@ -99,53 +99,64 @@ def verify(token: str, expected_job: str = None):
     return True, claims
 
 
-# ── Runtime act-as binding (long-lived, SEQUENTIAL runner) ──────────────────
-# The runner processes due jobs one at a time, so a single process-level binding
-# is safe: begin() before a job, end()/consume() after. current() tells the
-# identity resolvers (authz/tenancy) whom the running job acts as. A token's jti is
-# single-use: once consumed it can't start another run (replay guard) — on top of
-# the short TTL and the due-this-minute window.
+# ── Runtime act-as binding, one per CALLER ───────────────────────────────────
+# The runner starts a binding with begin(), makes its tool calls, then ends it with
+# end()/consume(). Those are separate MCP requests, so the binding has to outlive a
+# single request — but it must only ever apply to the caller that started it. It is
+# therefore keyed by the caller's authenticated identity (the runner's token), never
+# held process-wide: other people and agents calling at the same time keep their own
+# identity. (The MCP session id can't be the key: on 2026-07-28 connections every
+# request gets a new one.) A token's jti is single-use (replay guard), on top of the
+# short TTL and the due-this-minute window.
 import collections
+import threading
 
-_active = {"sub": None, "job": None, "exp": 0, "jti": None}
+_bindings: dict = {}            # caller identity -> {"sub", "job", "exp", "jti"}
+_lock = threading.Lock()
 _consumed: set = set()
 _consumed_order: "collections.deque" = collections.deque()
 _CONSUMED_CAP = 4096  # bound the replay-guard set so it can't grow without limit
 
 
-def begin(token: str, expected_job: str = None):
-    """Validate `token` and make the current process act as its owner. Returns
+def begin(token: str, expected_job: str = None, caller: str = ""):
+    """Validate `token` and make `caller` act as its owner. Returns
     ``(ok, claims_or_reason)``. Refuses a token whose jti was already consumed."""
     ok, res = verify(token, expected_job)
     if not ok:
         return False, res
-    if res.get("jti") in _consumed:
-        return False, "token already used (replay)"
-    _active.update(sub=res["sub"], job=res["job"], exp=res["exp"], jti=res.get("jti"))
+    with _lock:
+        if res.get("jti") in _consumed:
+            return False, "token already used (replay)"
+        _bindings[caller] = {"sub": res["sub"], "job": res["job"],
+                             "exp": res["exp"], "jti": res.get("jti")}
     return True, res
 
 
-def end() -> None:
-    """Drop the current act-as binding (call after a job run)."""
-    _active.update(sub=None, job=None, exp=0, jti=None)
+def end(caller: str = "") -> None:
+    """Drop `caller`'s act-as binding (call after a job run)."""
+    with _lock:
+        _bindings.pop(caller, None)
 
 
-def consume() -> None:
-    """Invalidate the current binding's token (single-use) and clear it. Called on
-    cron_mark_run so the same token can't drive a second run."""
-    jti = _active.get("jti")
-    if jti and jti not in _consumed:
-        _consumed.add(jti)
-        _consumed_order.append(jti)
-        # Evict only the OLDEST jti when over the cap (a wholesale clear would briefly
-        # re-open replay for everything); TTL already bounds a jti's useful life.
-        while len(_consumed_order) > _CONSUMED_CAP:
-            _consumed.discard(_consumed_order.popleft())
-    end()
+def consume(caller: str = "") -> None:
+    """Invalidate `caller`'s binding token (single-use) and clear it. Called on
+    cron_mark_run / act_as_end so the same token can't drive a second run."""
+    with _lock:
+        jti = (_bindings.get(caller) or {}).get("jti")
+        if jti and jti not in _consumed:
+            _consumed.add(jti)
+            _consumed_order.append(jti)
+            # Evict only the OLDEST jti when over the cap (a wholesale clear would
+            # briefly re-open replay for everything); TTL already bounds a jti's life.
+            while len(_consumed_order) > _CONSUMED_CAP:
+                _consumed.discard(_consumed_order.popleft())
+        _bindings.pop(caller, None)
 
 
-def current():
-    """The owner sub the running job acts as, or None. Expired binding → None."""
-    if _active.get("sub") and int(_active.get("exp", 0)) >= int(time.time()):
-        return _active["sub"]
+def current(caller: str = ""):
+    """The owner sub `caller`'s running job acts as, or None. Expired → None."""
+    with _lock:
+        b = _bindings.get(caller)
+        if b and b.get("sub") and int(b.get("exp", 0)) >= int(time.time()):
+            return b["sub"]
     return None
