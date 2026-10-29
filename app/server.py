@@ -52,19 +52,27 @@ HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
-def _host_guard():
-    """Allow-list for FastMCP's Host/Origin DNS-rebinding guard.
+def _csv_env(name: str) -> list[str]:
+    return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
 
-    fastmcp 3.4.3 enforces Host/Origin validation on the HTTP transport. Behind a
-    reverse proxy the public domain must be allow-listed, or every proxied request
-    (incl. the OAuth discovery/registration) is rejected with 421 Misdirected
-    Request. Derived from BASE_URL — the public URL already required for OIDC — so
-    it can't drift; localhost/127.0.0.1 stay allowed by the guard's own defaults,
-    and MCP_ALLOWED_HOSTS (comma-separated) can add more for edge setups. Returns
-    (None, None) when no public URL is set, leaving the safe defaults untouched.
+
+def _host_guard():
+    """Host/Origin allow-lists for fastmcp's DNS-rebinding guard.
+
+    Default (None, None): fastmcp's "auto" mode, which checks Host/Origin only for
+    a server bound to loopback — the case DNS rebinding actually threatens. On the
+    NAS every request needs a token or an OAuth login anyway, and a fixed list
+    turned away LAN addresses, Docker neighbours and VPN names with 421.
+
+    Strict opt-in: set MCP_ALLOWED_HOSTS (and optionally MCP_ALLOWED_ORIGINS),
+    comma-separated; the BASE_URL host/origin is added automatically.
     """
     from urllib.parse import urlparse
 
+    extra_hosts = _csv_env("MCP_ALLOWED_HOSTS")
+    extra_origins = _csv_env("MCP_ALLOWED_ORIGINS")
+    if not (extra_hosts or extra_origins):
+        return None, None
     hosts: list[str] = []
     origins: list[str] = []
     base = os.environ.get("BASE_URL", "")
@@ -75,11 +83,8 @@ def _host_guard():
         scheme = parsed.scheme or "https"
         hosts += [netloc, host_only, f"{host_only}:*"]
         origins += [f"{scheme}://{netloc}", f"{scheme}://{host_only}", f"{scheme}://{host_only}:*"]
-    for extra in os.environ.get("MCP_ALLOWED_HOSTS", "").split(","):
-        if extra.strip():
-            hosts.append(extra.strip())
-    hosts = list(dict.fromkeys(hosts))  # de-dup, preserve order
-    origins = list(dict.fromkeys(origins))
+    hosts = list(dict.fromkeys(hosts + extra_hosts))  # de-dup, preserve order
+    origins = list(dict.fromkeys(origins + extra_origins))
     return (hosts or None, origins or None)
 
 
