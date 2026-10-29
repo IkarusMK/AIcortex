@@ -187,6 +187,10 @@ def vault_delete(name: str, owner: str = "") -> str:
                 "STORAGE_ENCRYPTION_KEY (or restore secrets.enc.bak) and retry.")
     owner = (owner or "").strip()
     key = f"{_owner_prefix(owner)}/{name}" if owner else name
+    if owner and key not in d and f"users/{owner}/{name}" in d:
+        # `owner` is the stored namespace segment as the listings show it
+        # (WebUI, secret_list) rather than the raw identity — use it as is.
+        key = f"users/{owner}/{name}"
     if key in d:
         del d[key]
         _write_all(d)

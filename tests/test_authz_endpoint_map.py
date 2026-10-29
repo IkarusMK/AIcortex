@@ -18,7 +18,7 @@ MUST_BE_GATED = {"mqtt_publish", "mqtt_get", "ftp_list", "ftp_upload", "ssh_run"
 def _schemas(server):
     async def go():
         async with Client(server.mcp) as client:
-            return {t.name: t.inputSchema.get("properties", {}) for t in await client.list_tools()}
+            return {t.name: t.input_schema.get("properties", {}) for t in await client.list_tools()}
     return asyncio.run(go())
 
 
