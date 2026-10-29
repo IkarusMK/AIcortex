@@ -139,7 +139,7 @@ mcpServers:
     requiresOAuth: true
     timeout: 120000
     initTimeout: 30000
-    serverInstructions: true    # AICortex's bootstrap rules land in the agent context
+    serverInstructions: true    # AICortex's short instructions land in the agent context
 ```
 
 Then:
@@ -167,13 +167,15 @@ Test: ask the model *"call the `ping` tool"* → it should return the AICortex v
 
 ### 5 — Build a Lite-Agent (recommended)
 
-AICortex exposes 100+ tools; a mid-size local model drowns if it sees all of them. Use an
-**Agent** with a curated subset:
+AICortex lists only ten tools by default (tool profile `core`); everything else is
+found with `integration_search` and run with `integration_call`, so a mid-size local
+model isn't flooded. For a curated agent:
 
 1. Sidebar → **Agents** → create one on your Ollama model.
-2. **Add MCP Server Tools** → `aicortex` → enable ~10–15 tools (e.g. `bootstrap`, `ping`,
-   `memory_*`, `skill_search`, `skill_load`, `fs_read`, `fs_write`, `inbox_read`).
-3. Instructions: *"Call `bootstrap` first, then follow its rules."*
+2. **Add MCP Server Tools** → `aicortex` → enable the listed tools (`cortex_start`,
+   `memory_*`, `skill_search`, `skill_load`, `session_save`, `task_list`,
+   `integration_search`, `integration_call`).
+3. Instructions: *"Call `cortex_start` first with the project name."*
 4. Chat through this agent from now on.
 
 ## Optional — cloud models alongside local

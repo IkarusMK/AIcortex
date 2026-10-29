@@ -161,6 +161,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Group | Tools | What it does |
 |-------|-------|--------------|
 | Onboarding | `cortex_start` · `cortex_catalog` · `bootstrap` | **Start here** — a short briefing for the project at hand; the full catalog on request; `bootstrap` = alias of `cortex_start` |
+| Router | `integration_search` · `integration_call` | Find and run any tool beyond the ten listed by default (profile `core`); same permissions as a direct call. Profile `full` lists every tool. |
 | Health | `ping` | Connectivity check |
 | Memory | `memory_write` (typed) · `memory_read`/`list`/`search`/`delete` · `memory_note` · `memory_candidates` · `memory_promote`/`memory_reject` | Self-learning, **typed** facts with dedup + a candidate review queue |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |

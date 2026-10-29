@@ -5,7 +5,71 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+Proposed as **2.0.0** when released — optimized and updated, nothing removed
+(`bootstrap` and all tools keep working).
+
+### Added
+- **Any AI client can connect.** Per-agent keys (`ak_…`) and `RUNNER_TOKEN` work as
+  bearer tokens on `/mcp`, with or without OIDC (Hermes, OpenClaw, Codex, Claude Code,
+  LM Studio, Open WebUI, LibreChat, Claude API, OpenAI Responses/Agents SDK). OAuth for
+  the Claude and ChatGPT apps is pinned by tests (401 challenge, resource metadata,
+  PKCE S256, DCR and CIMD). Setup for every client: `docs/clients.md`.
+- **`cortex_start(project, task)`** — a short per-caller briefing (≤ 4,000 characters;
+  ~650 in a typical case) instead of the ~56,000-character `bootstrap` dump; `bootstrap`
+  is now its alias, the full list moved to **`cortex_catalog`**.
+- **Projects**: `project` on `memory_write`, `session_save` and `task_add`;
+  `memory_search(project=…)`; `cortex_start` brings the project's notes, open tasks and
+  last session along.
+- **Tool profiles**: `core` (default) lists ten tools (5,134 instead of 51,164
+  characters); `integration_search` / `integration_call` reach every other tool under the
+  same permissions. `full` lists everything. Per agent key or `TOOL_PROFILE_DEFAULT`.
+- **Tool annotations** (title, read-only, destructive, open-world) on all 128 tools.
+- **Multi-agent**: everyone can `agent_register` (names belong to their person),
+  attribution `person/agent` from the token, per-person views of tasks/inbox/agents/
+  sessions under enforcement, leased task claims, versioned memories with
+  `expected_version` conflict detection.
+- **WebUI**: vault state banner, description / usage / who-and-when per secret, owner
+  picker, overwrite confirmation, key rotation (`STORAGE_ENCRYPTION_KEY_OLD` +
+  re-encrypt) and plaintext-vault encryption; new page **Connect clients** (agent keys
+  with ready-made setup snippets).
+- **Search**: `memory_search` by words with ranking and type/tag filters;
+  `skill_search` weighted by name/description/tags/body with a cached index.
+
+### Changed
+- **fastmcp 3.4.7 → 4.1.4** (MCP 2026-07-28 alongside 2025-11-25). Libraries the app
+  imports directly are now declared.
+- **Server instructions**: 1,201 characters in English (was 27,073, bilingual, with a
+  mandatory banner).
+- Host check: any Host header by default; `MCP_ALLOWED_HOSTS` / new
+  `MCP_ALLOWED_ORIGINS` for a strict list.
+- Without OIDC the WebUI's no-login admin session is limited to direct requests on the
+  machine itself.
+
+### Security
+- Cron act-as was process-wide: during a scheduled job every concurrent client acted as
+  the job owner. Now bound to the runner that started it.
+- `*_env` references could resolve the server's own keys (e.g. `webhook_send` with
+  `secret_env="STORAGE_ENCRYPTION_KEY"` by a non-admin). Server settings are never
+  resolved as integration secrets.
+- On fastmcp 4 the RUNNER_TOKEN lost its runner identity behind MultiAuth and fell back
+  to the admin default; identity now uses `original_client_id`.
+- Agent keys never become admin by default and keep their scopes on `/mcp`.
+- `tools/list` hides tools the caller's role may not call.
+
 ### Fixed
+- Parallel tool calls lost data (40 parallel `task_add` kept 8) and an unreadable store
+  file was read as empty and overwritten; stores are now locked and written atomically.
+- `task_claim` let a second agent take over a claimed task.
+- Partial updates could not clear a field (`auth_scheme=""` stayed `Bearer` → 401) and
+  defaults overwrote stored values; only passed arguments change now.
+- Per-user MQTT/FTP grants never matched (wrong parameter names); `ftp_list` was ungated.
+- Personal vault secrets could not be deleted from the WebUI.
+- Duplicate hint fired on common words; umlaut and non-Latin titles were mangled or
+  collided as `untitled`; auto-capture re-staged candidates on every update.
+- `call_service` accepts JSON arrays and pages long responses instead of cutting at
+  4,000 characters.
+
+### Fixed (WebUI)
 - **WebUI: overview tiles now navigate to their section.** Tiles looked clickable but
   did nothing; each stat tile is now a real `<button>` that jumps to its page
   (skills/categories → Skills, secrets → Vault, services/devices → Services & devices,

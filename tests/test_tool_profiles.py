@@ -89,3 +89,24 @@ def test_agent_key_can_carry_its_own_profile(monkeypatch, core_server):
     assert rec["profile"] == "full"
     stored = json.loads(apikeys._keyid_path(rec["keyid"]).read_text(encoding="utf-8"))
     assert stored["profile"] == "full"
+
+
+def test_viewer_can_start_and_search_but_router_stays_read_only(monkeypatch, core_server):
+    monkeypatch.setenv("AUTH_ENFORCE", "1")
+    authz = sys.modules["authz"]
+    monkeypatch.setattr(authz, "_identity", lambda: ("vera", False, {}))
+    monkeypatch.setattr(authz, "role_for", lambda ident, is_runner, claims=None: "viewer")
+
+    async def go(c):
+        start = await c.call_tool("cortex_start", {}, raise_on_error=False)
+        found = await c.call_tool("integration_search", {"query": "list tasks"}, raise_on_error=False)
+        read = await c.call_tool("integration_call", {"name": "service_list", "arguments": {}},
+                                 raise_on_error=False)
+        write = await c.call_tool("integration_call", {"name": "task_add",
+                                                       "arguments": {"title": "x"}},
+                                  raise_on_error=False)
+        return start, found, read, write
+
+    start, found, read, write = _session(core_server, go)
+    assert not start.is_error and not found.is_error and not read.is_error
+    assert write.is_error

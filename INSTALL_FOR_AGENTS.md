@@ -17,7 +17,7 @@
 
 **Goal:** a running AICortex container on the user's NAS/server, reachable over
 HTTPS, secured with the user's own OIDC provider, and verified with a successful
-`bootstrap` call from their MCP client.
+`cortex_start` call from their MCP client.
 
 **Ground rules while installing:**
 1. **Confirm before state-changing actions** (starting containers, overwriting files).
@@ -143,17 +143,18 @@ be sent through the OIDC login once.
 
 Ask the user to tell their assistant:
 
-> "Call the `ping` tool, then call `bootstrap`."
+> "Call the `ping` tool, then call `cortex_start`."
 
 - `ping` responds (and reports the running version) → connector, proxy and auth
   chain work.
-- `bootstrap` returns the guide **plus a live catalog** (memory / skills /
-  services) → **installation complete.**
+- `cortex_start` returns a short briefing (user, working style, projects) →
+  **installation complete.**
 
-Recommend the one-time client setup so every future session starts correctly:
-pin the rule from `docs/client-project-instructions.md` into the client's custom
-instructions ("Call `bootstrap` first, at the start of every session, and work
-exclusively through AICortex").
+Agents and CLIs without an OAuth login (Claude Code, Codex, Hermes, OpenClaw,
+LM Studio, …) get their own key in the WebUI under **Connect clients**, which also
+shows the setup snippet; see `docs/clients.md`. For clients that don't pass the
+server instructions to the model, pin the short block from
+`docs/client-project-instructions.md` into the client's custom instructions.
 
 ## If something fails
 

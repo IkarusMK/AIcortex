@@ -64,7 +64,9 @@ ADMIN_TOOLS = {
 
 # Read/list/search/load — safe for the viewer role.
 READ_ONLY_TOOLS = {
-    "bootstrap", "ping", "guide",
+    "bootstrap", "ping", "guide", "cortex_start", "cortex_catalog", "integration_search",
+    # the router itself; every call it makes is gated again by role (read-only here)
+    "integration_call",
     "memory_read", "memory_list", "memory_search", "memory_candidates",
     "skill_search", "skill_list", "skill_load", "skill_resource",
     "service_list", "mqtt_list", "mqtt_get",

@@ -15,7 +15,7 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 |------|--------|
 | **admin** | everything |
 | **user** | everything **except** admin-only tools (registering services/devices/MCP servers, managing secrets, identities and per-user areas). A user **may** schedule their **own** cron jobs — those always run as that user (act-as). |
-| **viewer** | read-only tools only (`*_list`, `*_search`, `*_read`, `*_load`, `bootstrap`, …) |
+| **viewer** | read-only tools only (`*_list`, `*_search`, `*_read`, `*_load`, `cortex_start`, `bootstrap`, …) |
 
 **Admin-only tools:** `service_add/delete`, `mqtt_add/delete`, `ftp_add/delete`,
 `webdav_add/delete_endpoint`, `ssh_add/delete_endpoint`, `mail_add/delete_account`,
