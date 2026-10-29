@@ -354,6 +354,20 @@ def build_middleware():
         ToolError = RuntimeError
 
     class AuthzMiddleware(Middleware):
+        async def on_list_tools(self, context, call_next):
+            # Show a caller only what its role may call — otherwise a model sees
+            # admin tools, tries them and gets refused.
+            tools = await call_next(context)
+            try:
+                if not enabled():
+                    return tools
+                _, role = effective_identity()
+                return [t for t in tools if decide(role, t.name)[0]]
+            except Exception as exc:
+                audit("unknown", "?", "tools/list", "fail-open",
+                      f"list filter error, full list shown: {type(exc).__name__}: {exc}")
+                return tools
+
         async def on_call_tool(self, context, call_next):
             tool = getattr(getattr(context, "message", None), "name", None)
             try:
