@@ -66,6 +66,29 @@ def _stage(tool_name: str, args: dict) -> None:
                            type_=type_, source="auto")
 
 
+# Module that owns each registration's config (all expose _cfg_path(name)).
+_OWNER = {
+    "service_add": "services", "mqtt_add": "mqtt_tools", "ftp_add": "ftp_tools",
+    "webdav_add": "webdav_tools", "ssh_add": "ssh_tools", "print_add": "print_tools",
+    "scan_add": "scan_tools", "mcp_add": "mcp_gateway", "mail_add": "mail_tools",
+}
+
+
+def _already_registered(tool_name: str, args: dict) -> bool:
+    """True if the entry existed BEFORE this call — an update, not news."""
+    name = (args.get("name") or "").strip()
+    if not name:
+        return False
+    try:
+        import importlib
+        if tool_name == "cron_add":
+            import cron
+            return any(j.get("id") == cron._slug(name) for j in cron._read())
+        return importlib.import_module(_OWNER[tool_name])._cfg_path(name).exists()
+    except Exception:
+        return False
+
+
 def _extract(context):
     """Best-effort (name, arguments) from a middleware context across FastMCP
     minor versions. Returns (None, {}) if it can't, so the caller no-ops."""
@@ -85,12 +108,12 @@ def build_middleware():
 
     class LearnMiddleware(Middleware):
         async def on_call_tool(self, context, call_next):
+            name, args = _extract(context)
+            existed = name in _DURABLE and _already_registered(name, args)
             result = await call_next(context)  # run the real tool first
             try:
-                if _enabled():
-                    name, args = _extract(context)
-                    if name and name in _DURABLE:
-                        _stage(name, args)
+                if _enabled() and name and name in _DURABLE and not existed:
+                    _stage(name, args)        # new registrations only, not updates
             except Exception:
                 pass  # fail-open: never let capture affect the tool result
             return result
