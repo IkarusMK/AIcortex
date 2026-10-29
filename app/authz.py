@@ -107,10 +107,12 @@ _ENDPOINT_TOOLS = {
     "mail_send": ("mail", "account"),
     "print_document": ("print", "printer"),
     "scan_document": ("scan", "scanner"),
-    "mqtt_publish": ("mqtt", "device"), "mqtt_get": ("mqtt", "device"),
+    "mqtt_publish": ("mqtt", "broker"), "mqtt_get": ("mqtt", "broker"),
     "mcp_call": ("mcp", "server"), "mcp_tools": ("mcp", "server"),
-    "ftp_upload": ("ftp", "endpoint"),
+    "ftp_list": ("ftp", "server"), "ftp_upload": ("ftp", "server"),
 }
+# tests/test_authz_endpoint_map.py checks every entry against the tool's real
+# parameters — a wrong name here silently disables the per-user gate.
 
 # Request-scoped effective identity for the REST layer (rest_api.py). Unlike the
 # process-global cron act-as, a contextvar is per-async-task, so concurrent REST
