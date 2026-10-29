@@ -192,6 +192,10 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
     """Resolve a caller's role. Precedence: explicit per-identity policy →
     IdP role/group claim → runner/default fallback. Secure defaults: runner→user,
     everyone else→admin (so the human operator is never locked out)."""
+    if isinstance(claims, dict) and claims.get("aicortex_key"):
+        # A per-agent key (agent_auth.py) is never an accidental admin: the key's
+        # person's explicit policy role, else "user" — same rule as on REST.
+        return role_for_apikey(identity)
     pol = _policy()
     roles = pol.get("roles", {}) if isinstance(pol, dict) else {}
     if identity and identity in roles and roles[identity] in _VALID_ROLES:
@@ -272,6 +276,17 @@ def role_for_apikey(sub: str) -> str:
     identity's explicit policy role, else 'user'. So a leaked key is never an
     accidental super-user; grant admin in policy.json if a key truly needs it."""
     return _actas_role(sub)
+
+
+def key_allows(tool: str) -> bool:
+    """For a per-agent key (agent_auth.py): is ``tool`` inside the key's scopes?
+    True for every other kind of caller."""
+    _, _, claims = _identity()
+    if not (isinstance(claims, dict) and claims.get("aicortex_key")):
+        return True
+    import apikeys
+    return (apikeys.scope_allows(claims.get("key_scopes") or [], tool)
+            and not apikeys.hard_denied(tool))
 
 
 def effective_identity():
@@ -363,6 +378,7 @@ def build_middleware():
             # admin tools, tries them and gets refused.
             tools = await call_next(context)
             try:
+                tools = [t for t in tools if key_allows(t.name)]
                 if not enabled():
                     return tools
                 _, role = effective_identity()
@@ -374,6 +390,11 @@ def build_middleware():
 
         async def on_call_tool(self, context, call_next):
             tool = getattr(getattr(context, "message", None), "name", None)
+            if tool and not key_allows(tool):
+                # A per-agent key's scopes apply regardless of AUTH_ENFORCE.
+                raise ToolError(
+                    f"Denied: this agent key may not call '{tool}' (outside the key's "
+                    f"scopes). An admin can issue a key with more scopes.")
             try:
                 if enabled() and tool:
                     # effective_identity() honors an active cron act-as binding, so a

@@ -8,6 +8,7 @@ import asyncio
 import importlib
 import json
 import time
+import types
 
 
 class FakeMCP:
@@ -26,7 +27,8 @@ class Req:
     """Minimal request double for the handler signatures webui uses."""
 
     def __init__(self, headers=None, cookies=None, query=None, path=None,
-                 body=b"", base_url="http://localhost:8787/"):
+                 body=b"", base_url="http://localhost:8787/", client_host="127.0.0.1"):
+        self.client = types.SimpleNamespace(host=client_host, port=50000)
         self.headers = {k.lower(): v for k, v in (headers or {}).items()}
         self.cookies = cookies or {}
         self.query_params = query or {}
@@ -291,3 +293,16 @@ def test_index_injects_version_cachebuster(monkeypatch, tmp_path):
     assert "{{v}}" not in html
     assert f"?v={version.__version__}" in html
     assert "Content-Security-Policy" in resp.headers
+
+
+# ── open mode (no OIDC) is for the local operator only ──────────────────────
+
+def test_open_mode_refuses_lan_and_proxied_requests(monkeypatch, tmp_path):
+    webui, mcp = _webui(monkeypatch, tmp_path)
+    monkeypatch.delenv("ALLOW_INSECURE", raising=False)
+    status, _ = _call(mcp, "/ui/api/secrets", client_host="192.168.1.30")
+    assert status in (401, 403)
+    status, _ = _call(mcp, "/ui/api/secrets", headers={"X-Forwarded-For": "203.0.113.9"})
+    assert status in (401, 403)
+    status, _ = _call(mcp, "/ui/api/secrets")
+    assert status == 200

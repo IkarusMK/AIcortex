@@ -132,10 +132,25 @@ def _verify(token: str):
         return None
 
 
+def _is_local_request(request) -> bool:
+    """A request made on this machine directly — loopback peer AND not relayed by a
+    reverse proxy (a proxy on the same host also connects from loopback)."""
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None) or ""
+    if host not in ("127.0.0.1", "::1", "localhost"):
+        return False
+    headers = request.headers
+    return not (headers.get("x-forwarded-for") or headers.get("forwarded")
+                or headers.get("x-real-ip"))
+
+
 def _session(request):
-    """The caller's UI session, or None. Open mode (no OIDC): the server binds
-    localhost-only, so the local operator IS the admin — synthetic session."""
+    """The caller's UI session, or None. Without OIDC there is no login, so only
+    the local operator (a direct request on this machine) gets the synthetic admin
+    session — the server may listen on the LAN for bearer-token agents."""
     if not _oidc_configured():
+        if not (_is_local_request(request) or os.environ.get("ALLOW_INSECURE") == "1"):
+            return None
         return {"sub": "local-operator", "name": "Local operator",
                 "role": "admin", "csrf": "local", "mode": "open"}
     tok = request.cookies.get(SESSION_COOKIE, "")

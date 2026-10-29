@@ -53,3 +53,32 @@ def fresh_server(tmp_path, monkeypatch):
     import server
     yield server
     _purge_app_modules()
+
+
+@pytest.fixture
+def http_server(fresh_server):
+    """``fresh_server`` served over real HTTP on a free local port.
+
+    Yields the base URL (no trailing slash). Needed wherever transport-level
+    behaviour matters: bearer tokens, 401 challenges, host checks.
+    """
+    import socket
+    import threading
+    import time
+
+    import uvicorn
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    app = fresh_server.mcp.http_app(path="/mcp")
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.time() + 10
+    while not server.started and time.time() < deadline:
+        time.sleep(0.05)
+    assert server.started, "test HTTP server did not start"
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=5)

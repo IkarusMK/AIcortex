@@ -104,11 +104,22 @@ def _client_storage():
 
 
 def _build_auth():
-    """Enable OAuth (OIDC proxy) when OIDC_CONFIG_URL + OIDC_CLIENT_ID are set."""
+    """Who may connect to /mcp.
+
+    - OIDC configured: OAuth for interactive apps (claude.ai, ChatGPT, ...) PLUS
+      static bearer tokens (per-agent ``ak_`` keys, RUNNER_TOKEN) via MultiAuth.
+    - No OIDC: bearer tokens only — header-only agents still work.
+    - ALLOW_INSECURE=1 without OIDC: no auth at all (local development only).
+    """
+    import agent_auth
+
     config_url = os.environ.get("OIDC_CONFIG_URL")
     client_id = os.environ.get("OIDC_CLIENT_ID")
     if not (config_url and client_id):
-        return None
+        if os.environ.get("ALLOW_INSECURE") == "1":
+            return None
+        print("[AICortex] auth: bearer tokens only (agent keys / RUNNER_TOKEN), no OIDC")
+        return agent_auth.build(base_url=os.environ.get("BASE_URL") or None)
 
     from fastmcp.server.auth.oidc_proxy import OIDCProxy
 
@@ -161,27 +172,12 @@ def _build_auth():
         print(f"[AICortex] PocketIDProxy unavailable ({exc}); using stock OIDCProxy")
         oidc = OIDCProxy(**kwargs)
 
-    # Optionally ALSO accept a static runner token for headless machine clients
-    # (the autonomy runner, any LLM). Interactive apps keep using OIDC unchanged;
-    # MultiAuth just adds the token as a second accepted credential. Backward
-    # compatible: with no RUNNER_TOKEN set, this is plain OIDC as before.
-    runner_token = os.environ.get("RUNNER_TOKEN")
-    if runner_token:
-        try:
-            from fastmcp.server.auth import MultiAuth
-            try:
-                from fastmcp.server.auth import StaticTokenVerifier
-            except Exception:
-                from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
-            verifier = StaticTokenVerifier(
-                tokens={runner_token: {"client_id": "runner", "scopes": []}}
-            )
-            print("[AICortex] auth: OIDC + static runner token (MultiAuth)")
-            return MultiAuth(server=oidc, verifiers=[verifier])
-        except Exception as exc:
-            print(f"[AICortex] WARNING: RUNNER_TOKEN set but MultiAuth unavailable "
-                  f"({exc}); falling back to OIDC only")
-    return oidc
+    # ALSO accept static bearer tokens for headless clients (per-agent keys and
+    # RUNNER_TOKEN). Interactive apps keep using OIDC unchanged; MultiAuth tries
+    # the OAuth proxy first and the token verifier second.
+    from fastmcp.server.auth import MultiAuth
+    print("[AICortex] auth: OIDC + agent keys / runner token (MultiAuth)")
+    return MultiAuth(server=oidc, verifiers=[agent_auth.build(base_url=kwargs["base_url"])])
 
 
 auth = _build_auth()
@@ -331,22 +327,14 @@ if __name__ == "__main__":
         print("[AICortex] event loop: uvloop (libuv) — accelerated async I/O")
     except Exception as exc:
         print(f"[AICortex] event loop: default asyncio (uvloop unavailable: {type(exc).__name__})")
-    # Fail closed: without OIDC the server has no auth. Rather than silently
-    # listen on 0.0.0.0 (an accidental port-forward would expose every tool),
-    # bind to localhost only — unless the operator explicitly opts in with
-    # ALLOW_INSECURE=1. With OIDC configured, bind as configured (HOST).
+    # Every request needs a credential (OAuth and/or bearer token, see _build_auth)
+    # unless the operator explicitly runs open with ALLOW_INSECURE=1.
     bind_host = HOST
     if auth is None:
-        if os.environ.get("ALLOW_INSECURE") == "1":
-            print(f"[AICortex] WARNING: no OIDC — running OPEN (no auth) on "
-                  f"{bind_host}:{PORT} because ALLOW_INSECURE=1. Do NOT expose this publicly.")
-        else:
-            bind_host = "127.0.0.1"
-            print(f"[AICortex] No OIDC configured → binding to 127.0.0.1:{PORT} "
-                  f"(local only). Set OIDC_* for real auth, or ALLOW_INSECURE=1 to force "
-                  f"an open bind (not recommended).")
+        print(f"[AICortex] WARNING: no auth — running OPEN on {bind_host}:{PORT} "
+              f"because ALLOW_INSECURE=1. Do NOT expose this publicly.")
     else:
-        print(f"[AICortex] auth: OIDC proxy — binding {bind_host}:{PORT}")
+        print(f"[AICortex] auth active — binding {bind_host}:{PORT}")
     # Streamable-HTTP transport — what MCP custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
     allowed_hosts, allowed_origins = _host_guard()
