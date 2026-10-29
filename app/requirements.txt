@@ -4,7 +4,14 @@
 # (forward_resource=False, require_authorization_consent="external") and
 # tests/test_oauth_upstream.py pins that contract, so version bumps arrive
 # ONLY via Dependabot PRs that pass those guards.
-fastmcp==3.4.7
+fastmcp==4.1.4
+# Libraries the app imports DIRECTLY. fastmcp 4 moved to httpx2 and no longer pulls
+# httpx in, so relying on transitive installs broke services/scan/caldav/webdav —
+# every direct import is declared here instead.
+httpx>=0.28,<1
+pyyaml>=6,<7
+cryptography>=46
+starlette>=1,<2
 paho-mqtt>=2.1,<3
 # SSH / SFTP for ssh_tools (remote commands + file transfer)
 paramiko>=5.0.0,<6
@@ -16,15 +23,15 @@ defusedxml>=0.7.1,<1
 # sanctioned way to keep DiskStore — ours is Fernet-encrypted, self-data only).
 # NOTE: bound this once a stable upper major is known; Dependabot + the CI pip-audit
 # step (see .github/) track advisories on all deps in the meantime.
-py-key-value-aio[disk]>=0.4.5
+py-key-value-aio[disk]>=0.4.6
 # Native (libuv) event loop. uvicorn — which FastMCP's HTTP transport runs on — picks it
 # up automatically, and server.py installs it explicitly at startup. Faster async I/O for
 # the connector's real bottleneck (network / event loop). Linux & macOS only (uvloop has
 # no Windows wheels), so it's gated by a marker; the startup import is guarded too.
-uvloop>=0.19; platform_system != "Windows"
+uvloop>=0.22.1; platform_system != "Windows"
 # Image handling for fs_view / seeing workspace files with vision (scans, e-mail
 # attachments, downloads) — Pillow downscales/normalizes raster images, pypdfium2
 # rasterizes PDF pages (Apache/BSD, bundles PDFium, no system libs like poppler).
 # cp314 linux wheels verified via `uv pip compile --only-binary :all:` before adding.
-pillow>=11,<13
-pypdfium2>=4,<6
+pillow>=12.3.0,<13
+pypdfium2>=5.13.0,<6

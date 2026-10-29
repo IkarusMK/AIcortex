@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -35,11 +35,11 @@ jobs:
 
       - name: Checkout
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python (matches the runtime base image)
         if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.14'
 
