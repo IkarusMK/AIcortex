@@ -51,6 +51,7 @@
       <nav class="nav">
         <a href="#overview" data-nav="overview"><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
         <a href="#vault"    data-nav="vault"><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
+        <a href="#clients"  data-nav="clients"><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
         <a href="#skills"   data-nav="skills"><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
         <a href="#services" data-nav="services"><span class="ico">⇄</span><span data-i18n="nav_services"></span></a>
         <a href="#users"    data-nav="users"><span class="ico">◉</span><span data-i18n="nav_users"></span></a>
@@ -130,6 +131,59 @@
               <p class="dim small" data-i18n="vault_writeonly"></p>
               <button class="btn primary" data-i18n="vault_save"></button>
             </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Connect clients (agent keys) -->
+      <section id="view-clients" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_clients"></h1>
+          <span class="badge cyan mono" id="cl-url"></span>
+        </header>
+        <div class="grid-2">
+          <div class="panel">
+            <h3 data-i18n="cl_list_title"></h3>
+            <p class="dim small" data-i18n="cl_list_hint"></p>
+            <table class="tbl" id="cl-table">
+              <thead><tr>
+                <th data-i18n="cl_col_agent"></th><th data-i18n="cl_col_person"></th>
+                <th data-i18n="cl_col_access"></th><th data-i18n="cl_col_created"></th><th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+            <p id="cl-empty" class="dim hidden" data-i18n="cl_empty"></p>
+          </div>
+          <div class="panel accent">
+            <h3 data-i18n="cl_new_title"></h3>
+            <form id="form-agentkey" autocomplete="off">
+              <label data-i18n="cl_f_name"></label>
+              <input id="ak-name" class="inp mono" required data-i18n-ph="cl_ph_name">
+              <label data-i18n="cl_f_person"></label>
+              <input id="ak-person" class="inp mono" required list="ak-person-list" data-i18n-ph="cl_ph_person">
+              <datalist id="ak-person-list"></datalist>
+              <label data-i18n="cl_f_profile"></label>
+              <select id="ak-profile" class="inp">
+                <option value="core" data-i18n="cl_profile_core"></option>
+                <option value="full" data-i18n="cl_profile_full"></option>
+              </select>
+              <label data-i18n="cl_f_scopes"></label>
+              <input id="ak-scopes" class="inp mono" value="all">
+              <label data-i18n="cl_f_ttl"></label>
+              <input id="ak-ttl" class="inp mono" type="number" min="0" value="0">
+              <button class="btn primary" data-i18n="cl_create"></button>
+            </form>
+            <div id="cl-result" class="hidden">
+              <p class="err small" data-i18n="cl_once"></p>
+              <div class="pw-row">
+                <input id="cl-key" class="inp mono" readonly>
+                <button type="button" id="cl-copy-key" class="btn ghost sm" data-i18n="cl_copy"></button>
+              </div>
+              <label data-i18n="cl_f_client"></label>
+              <select id="cl-client" class="inp"></select>
+              <pre id="cl-snippet" class="inp mono small"></pre>
+              <button type="button" id="cl-copy-snippet" class="btn ghost sm" data-i18n="cl_copy"></button>
+            </div>
           </div>
         </div>
       </section>

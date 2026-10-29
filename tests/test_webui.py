@@ -307,3 +307,29 @@ def test_open_mode_refuses_lan_and_proxied_requests(monkeypatch, tmp_path):
     assert status in (401, 403)
     status, _ = _call(mcp, "/ui/api/secrets")
     assert status == 200
+
+
+# ── agent keys (connect clients) ─────────────────────────────────────────────
+
+def test_agent_keys_create_list_revoke(monkeypatch, tmp_path):
+    monkeypatch.setenv("APIKEY_DIR", str(tmp_path / "apikeys"))
+    webui, mcp = _webui(monkeypatch, tmp_path)
+    import apikeys
+    importlib.reload(apikeys)
+    hdr = {"X-CSRF": "local"}
+    status, body = _call(mcp, "/ui/api/agentkeys", "POST", headers=hdr, body=json.dumps(
+        {"identity": "dana", "name": "hermes", "profile": "core", "scopes": "all"}).encode())
+    assert status == 200 and body["ok"]
+    assert body["key"].startswith("ak_")
+    keyid = body["record"]["keyid"]
+
+    status, body = _call(mcp, "/ui/api/agentkeys")
+    assert status == 200
+    assert [k["name"] for k in body["keys"]] == ["hermes"]
+    assert "secret_sha256" not in json.dumps(body) and "ak_" not in json.dumps(body["keys"])
+    assert body["mcp_url"].endswith("/mcp")
+
+    status, body = _call(mcp, "/ui/api/agentkeys/revoke", "POST", headers=hdr,
+                         body=json.dumps({"keyid": keyid}).encode())
+    assert status == 200 and body["ok"]
+    assert _call(mcp, "/ui/api/agentkeys")[1]["keys"] == []

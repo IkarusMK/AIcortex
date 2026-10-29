@@ -557,6 +557,59 @@ def register(mcp):
         _audit(sess, "secret_rekey", "allow" if ok else "deny", msg[:120])
         return _json({"ok": ok, "message": msg}, 200 if ok else 409)
 
+    # ── agent keys: connect clients that send a bearer token ─────────────────
+    @mcp.custom_route("/ui/api/agentkeys", methods=["GET"])
+    async def _agentkeys_list(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        import apikeys
+        return _json({"keys": apikeys.list_keys(), "mcp_url": f"{_base_url(request)}/mcp"})
+
+    @mcp.custom_route("/ui/api/agentkeys", methods=["POST"])
+    async def _agentkeys_create(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        body = await _body(request)
+        if body is None:
+            return _json({"error": "invalid body"}, 400)
+        import apikeys
+        try:
+            ttl = int(body.get("ttl_days") or 0)
+            key, rec = apikeys.create(
+                str(body.get("identity", "")).strip(), name=str(body.get("name", "")).strip(),
+                scopes=str(body.get("scopes", "") or "all"), ttl_days=ttl,
+                created_by=str(sess.get("sub", "")), profile=str(body.get("profile", "")))
+        except (ValueError, TypeError) as exc:
+            return _json({"ok": False, "message": str(exc)}, 400)
+        _audit(sess, "agentkey_create", "allow",
+               f"keyid={rec['keyid']} identity={rec['sub']} name={rec['name']}")  # never the key
+        return _json({"ok": True, "key": key, "record": rec,
+                      "mcp_url": f"{_base_url(request)}/mcp",
+                      "message": "Key created — copy it now, it is shown only once."})
+
+    @mcp.custom_route("/ui/api/agentkeys/revoke", methods=["POST"])
+    async def _agentkeys_revoke(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        body = await _body(request)
+        if body is None:
+            return _json({"error": "invalid body"}, 400)
+        import apikeys
+        keyid = str(body.get("keyid", "")).strip()
+        ok = apikeys.revoke(keyid)
+        _audit(sess, "agentkey_revoke", "allow" if ok else "deny", f"keyid={keyid}")
+        return _json({"ok": ok, "message": "Key revoked." if ok else "No such key."},
+                     200 if ok else 404)
+
     @mcp.custom_route("/ui/api/identities", methods=["GET"])
     async def _identities(request):
         """Known people (policy users/roles, agent-key owners) for owner pickers."""

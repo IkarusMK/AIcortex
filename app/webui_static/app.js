@@ -43,6 +43,22 @@ const I18N = {
     vault_f_value: "Wert", vault_ph_value: "Token / API-Key / Passwort",
     vault_f_owner: "Besitzer (optional)", vault_ph_owner: "leer = geteiltes Secret",
     vault_writeonly: "Der Wert wird verschlüsselt gespeichert und nie wieder angezeigt.",
+    nav_clients: "Clients verbinden",
+    cl_list_title: "Agent-Schlüssel", cl_list_hint: "Ein Schlüssel pro Agent — einzeln widerrufbar.",
+    cl_col_agent: "Agent", cl_col_person: "Person", cl_col_access: "Zugriff", cl_col_created: "Erstellt",
+    cl_empty: "Noch keine Agent-Schlüssel.",
+    cl_new_title: "Neuen Agent verbinden",
+    cl_f_name: "Name des Agenten", cl_ph_name: "z. B. hermes, claude-code",
+    cl_f_person: "Für Person", cl_ph_person: "Identität (IdP-sub)",
+    cl_f_profile: "Werkzeuge",
+    cl_profile_core: "Kern — 10 Werkzeuge, Rest über Suche (empfohlen)",
+    cl_profile_full: "Voll — alle Werkzeuge sichtbar",
+    cl_f_scopes: "Erlaubte Werkzeuge (all, memory, tasks, …)", cl_f_ttl: "Gültig für Tage (0 = unbegrenzt)",
+    cl_create: "Schlüssel erstellen",
+    cl_once: "Nur jetzt sichtbar — kopieren und im Client eintragen.",
+    cl_copy: "Kopieren", cl_f_client: "Einrichtung für",
+    cl_revoke: "Widerrufen", confirm_revoke_key: "Schlüssel von „{0}“ widerrufen? Der Agent verliert sofort den Zugang.",
+    cl_never: "unbegrenzt", cl_copied: "Kopiert.",
     vault_save: "Verschlüsselt speichern",
     vault_col_used: "Benutzt von", vault_col_updated: "Geändert",
     vault_f_desc: "Beschreibung (optional)", vault_ph_desc: "Wofür ist das Secret?",
@@ -121,6 +137,22 @@ const I18N = {
     vault_f_value: "Value", vault_ph_value: "token / API key / password",
     vault_f_owner: "Owner (optional)", vault_ph_owner: "empty = shared secret",
     vault_writeonly: "The value is stored encrypted and will never be shown again.",
+    nav_clients: "Connect clients",
+    cl_list_title: "Agent keys", cl_list_hint: "One key per agent — revocable one by one.",
+    cl_col_agent: "Agent", cl_col_person: "Person", cl_col_access: "Access", cl_col_created: "Created",
+    cl_empty: "No agent keys yet.",
+    cl_new_title: "Connect a new agent",
+    cl_f_name: "Agent name", cl_ph_name: "e.g. hermes, claude-code",
+    cl_f_person: "For person", cl_ph_person: "identity (IdP sub)",
+    cl_f_profile: "Tools",
+    cl_profile_core: "Core — 10 tools, the rest via search (recommended)",
+    cl_profile_full: "Full — every tool listed",
+    cl_f_scopes: "Allowed tools (all, memory, tasks, …)", cl_f_ttl: "Valid for days (0 = no expiry)",
+    cl_create: "Create key",
+    cl_once: "Shown only now — copy it into the client.",
+    cl_copy: "Copy", cl_f_client: "Setup for",
+    cl_revoke: "Revoke", confirm_revoke_key: "Revoke the key of “{0}”? The agent loses access immediately.",
+    cl_never: "no expiry", cl_copied: "Copied.",
     vault_save: "Store encrypted",
     vault_col_used: "Used by", vault_col_updated: "Changed",
     vault_f_desc: "Description (optional)", vault_ph_desc: "What is this secret for?",
@@ -233,7 +265,7 @@ function confirmModal(text) {
 }
 
 /* ── router ──────────────────────────────────────────────────────────────── */
-const VIEWS = { overview: loadOverview, vault: loadVault, skills: loadSkills,
+const VIEWS = { overview: loadOverview, vault: loadVault, clients: loadClients, skills: loadSkills,
   services: loadServices, users: loadUsers, logs: loadLogs };
 
 function route() {
@@ -342,6 +374,97 @@ async function loadVault() {
     del.append(btn);
     tr.append(n, o, used, upd, del);
     tbody.append(tr);
+  });
+}
+
+
+/* ── connect clients (agent keys) ─────────────────────────────────────────── */
+let MCP_URL = location.origin + "/mcp";
+
+// Setup per client — mirrors docs/clients.md. Placeholders are filled in, never HTML.
+const CLIENT_SNIPPETS = {
+  "Claude Code": (u, k) => `claude mcp add --transport http aicortex ${u} \\\n  --header "Authorization: Bearer ${k}"`,
+  "OpenAI Codex": (u, k) => `# ~/.codex/config.toml\n[mcp_servers.aicortex]\nurl = "${u}"\nbearer_token_env_var = "AICORTEX_KEY"\n\n# shell\nexport AICORTEX_KEY="${k}"`,
+  "Hermes Agent": (u, k) => `# ~/.hermes/config.yaml\nmcp_servers:\n  aicortex:\n    url: "${u}"\n    headers:\n      Authorization: "Bearer ${k}"\n\n# check: hermes mcp test aicortex`,
+  "OpenClaw": (u, k) => `"mcp": {"servers": {"aicortex": {\n  "transport": "streamable-http",\n  "url": "${u}",\n  "headers": {"Authorization": "Bearer ${k}"}\n}}}`,
+  "LibreChat": (u, k) => `# librechat.yaml\nmcpServers:\n  aicortex:\n    type: streamable-http\n    url: ${u}\n    headers:\n      Authorization: "Bearer ${k}"\n    serverInstructions: true`,
+  "LM Studio": (u, k) => `{"mcpServers": {"aicortex": {\n  "url": "${u}",\n  "headers": {"Authorization": "Bearer ${k}"}\n}}}`,
+  "Open WebUI": (u, k) => `Admin settings → External tools → Add\nType: MCP (Streamable HTTP)\nURL:  ${u}\nAuth: Bearer\nKey:  ${k}`,
+  "Claude API": (u, k) => `"mcp_servers": [{\n  "type": "url", "url": "${u}", "name": "aicortex",\n  "authorization_token": "${k}"\n}]`,
+  "OpenAI Responses API": (u, k) => `{"type": "mcp", "server_label": "aicortex",\n "server_url": "${u}",\n "authorization": "${k}", "require_approval": "never"}`,
+};
+
+function renderSnippet() {
+  const fn = CLIENT_SNIPPETS[$("#cl-client").value];
+  $("#cl-snippet").textContent = fn ? fn(MCP_URL, $("#cl-key").value) : "";
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast(t("cl_copied")); }
+  catch (e) { toast(t("toast_error", e.message), false); }
+}
+
+async function loadClients() {
+  const d = await api("/ui/api/agentkeys");
+  MCP_URL = d.mcp_url || MCP_URL;
+  $("#cl-url").textContent = MCP_URL;
+  try {
+    const ids = await api("/ui/api/identities");
+    const list = $("#ak-person-list"); list.textContent = "";
+    ids.identities.forEach((id) => { const o = document.createElement("option"); o.value = id; list.append(o); });
+  } catch (e) { /* free text still works */ }
+  const tbody = $("#cl-table tbody");
+  tbody.textContent = "";
+  $("#cl-empty").classList.toggle("hidden", d.keys.length > 0);
+  d.keys.forEach((k) => {
+    const tr = document.createElement("tr");
+    const a = document.createElement("td"); a.className = "mono"; a.textContent = k.name || k.keyid;
+    const p = document.createElement("td"); p.className = "mono small"; p.textContent = k.sub;
+    const acc = document.createElement("td");
+    const prof = document.createElement("span"); prof.className = "tag"; prof.textContent = k.profile || "core";
+    const sc = document.createElement("div"); sc.className = "dim small"; sc.textContent = (k.scopes || []).join(", ");
+    acc.append(prof, sc);
+    const cr = document.createElement("td"); cr.className = "dim small";
+    cr.textContent = (k.created || "").slice(0, 10) + " · "
+      + (k.expires ? new Date(k.expires * 1000).toISOString().slice(0, 10) : t("cl_never"));
+    const act = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "btn danger sm"; btn.textContent = t("cl_revoke");
+    btn.addEventListener("click", async () => {
+      if (!(await confirmModal(t("confirm_revoke_key", k.name || k.keyid)))) return;
+      const r = await api("/ui/api/agentkeys/revoke", { method: "POST", body: { keyid: k.keyid } });
+      toast(r.message, r.ok); loadClients();
+    });
+    act.append(btn);
+    tr.append(a, p, acc, cr, act);
+    tbody.append(tr);
+  });
+}
+
+function initClients() {
+  const sel = $("#cl-client");
+  Object.keys(CLIENT_SNIPPETS).forEach((name) => {
+    const o = document.createElement("option"); o.value = name; o.textContent = name; sel.append(o);
+  });
+  sel.addEventListener("change", renderSnippet);
+  $("#cl-copy-key").addEventListener("click", () => copyText($("#cl-key").value));
+  $("#cl-copy-snippet").addEventListener("click", () => copyText($("#cl-snippet").textContent));
+  $("#form-agentkey").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/ui/api/agentkeys", { method: "POST", body: {
+        name: $("#ak-name").value.trim(), identity: $("#ak-person").value.trim(),
+        profile: $("#ak-profile").value, scopes: $("#ak-scopes").value.trim() || "all",
+        ttl_days: Number($("#ak-ttl").value || 0),
+      }});
+      toast(r.message, r.ok);
+      if (!r.ok) return;
+      MCP_URL = r.mcp_url || MCP_URL;
+      $("#cl-key").value = r.key;
+      $("#cl-result").classList.remove("hidden");
+      renderSnippet();
+      loadClients();
+    } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
 }
 
@@ -607,6 +730,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (r.ok) { $("#form-secret").reset(); loadVault(); }
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
+
+  /* clients */
+  initClients();
 
   /* skills */
   $("#btn-skill-new").addEventListener("click", newSkill);
