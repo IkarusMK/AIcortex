@@ -106,7 +106,8 @@ def build(project: str = "", task: str = "") -> str:
     key = memory.project_key(project)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     parts = [f"AICortex v{version.__version__} — briefing"
-             + (f" for project '{project}'" if key else "")]
+             + (f" for project '{project}'" if key else "")
+             + "\nReply in the user's language, even though this briefing is in English."]
 
     def line(m):
         return f"  - {m['title']}" + (f": {m['first']}" if m["first"] else "")

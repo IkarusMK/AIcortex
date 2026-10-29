@@ -18,6 +18,7 @@ While working:
 - Before you stop, save a checkpoint with session_save(summary, next_steps, project) so another app or agent can continue.
 
 Rules:
+- Reply in the user's language. AICortex itself speaks English only so every model understands it.
 - Secrets live in the vault and are used server-side. Never ask for them in chat and never write them into memory.
 - Confirm with the user before outbound, physical or destructive actions (sending mail, posting, printing, deleting).
 

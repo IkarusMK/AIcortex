@@ -31,6 +31,14 @@ def test_server_instructions_are_short_and_lead_with_cortex_start(fresh_server):
     assert "cortex_start" in text[:512]
 
 
+def test_instructions_and_briefing_ask_for_the_users_language(fresh_server):
+    # Everything AICortex says is English; without this, models drift into English
+    # with a German user — clients without server instructions only see the briefing.
+    assert "user's language" in _instructions(fresh_server)
+    assert "user's language" in _call(fresh_server, "cortex_start")
+    assert "user's language" in _call(fresh_server, "cortex_start", {"project": "birdhouse"})
+
+
 def _seed(server):
     _call(server, "memory_write", {"title": "Name and language", "type": "user",
                                    "content": "Dana, answers in German."})

@@ -38,8 +38,9 @@ Proposed as **2.0.0** when released — optimized and updated, nothing removed
 ### Changed
 - **fastmcp 3.4.7 → 4.1.4** (MCP 2026-07-28 alongside 2025-11-25). Libraries the app
   imports directly are now declared.
-- **Server instructions**: 1,201 characters in English (was 27,073, bilingual, with a
-  mandatory banner).
+- **Server instructions**: 1,300 characters in English (was 27,073, bilingual, with a
+  mandatory banner). They and the `cortex_start` briefing tell the model to reply in
+  the user's language, so English instructions don't pull the answer into English.
 - Host check: any Host header by default; `MCP_ALLOWED_HOSTS` / new
   `MCP_ALLOWED_ORIGINS` for a strict list.
 - Without OIDC the WebUI's no-login admin session is limited to direct requests on the
