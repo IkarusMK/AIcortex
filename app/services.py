@@ -63,9 +63,9 @@ def register(mcp):
         (e.g. "Smart Home", "Dev", "Documents", "Web") — services are listed grouped
         by it, like skills, so they stay easy to find as the list grows. Call
         service_list first and REUSE an existing category where it fits; service_add
-        REFUSES a missing one. Updates are MERGE-safe: fields you don't pass keep
-        their existing value, so you can update one field without restating the rest
-        (to clear a field, service_delete and re-add).
+        REFUSES a missing one. Updates change only what you pass: fields you leave
+        out keep their stored value, and a field you pass is stored as given — pass
+        auth_scheme="" to clear it, write_only=false to switch the lock off.
 
         TLS is VERIFIED by default (#10, same as scan_add/webdav_add). For a
         self-signed LAN service, point ``ca_bundle`` at its CA/cert file (the

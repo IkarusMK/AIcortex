@@ -17,6 +17,7 @@ import os
 from fastmcp import FastMCP
 
 import version
+import cfgstore
 import memory
 import skills
 import services
@@ -204,6 +205,11 @@ try:
         print("[AICortex] authorization: middleware unavailable — not enforced")
 except Exception as exc:
     print(f"[AICortex] authorization: middleware skipped ({exc}) — not enforced")
+
+
+# Records which arguments a client actually passed, so *_add updates can tell
+# "left out" from "set to empty" (see cfgstore.write_merged).
+mcp.add_middleware(cfgstore.build_middleware())
 
 
 # Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
