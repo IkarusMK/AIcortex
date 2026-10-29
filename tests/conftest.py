@@ -36,19 +36,26 @@ def _purge_app_modules():
             del sys.modules[name]
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "oidc: keep the OIDC_* settings the test sets (fresh_server clears them otherwise)")
+
+
 @pytest.fixture
-def fresh_server(tmp_path, monkeypatch):
+def fresh_server(tmp_path, monkeypatch, request):
     """A freshly imported ``server`` module whose whole data tree lives in tmp_path.
 
-    No OIDC and no RUNNER_TOKEN, so the in-memory client connects as the local
-    operator. Tests that need other auth settings set them before requesting this.
+    OIDC is cleared unless the test is marked ``@pytest.mark.oidc``, so by default
+    the in-memory client connects as the local operator. Tests that need other
+    auth settings set them before requesting this.
     """
     for var in _DATA_ENV:
         monkeypatch.setenv(var, str(tmp_path / var.lower()))
     monkeypatch.setenv("DATA_ROOT", str(tmp_path))
     monkeypatch.setenv("CATALOG_CACHE_FILE", str(tmp_path / "catalog_cache.json"))
-    for var in ("OIDC_CONFIG_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"):
-        monkeypatch.delenv(var, raising=False)
+    if request.node.get_closest_marker("oidc") is None:
+        for var in ("OIDC_CONFIG_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"):
+            monkeypatch.delenv(var, raising=False)
     _purge_app_modules()
     import server
     yield server
