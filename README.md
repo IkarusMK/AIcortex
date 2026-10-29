@@ -107,7 +107,7 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.
 2. Proxy that host to `http://<nas-ip>:8787` over HTTPS — the upstream is **plain HTTP**, so do *not* enable "TLS to upstream". If your proxy geo-blocks, allow your LLM provider's egress region. The published port binds to **`127.0.0.1`** by default (only this host's proxy reaches it, not the LAN); a host-network proxy uses `http://127.0.0.1:8787`, a **bridge-network** proxy needs `BIND_ADDR=0.0.0.0` (or a shared Docker network).
-3. In your MCP client: **add a custom connector / MCP server** → URL `https://agent.example.com/mcp`.
+3. In your MCP client: **add a custom connector / MCP server** → URL `https://agent.example.com/mcp`. Agents and CLIs that can only send a header (Claude Code, Codex, Hermes, OpenClaw, LM Studio, …) use a per-agent key instead — setup for every client: **[docs/clients.md](docs/clients.md)**.
 4. Test: ask the assistant to call the `ping` tool.
 
 ## Authentication & authorization
@@ -129,7 +129,7 @@ Register the OAuth client in your provider with redirect URI **`<BASE_URL>/auth/
 
 > 🟣 **Using Pocket ID?** Follow the click-by-click **[Pocket ID setup guide](docs/pocketid-setup.md)** — creating the OIDC client, the exact `.env`, and optional groups → roles.
 
-> ℹ️ **Don't** put reverse-proxy SSO / forward-auth in front of `/mcp` — an MCP connector is a *machine* client and can't follow an interactive login redirect. Authentication belongs at the MCP layer, which is exactly what this does. When the OIDC variables are unset, the server binds to `127.0.0.1` only (local testing).
+> ℹ️ **Don't** put reverse-proxy SSO / forward-auth in front of `/mcp` — an MCP connector is a *machine* client and can't follow an interactive login redirect. Authentication belongs at the MCP layer, which is exactly what this does. When the OIDC variables are unset, `/mcp` accepts bearer tokens only (per-agent keys and `RUNNER_TOKEN`); `ALLOW_INSECURE=1` turns all auth off for local testing.
 
 ### 2. Pick your mode — one line in `.env`
 

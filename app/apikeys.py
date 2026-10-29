@@ -241,10 +241,11 @@ def register(mcp):
     @mcp.tool
     def apikey_create(identity: str, name: str = "", scopes: str = "",
                       ttl_days: int = 0) -> str:
-        """Mint a REST API key for `identity` (a Pocket ID `sub` / client_id) so a
-        non-MCP client (n8n, LangChain, a script) can call the native REST layer
-        (POST /api/v1/tools/<name>). The key runs through the SAME authz + per-user
-        areas as an OIDC session — never as admin by default.
+        """Mint an agent key for `identity` (a Pocket ID `sub` / client_id). The same
+        key works as a bearer token on /mcp (Hermes, OpenClaw, Codex, Agents SDK,
+        LM Studio, ...) and on the REST layer (POST /api/v1/tools/<name>). `name`
+        labels the agent (e.g. "hermes"). The key runs through the SAME authz +
+        per-user areas as an OIDC session — never as admin by default.
 
         `scopes` = a comma-separated allow-list (DEFAULT-DENY — required): exact tool
         names, '<prefix>_*' globs, friendly aliases (memory, skills, files, calendar,
