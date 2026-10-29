@@ -71,3 +71,36 @@ def test_parallel_secret_sets_lose_nothing(monkeypatch, request):
     secrets_store = sys.modules["secrets_store"]
     stored = secrets_store._read_all(strict=True)
     assert sorted(stored) == sorted(f"TOKEN_{i}" for i in range(n))
+
+
+def test_only_one_agent_wins_a_claim(fresh_server):
+    async def go():
+        async with Client(fresh_server.mcp) as client:
+            await client.call_tool("task_add", {"title": "deploy"})
+            coordination = sys.modules["coordination"]
+            tid = json.loads(coordination.TASKS_FILE.read_text(encoding="utf-8"))[0]["id"]
+            first = await client.call_tool("task_claim", {"task_id": tid, "owner": "agent-a"})
+            second = await client.call_tool("task_claim", {"task_id": tid, "owner": "agent-b"})
+            board = json.loads(coordination.TASKS_FILE.read_text(encoding="utf-8"))
+            return first.content[0].text, second.content[0].text, board[0]
+
+    first, second, task = asyncio.run(go())
+    assert "agent-a claimed" in first
+    assert "agent-b claimed" not in second
+    assert task["owner"] == "agent-a"
+
+
+def test_expired_claim_can_be_taken_over(fresh_server):
+    async def go():
+        async with Client(fresh_server.mcp) as client:
+            await client.call_tool("task_add", {"title": "backup"})
+            coordination = sys.modules["coordination"]
+            tid = json.loads(coordination.TASKS_FILE.read_text(encoding="utf-8"))[0]["id"]
+            await client.call_tool("task_claim", {"task_id": tid, "owner": "agent-a", "lease_minutes": 1})
+            board = json.loads(coordination.TASKS_FILE.read_text(encoding="utf-8"))
+            board[0]["lease_until"] = "2000-01-01T00:00:00+00:00"       # lease ran out
+            coordination.TASKS_FILE.write_text(json.dumps(board), encoding="utf-8")
+            res = await client.call_tool("task_claim", {"task_id": tid, "owner": "agent-b"})
+            return res.content[0].text
+
+    assert "agent-b claimed" in asyncio.run(go())

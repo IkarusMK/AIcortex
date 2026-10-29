@@ -57,6 +57,12 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _lease_until(minutes: int) -> str:
+    """ISO timestamp `minutes` from now (at least one minute)."""
+    until = datetime.now(timezone.utc).timestamp() + max(1, int(minutes or 60)) * 60
+    return datetime.fromtimestamp(until, timezone.utc).isoformat(timespec="seconds")
+
+
 def _age_secs(iso: str) -> float:
     try:
         ts = datetime.fromisoformat(iso)
@@ -266,18 +272,28 @@ def register(mcp):
 
     @mcp.tool
     @_serialized
-    def task_claim(task_id: str, owner: str) -> str:
-        """Claim an open task for `owner` (sets status=claimed)."""
+    def task_claim(task_id: str, owner: str, lease_minutes: int = 60) -> str:
+        """Claim an open task for `owner` (sets status=claimed). A claim holds for
+        `lease_minutes`; until then other agents can't take the task over (the same
+        owner may re-claim to extend it). After the lease runs out the task is free
+        again, so a crashed agent can't block it forever."""
         items = _read(TASKS_FILE)
         for t in items:
             if t.get("id") == task_id:
                 if t.get("status") == "done":
                     return f"Task {task_id} is already done."
+                holder = t.get("owner")
+                lease_left = -_age_secs(t.get("lease_until", "")) if t.get("lease_until") else 0
+                if t.get("status") == "claimed" and holder and holder != owner and lease_left > 0:
+                    return (f"Task {task_id} is already claimed by '{holder}' "
+                            f"(lease ends in {int(lease_left // 60) + 1} min). "
+                            f"Pick another with task_next, or ask {holder} via inbox_post.")
                 note = ""
                 if t.get("assigned") and t["assigned"] != owner:
                     note = f" (note: it was assigned to '{t['assigned']}')"
                 t["status"] = "claimed"
                 t["owner"] = owner
+                t["lease_until"] = _lease_until(lease_minutes)
                 t["updated"] = _now()
                 _write(TASKS_FILE, items)
                 sess = f" Load context: session_load('{t['session_id']}')." if t.get("session_id") else ""
@@ -297,9 +313,11 @@ def register(mcp):
                     t["owner"] = to
                     t["assigned"] = to
                     t["status"] = "claimed"
+                    t["lease_until"] = _lease_until(60)      # recipient gets a fresh lease
                 else:
                     t["owner"] = ""
                     t["status"] = "open"
+                    t.pop("lease_until", None)
                 if note:
                     t.setdefault("notes", []).append({"ts": _now(), "note": note})
                 t["updated"] = _now()
@@ -325,6 +343,8 @@ def register(mcp):
             if t.get("id") == task_id:
                 if status:
                     t["status"] = status
+                    if status != "claimed":
+                        t.pop("lease_until", None)
                 if note:
                     t.setdefault("notes", []).append({"ts": _now(), "note": note})
                 t["updated"] = _now()
