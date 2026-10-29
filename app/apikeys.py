@@ -127,7 +127,7 @@ def _public(rec: dict) -> dict:
 
 
 def create(sub: str, name: str = "", scopes="", ttl_days: int = 0,
-           created_by: str = "") -> tuple:
+           created_by: str = "", profile: str = "") -> tuple:
     """Mint a new API key for identity `sub`. Returns (full_key, public_record).
     The full key is shown ONCE — only its SHA-256 is persisted. Raises ValueError on
     a missing identity or empty scope (default-deny: a key must be granted something)."""
@@ -149,10 +149,17 @@ def create(sub: str, name: str = "", scopes="", ttl_days: int = 0,
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "expires": expires, "disabled": False,
         "created_by": (created_by or "").strip(),
+        "profile": _profile(profile),
     }
     APIKEY_DIR.mkdir(parents=True, exist_ok=True)
     store.write_text_atomic(_keyid_path(keyid), json.dumps(rec, indent=2))
     return full, _public(rec)
+
+
+def _profile(profile: str) -> str:
+    """Tool profile stored on a key: "core" (default) or "full"."""
+    import profiles
+    return profiles.normalize(profile) or "core"
 
 
 def _parse(key: str):
@@ -240,7 +247,7 @@ def register(mcp):
 
     @mcp.tool
     def apikey_create(identity: str, name: str = "", scopes: str = "",
-                      ttl_days: int = 0) -> str:
+                      ttl_days: int = 0, profile: str = "core") -> str:
         """Mint an agent key for `identity` (a Pocket ID `sub` / client_id). The same
         key works as a bearer token on /mcp (Hermes, OpenClaw, Codex, Agents SDK,
         LM Studio, ...) and on the REST layer (POST /api/v1/tools/<name>). `name`
@@ -250,7 +257,8 @@ def register(mcp):
         `scopes` = a comma-separated allow-list (DEFAULT-DENY — required): exact tool
         names, '<prefix>_*' globs, friendly aliases (memory, skills, files, calendar,
         mail, tasks, sessions), or 'all'. Secret/key/tenancy tools are NEVER reachable
-        via a key. `ttl_days` > 0 sets an expiry.
+        via a key. `ttl_days` > 0 sets an expiry. `profile` = "core" (ten tools up
+        front, the rest via integration_search) or "full" (every tool listed).
 
         The full key is shown ONCE in the result — store it now; only its hash is
         kept. Revoke with apikey_revoke(keyid). (Admin-only.)"""
@@ -262,7 +270,8 @@ def register(mcp):
             except Exception:
                 creator = ""
             full, pub = create(identity, name=name, scopes=scopes,
-                               ttl_days=ttl_days, created_by=creator or "")
+                               ttl_days=ttl_days, created_by=creator or "",
+                               profile=profile)
         except ValueError as exc:
             return f"Refused: {exc}"
         except Exception as exc:

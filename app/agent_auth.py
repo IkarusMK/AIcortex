@@ -47,6 +47,7 @@ class AgentTokenVerifier(TokenVerifier):
             AGENT_CLAIM: rec.get("name") or f"key-{rec['keyid']}",
             KEY_CLAIM: rec["keyid"],
             SCOPES_CLAIM: list(rec.get("scopes") or []),
+            "profile": rec.get("profile") or "",
         }
         expires = int(rec.get("expires") or 0) or None
         return AccessToken(token=token, client_id=f"agent:{rec['keyid']}", scopes=[],

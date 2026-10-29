@@ -53,6 +53,10 @@ def fresh_server(tmp_path, monkeypatch, request):
         monkeypatch.setenv(var, str(tmp_path / var.lower()))
     monkeypatch.setenv("DATA_ROOT", str(tmp_path))
     monkeypatch.setenv("CATALOG_CACHE_FILE", str(tmp_path / "catalog_cache.json"))
+    if "TOOL_PROFILE_DEFAULT" not in os.environ:
+        # Most tests exercise individual tools directly; the core profile has its
+        # own tests (test_tool_profiles.py) and sets this itself.
+        monkeypatch.setenv("TOOL_PROFILE_DEFAULT", "full")
     if request.node.get_closest_marker("oidc") is None:
         for var in ("OIDC_CONFIG_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"):
             monkeypatch.delenv(var, raising=False)

@@ -18,6 +18,7 @@ from fastmcp import FastMCP
 
 import version
 import cfgstore
+import profiles
 import memory
 import skills
 import services
@@ -212,6 +213,9 @@ except Exception as exc:
 # "left out" from "set to empty" (see cfgstore.write_merged).
 mcp.add_middleware(cfgstore.build_middleware())
 
+# Tool profiles: "core" lists ten tools (the router reaches the rest), "full" all.
+mcp.add_middleware(profiles.build_middleware())
+
 
 # Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
 # memory candidates from durable tool calls. Guarded so a middleware API mismatch
@@ -318,6 +322,9 @@ webui.register(mcp)
 
 # Self-describing usage guide (also sent as server `instructions` on connect)
 guide.register(mcp)
+
+# Router for the core profile: integration_search / integration_call reach every tool
+profiles.register(mcp)
 
 
 if __name__ == "__main__":
