@@ -12,28 +12,36 @@ Schedules are standard 5-field cron expressions in the server's local time:
 ``minute hour day-of-month month day-of-week`` (``*`` , ``,`` lists, ``a-b``
 ranges and ``*/step`` are supported; dow 0/7 = Sunday).
 """
+import functools
 import json
 import os
 import re
 from datetime import datetime
 from pathlib import Path
 
+import store
+
 CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
 CRON_FILE = CRON_DIR / "jobs.json"
 
 
 def _read():
-    if not CRON_FILE.exists():
-        return []
-    try:
-        return json.loads(CRON_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return []
+    # Missing file = no jobs; an unreadable one raises instead of reading as empty
+    # (the next write would otherwise replace every job).
+    return store.read_json(CRON_FILE, [])
 
 
 def _write(data):
-    CRON_DIR.mkdir(parents=True, exist_ok=True)
-    CRON_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    store.write_json(CRON_FILE, data)
+
+
+def _serialized(fn):
+    """Run ``fn`` under the cron-store lock (atomic read-modify-write)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with store.locked(CRON_FILE):
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def _slug(name: str) -> str:
@@ -121,6 +129,7 @@ def _runner_plumbing_ok():
 
 def register(mcp):
     @mcp.tool
+    @_serialized
     def cron_add(name: str, schedule: str, prompt: str, notify: str = "user",
                  enabled: bool = True, owner: str = "") -> str:
         """Create/update a scheduled job (stored as DATA on the NAS).
@@ -181,6 +190,7 @@ def register(mcp):
             for j in jobs)
 
     @mcp.tool
+    @_serialized
     def cron_delete(name: str) -> str:
         """Delete a scheduled job by name/id. A non-admin may delete only their OWN
         jobs; an admin may delete any."""
@@ -263,6 +273,7 @@ def register(mcp):
         return json.dumps(due, ensure_ascii=False)
 
     @mcp.tool
+    @_serialized
     def cron_mark_run(name: str, result: str = "") -> str:
         """For the NAS runner: mark a job as run this minute (prevents double
         execution); optionally store a short last result. Runner/admin only."""

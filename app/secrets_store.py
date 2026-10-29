@@ -12,6 +12,8 @@ import os
 import shutil
 from pathlib import Path
 
+import store
+
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
 VAULT_FILE = VAULT_DIR / "secrets.enc"
 VAULT_BAK = VAULT_DIR / "secrets.enc.bak"
@@ -61,14 +63,17 @@ def _write_all(d: dict) -> None:
     blob = json.dumps(d).encode()
     f = _fernet()
     out = f.encrypt(blob) if f else blob
-    tmp = VAULT_DIR / "secrets.enc.tmp"
-    tmp.write_bytes(out)
     if VAULT_FILE.exists():
         try:
             shutil.copy2(VAULT_FILE, VAULT_BAK)
         except Exception:
             pass
-    os.replace(tmp, VAULT_FILE)
+    store.write_bytes_atomic(VAULT_FILE, out)
+
+
+# Every read-modify-write of the vault runs under this lock (parallel secret_set
+# calls used to lose each other's entries).
+_serialized = store.serialized(lambda: VAULT_FILE)
 
 
 def _owner_prefix(owner: str) -> str:
@@ -140,6 +145,7 @@ def get_secret(name: str):
 # Module-level so BOTH front doors (the MCP tools below and the admin WebUI)
 # share one implementation — same refusal logic, same guards, no drift.
 
+@_serialized
 def vault_set(name: str, value: str, owner: str = "") -> str:
     """Store a secret (shared, or in `owner`'s private namespace). Returns a
     user-facing message; the value is never echoed back."""
@@ -169,6 +175,7 @@ def vault_set(name: str, value: str, owner: str = "") -> str:
     return f"Stored '{name}' {where} (encrypted on the NAS). It will not be shown again."
 
 
+@_serialized
 def vault_delete(name: str, owner: str = "") -> str:
     """Delete a secret by name (shared, or from `owner`'s private namespace)."""
     name = (name or "").strip()

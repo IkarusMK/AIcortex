@@ -26,6 +26,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import store
+
 MEMORY_DIR = Path(os.environ.get("MEMORY_DIR", "/data/memory"))
 
 # Reserved scope for not-yet-reviewed, auto/loosely captured facts. Excluded
@@ -223,7 +225,7 @@ def stage_candidate(title: str, content: str, type_: str = "reference",
         created = meta.get("created", today)
     fm = _frontmatter(title=title, type_=t, tags=_tag_list(tags), source=source,
                       created=created, updated=today, status="candidate")
-    path.write_text(f"{fm}\n\n{content.strip()}\n", encoding="utf-8")
+    store.write_text_atomic(path, f"{fm}\n\n{content.strip()}\n")
     return slug
 
 
@@ -263,7 +265,7 @@ def register(mcp):
         fm = _frontmatter(title=title, type_=t, tags=_tag_list(tags),
                           source=source or "session", created=created,
                           updated=today, review=review.strip())
-        path.write_text(f"{fm}\n\n{content.strip()}\n", encoding="utf-8")
+        store.write_text_atomic(path, f"{fm}\n\n{content.strip()}\n")
         hits = _overlap_hits(scope, title, slug)
         note = ""
         if hits:
@@ -359,7 +361,7 @@ def register(mcp):
         fm = _frontmatter(title=title, type_=t, tags=meta.get("tags", []),
                           source=(meta.get("source", "auto") + " · promoted"),
                           created=meta.get("created", today), updated=today)
-        dst.write_text(f"{fm}\n\n{body.strip()}\n", encoding="utf-8")
+        store.write_text_atomic(dst, f"{fm}\n\n{body.strip()}\n")
         src.unlink()
         return f"Promoted candidate → [{t}] memory '{dst.stem}' in scope '{scope}'."
 

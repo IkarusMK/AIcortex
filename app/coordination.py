@@ -8,12 +8,14 @@ so this is the shared substrate several LLM agents/devices use to coordinate:
 All as data under COORD_DIR — no code per workflow, no redeploy. Memory scopes
 remain the shared/per-agent knowledge layer; this adds messaging & task hand-off.
 """
-import json
+import functools
 import os
 import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+import store
 
 COORD_DIR = Path(os.environ.get("COORD_DIR", "/data/coordination"))
 
@@ -28,17 +30,23 @@ AGENTS_FILE = COORD_DIR / "agents.json"
 
 
 def _read(path: Path):
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
+    # Missing file = empty board; an unreadable one raises instead of reading as
+    # empty (the next write would otherwise replace the whole board).
+    return store.read_json(path, [])
 
 
 def _write(path: Path, data) -> None:
-    COORD_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    store.write_json(path, data)
+
+
+def _serialized(fn):
+    """Run ``fn`` under the board lock so its read-modify-write can't interleave
+    with another agent's (tool calls run in parallel threads)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with store.locked(COORD_DIR / "board"):
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def _id() -> str:
@@ -68,6 +76,7 @@ def _presence(a: dict) -> str:
     return "away"
 
 
+@_serialized
 def post_inbox(to: str, body: str, subject: str = "", sender: str = "") -> str:
     """Append a message to the shared inbox and return its id. Module-level so
     non-tool callers (e.g. the inbound webhook receiver) can deposit events too."""
@@ -152,6 +161,7 @@ def register(mcp):
             for m in sel)
 
     @mcp.tool
+    @_serialized
     def inbox_ack(message_id: str) -> str:
         """Mark a message as read/handled by id."""
         items = _read(INBOX_FILE)
@@ -163,6 +173,7 @@ def register(mcp):
         return f"No message {message_id}."
 
     @mcp.tool
+    @_serialized
     def inbox_delete(message_id: str = "", purge_read: bool = False) -> str:
         """Delete one message by id, or purge all read messages (purge_read=True)."""
         items = _read(INBOX_FILE)
@@ -178,6 +189,7 @@ def register(mcp):
 
     # ── Task board ─────────────────────────────────────────────────────
     @mcp.tool
+    @_serialized
     def task_add(title: str, detail: str = "", created_by: str = "",
                  needs: str = "", for_agent: str = "", session_id: str = "") -> str:
         """Add a task to the shared board (status=open) for any agent to claim.
@@ -253,6 +265,7 @@ def register(mcp):
         return "\n".join(out)
 
     @mcp.tool
+    @_serialized
     def task_claim(task_id: str, owner: str) -> str:
         """Claim an open task for `owner` (sets status=claimed)."""
         items = _read(TASKS_FILE)
@@ -272,6 +285,7 @@ def register(mcp):
         return f"No task {task_id}."
 
     @mcp.tool
+    @_serialized
     def task_handoff(task_id: str, to: str = "", note: str = "") -> str:
         """Hand a task to another agent (or release it: to=""). Sets the new owner,
         appends a note, and drops the recipient an inbox message with the linked
@@ -303,6 +317,7 @@ def register(mcp):
         return f"No task {task_id}."
 
     @mcp.tool
+    @_serialized
     def task_update(task_id: str, status: str = "", note: str = "") -> str:
         """Update a task's status (open/claimed/done) and/or append a progress note."""
         items = _read(TASKS_FILE)
@@ -318,6 +333,7 @@ def register(mcp):
         return f"No task {task_id}."
 
     @mcp.tool
+    @_serialized
     def task_delete(task_id: str) -> str:
         """Delete a task from the board by id."""
         items = _read(TASKS_FILE)
@@ -329,6 +345,7 @@ def register(mcp):
 
     # ── Agent registry ─────────────────────────────────────────────────
     @mcp.tool
+    @_serialized
     def agent_register(name: str, role: str = "", capabilities: str = "",
                        status: str = "online") -> str:
         """Register or refresh an agent (upsert by name); updates last_seen — this
@@ -366,6 +383,7 @@ def register(mcp):
             for a in items)
 
     @mcp.tool
+    @_serialized
     def agent_remove(name: str) -> str:
         """Remove an agent from the registry by name."""
         items = _read(AGENTS_FILE)

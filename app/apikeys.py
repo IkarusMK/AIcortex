@@ -30,6 +30,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import store
+
 APIKEY_DIR = Path(os.environ.get("APIKEY_DIR", "/data/apikeys"))
 _PREFIX = "ak_"
 _KEYID_LEN = 12          # hex chars identifying the record (public, not secret)
@@ -149,7 +151,7 @@ def create(sub: str, name: str = "", scopes="", ttl_days: int = 0,
         "created_by": (created_by or "").strip(),
     }
     APIKEY_DIR.mkdir(parents=True, exist_ok=True)
-    _keyid_path(keyid).write_text(json.dumps(rec, indent=2), encoding="utf-8")
+    store.write_text_atomic(_keyid_path(keyid), json.dumps(rec, indent=2))
     return full, _public(rec)
 
 

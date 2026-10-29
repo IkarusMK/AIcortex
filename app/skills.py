@@ -9,6 +9,8 @@ import os
 import re
 from pathlib import Path
 
+import store
+
 import yaml
 
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
@@ -227,7 +229,7 @@ def register(mcp):
         folder = SKILLS_DIR / _slug(name)
         folder.mkdir(parents=True, exist_ok=True)
         fm = _frontmatter(name, description, category, tags)
-        (folder / "SKILL.md").write_text(fm + (instructions or "").rstrip() + "\n", encoding="utf-8")
+        store.write_text_atomic(folder / "SKILL.md", fm + (instructions or "").rstrip() + "\n")
         return f"Saved skill '{folder.name}' [{category}]."
 
     @mcp.tool

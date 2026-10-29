@@ -591,8 +591,9 @@ def register(mcp):
         folder.mkdir(parents=True, exist_ok=True)
         fm = skills._frontmatter(name, str(body.get("description", "")),
                                  category, str(body.get("tags", "")))
-        (folder / "SKILL.md").write_text(
-            fm + str(body.get("instructions", "")).rstrip() + "\n", encoding="utf-8")
+        import store
+        store.write_text_atomic(
+            folder / "SKILL.md", fm + str(body.get("instructions", "")).rstrip() + "\n")
         _audit(sess, "skill_save", "allow", f"skill={folder.name} [{category}]")
         return _json({"ok": True,
                       "message": f"Saved skill '{folder.name}' [{category}]."})

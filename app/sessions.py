@@ -21,6 +21,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import store
+
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "/data/sessions"))
 RETENTION_DAYS = int(os.environ.get("SESSION_RETENTION_DAYS", "90"))
 
@@ -39,18 +41,16 @@ def _path(session_id: str) -> Path:
 
 
 def _load(session_id: str):
-    p = _path(session_id)
-    if not p.exists():
-        return None
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    # Missing = new session; an unreadable file raises instead of reading as
+    # missing (session_save would otherwise replace its whole history).
+    return store.read_json(_path(session_id), None)
 
 
 def _save_file(data: dict) -> None:
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    _path(data["id"]).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    store.write_json(_path(data["id"]), data)
+
+
+_serialized = store.serialized(lambda: SESSIONS_DIR / "sessions")
 
 
 def _age_days(iso: str) -> float:
@@ -134,6 +134,7 @@ def render(s: dict) -> str:
 
 def register(mcp):
     @mcp.tool
+    @_serialized
     def session_save(summary: str, title: str = "", session_id: str = "",
                      next_steps: str = "", status: str = "open",
                      model: str = "") -> str:
@@ -194,6 +195,7 @@ def register(mcp):
         return render(data)
 
     @mcp.tool
+    @_serialized
     def session_delete(session_id: str) -> str:
         """Delete a session by id."""
         p = _path(session_id)
@@ -203,6 +205,7 @@ def register(mcp):
         return f"No session '{session_id}'."
 
     @mcp.tool
+    @_serialized
     def session_prune(max_age_days: int = 0) -> str:
         """Remove sessions not updated within max_age_days (0 = use the configured
         SESSION_RETENTION_DAYS default). Runs automatically on save/list too."""
