@@ -49,6 +49,30 @@ def _serialized(fn):
     return wrapper
 
 
+def _person() -> str:
+    """The person behind the current call ('' when it can't be resolved)."""
+    try:
+        import authz
+        ident = authz.effective_identity()[0]
+        return "" if ident == "unknown" else ident
+    except Exception:
+        return ""
+
+
+def _sees(item: dict) -> bool:
+    """Per-person views: with enforcement on, a non-admin sees only their own
+    tasks, messages and agents (plus unowned ones, e.g. webhook events)."""
+    try:
+        import authz
+        return authz.sees(item.get("person", ""))
+    except Exception:
+        return True
+
+
+def _mine(items: list) -> list:
+    return [x for x in items if _sees(x)]
+
+
 def _id() -> str:
     return uuid.uuid4().hex[:8]
 
@@ -88,7 +112,7 @@ def post_inbox(to: str, body: str, subject: str = "", sender: str = "") -> str:
     non-tool callers (e.g. the inbound webhook receiver) can deposit events too."""
     items = _read(INBOX_FILE)
     msg = {"id": _id(), "ts": _now(), "to": to, "from": sender or "unknown",
-           "subject": subject, "body": body, "read": False}
+           "subject": subject, "body": body, "read": False, "person": _person()}
     items.append(msg)
     _write(INBOX_FILE, items)
     return msg["id"]
@@ -101,7 +125,7 @@ def _caps_set(s) -> set:
 
 
 def _agent_caps(name: str) -> set:
-    for a in _read(AGENTS_FILE):
+    for a in _mine(_read(AGENTS_FILE)):
         if a.get("name") == name:
             return _caps_set(a.get("capabilities", ""))
     return set()
@@ -124,13 +148,13 @@ def open_tasks(project: str = "") -> list:
     """Tasks not done yet, optionally only those of `project` (normalized match)."""
     import memory
     want = memory.project_key(project)
-    return [t for t in _read(TASKS_FILE) if t.get("status") != "done"
+    return [t for t in _mine(_read(TASKS_FILE)) if t.get("status") != "done"
             and (not want or memory.project_key(t.get("project", "")) == want)]
 
 
 def board_counts() -> dict:
     counts: dict = {}
-    for t in _read(TASKS_FILE):
+    for t in _mine(_read(TASKS_FILE)):
         s = t.get("status", "open")
         counts[s] = counts.get(s, 0) + 1
     return counts
@@ -138,7 +162,7 @@ def board_counts() -> dict:
 
 def board_overview(limit: int = 5) -> list[str]:
     """Compact task-board snapshot (summary + active tasks) for bootstrap."""
-    tasks = _read(TASKS_FILE)
+    tasks = _mine(_read(TASKS_FILE))
     active = [t for t in tasks if t.get("status") != "done"]
     if not active:
         return []
@@ -166,7 +190,7 @@ def register(mcp):
         """Read messages addressed to `agent` (also matches 'all'), newest last.
         Marks nothing read — call inbox_ack(id) when handled."""
         items = _read(INBOX_FILE)
-        sel = [m for m in items if m.get("to") in (agent, "all")
+        sel = [m for m in _mine(items) if m.get("to") in (agent, "all")
                and (not unread_only or not m.get("read"))][-max(1, limit):]
         if not sel:
             return f"No {'unread ' if unread_only else ''}messages for '{agent}'."
@@ -180,7 +204,7 @@ def register(mcp):
         """Mark a message as read/handled by id."""
         items = _read(INBOX_FILE)
         for m in items:
-            if m.get("id") == message_id:
+            if m.get("id") == message_id and _sees(m):
                 m["read"] = True
                 _write(INBOX_FILE, items)
                 return f"Marked {message_id} read."
@@ -192,10 +216,10 @@ def register(mcp):
         """Delete one message by id, or purge all read messages (purge_read=True)."""
         items = _read(INBOX_FILE)
         if purge_read:
-            kept = [m for m in items if not m.get("read")]
+            kept = [m for m in items if not (m.get("read") and _sees(m))]
             _write(INBOX_FILE, kept)
             return f"Purged {len(items) - len(kept)} read message(s)."
-        kept = [m for m in items if m.get("id") != message_id]
+        kept = [m for m in items if not (m.get("id") == message_id and _sees(m))]
         if len(kept) == len(items):
             return f"No message {message_id}."
         _write(INBOX_FILE, kept)
@@ -217,7 +241,8 @@ def register(mcp):
         t = {"id": _id(), "ts": _now(), "title": title, "detail": detail,
              "status": "open", "owner": "", "created_by": created_by or "unknown",
              "needs": needs, "assigned": for_agent, "session_id": session_id,
-             "project": (project or "").strip(), "updated": _now(), "notes": []}
+             "project": (project or "").strip(), "person": _person(),
+             "updated": _now(), "notes": []}
         items.append(t)
         _write(TASKS_FILE, items)
         extra = []
@@ -231,7 +256,7 @@ def register(mcp):
     @mcp.tool
     def task_list(status: str = "", owner: str = "") -> str:
         """List tasks, optionally filtered by status (open/claimed/blocked/done) or owner."""
-        items = _read(TASKS_FILE)
+        items = _mine(_read(TASKS_FILE))
         sel = [t for t in items
                if (not status or t.get("status") == status)
                and (not owner or t.get("owner") == owner)]
@@ -252,7 +277,7 @@ def register(mcp):
         with task_claim). Ranking: tasks assigned to you → tasks whose `needs` match
         your capabilities → unassigned/unspecific. caps = extra capability tags
         (your registered agent capabilities are included automatically)."""
-        items = [t for t in _read(TASKS_FILE) if t.get("status") == "open"]
+        items = [t for t in _mine(_read(TASKS_FILE)) if t.get("status") == "open"]
         if not items:
             return "No open tasks."
         capset = _caps_set(caps) | _agent_caps(owner)
@@ -289,7 +314,7 @@ def register(mcp):
         again, so a crashed agent can't block it forever."""
         items = _read(TASKS_FILE)
         for t in items:
-            if t.get("id") == task_id:
+            if t.get("id") == task_id and _sees(t):
                 if t.get("status") == "done":
                     return f"Task {task_id} is already done."
                 holder = t.get("owner")
@@ -318,7 +343,7 @@ def register(mcp):
         session_id so they can pick up exactly where you left off."""
         items = _read(TASKS_FILE)
         for t in items:
-            if t.get("id") == task_id:
+            if t.get("id") == task_id and _sees(t):
                 if to:
                     t["owner"] = to
                     t["assigned"] = to
@@ -350,7 +375,7 @@ def register(mcp):
         """Update a task's status (open/claimed/done) and/or append a progress note."""
         items = _read(TASKS_FILE)
         for t in items:
-            if t.get("id") == task_id:
+            if t.get("id") == task_id and _sees(t):
                 if status:
                     t["status"] = status
                     if status != "claimed":
@@ -367,7 +392,7 @@ def register(mcp):
     def task_delete(task_id: str) -> str:
         """Delete a task from the board by id."""
         items = _read(TASKS_FILE)
-        kept = [t for t in items if t.get("id") != task_id]
+        kept = [t for t in items if not (t.get("id") == task_id and _sees(t))]
         if len(kept) == len(items):
             return f"No task {task_id}."
         _write(TASKS_FILE, kept)
@@ -386,6 +411,9 @@ def register(mcp):
         items = _read(AGENTS_FILE)
         for a in items:
             if a.get("name") == name:
+                if not _sees(a):
+                    return (f"Refused: agent name '{name}' belongs to {a.get('person')}. "
+                            f"Register under another name.")
                 a["role"] = role or a.get("role", "")
                 a["capabilities"] = capabilities or a.get("capabilities", "")
                 a["status"] = status or a.get("status", "")
@@ -393,7 +421,7 @@ def register(mcp):
                 _write(AGENTS_FILE, items)
                 return f"Updated agent '{name}' [{_presence(a)}]."
         items.append({"name": name, "role": role, "capabilities": capabilities,
-                      "status": status, "last_seen": _now()})
+                      "status": status, "last_seen": _now(), "person": _person()})
         _write(AGENTS_FILE, items)
         return f"Registered agent '{name}' [online]."
 
@@ -415,8 +443,11 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def agent_remove(name: str) -> str:
-        """Remove an agent from the registry by name."""
+        """Remove one of your agents from the registry by name."""
         items = _read(AGENTS_FILE)
+        for a in items:
+            if a.get("name") == name and not _sees(a):
+                return f"Refused: agent '{name}' belongs to {a.get('person')}."
         kept = [a for a in items if a.get("name") != name]
         if len(kept) == len(items):
             return f"No agent '{name}'."

@@ -76,6 +76,24 @@ def _all():
     return out
 
 
+def _person() -> str:
+    try:
+        import authz
+        ident = authz.effective_identity()[0]
+        return "" if ident == "unknown" else ident
+    except Exception:
+        return ""
+
+
+def _sees(s: dict) -> bool:
+    """With enforcement on, a non-admin sees only their own sessions."""
+    try:
+        import authz
+        return authz.sees(s.get("person", ""))
+    except Exception:
+        return True
+
+
 def _prune(max_age_days: int = None) -> int:
     """Delete sessions older than the retention window. Returns count removed.
     0 (or negative) retention disables pruning."""
@@ -98,7 +116,7 @@ def recent(n: int = 5):
     """The n most recently updated sessions (for bootstrap), newest first. Reads the
     session files ONCE (was twice — _prune() + _all()); pruning runs on save/list/load,
     not on this frequent bootstrap read, so a bootstrap never rewrites the directory."""
-    items = _all()
+    items = [s for s in _all() if _sees(s)]
     items.sort(key=lambda s: s.get("updated", ""), reverse=True)
     return items[:n]
 
@@ -164,10 +182,14 @@ def register(mcp):
             "status": (status or "open").strip(),
         }
         data = _load(session_id) if session_id else None
+        if data is not None and not _sees(data):
+            return (f"Refused: session '{session_id}' belongs to someone else. "
+                    f"Start your own (omit session_id).")
         if data is None:
             sid = _slug(session_id) or _slug(title) or f"session-{now[:10]}-{now[11:19].replace(':','')}"
             data = {"id": sid, "title": title or sid, "created": now,
-                    "updated": now, "status": entry["status"], "entries": [entry]}
+                    "updated": now, "status": entry["status"], "entries": [entry],
+                    "person": _person()}
         else:
             if title:
                 data["title"] = title
@@ -185,7 +207,7 @@ def register(mcp):
     def session_list() -> str:
         """List work sessions (id — title · updated · status · last model), newest first."""
         _prune()
-        sessions = _all()
+        sessions = [s for s in _all() if _sees(s)]
         if not sessions:
             return "No sessions yet. Use session_save to start one."
         sessions.sort(key=lambda s: s.get("updated", ""), reverse=True)
@@ -198,7 +220,7 @@ def register(mcp):
         _prune()
         if session_id:
             data = _load(session_id)
-            if not data:
+            if not data or not _sees(data):
                 return f"No session '{session_id}'. Use session_list."
             return render(data)
         data = latest_open()
@@ -209,8 +231,11 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def session_delete(session_id: str) -> str:
-        """Delete a session by id."""
+        """Delete one of your sessions by id."""
         p = _path(session_id)
+        data = _load(session_id) if p.exists() else None
+        if data is not None and not _sees(data):
+            return f"No session '{session_id}'."
         if p.exists():
             p.unlink()
             return f"Deleted session '{_slug(session_id)}'."

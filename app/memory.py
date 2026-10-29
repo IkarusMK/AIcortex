@@ -100,10 +100,15 @@ def _tag_list(tags) -> list[str]:
 
 def _frontmatter(*, title: str, type_: str, tags: list[str], source: str,
                  created: str, updated: str, review: str = "",
-                 status: str = "", project: str = "") -> str:
+                 status: str = "", project: str = "", author: str = "",
+                 version: int = 0) -> str:
     lines = ["---", f"title: {title}", f"type: {type_}"]
     if project:
         lines.append(f"project: {project}")
+    if author:
+        lines.append(f"author: {author}")
+    if version:
+        lines.append(f"version: {version}")
     if tags:
         lines.append("tags: " + ", ".join(tags))
     lines.append(f"source: {source or 'unknown'}")
@@ -202,6 +207,23 @@ def candidate_count() -> int:
     return sum(1 for _ in d.glob("*.md"))
 
 
+def _caller_label() -> str:
+    """'person/agent' of the current caller for attribution ('' if unknown)."""
+    try:
+        import authz
+        label = authz.caller_label()
+        return "" if label == "unknown" else label
+    except Exception:
+        return ""
+
+
+def _version(meta: dict) -> int:
+    try:
+        return int(meta.get("version") or 0)
+    except ValueError:
+        return 0
+
+
 def _overlap_hits(scope: str, title: str, exclude_slug: str) -> list[str]:
     """Existing memories in a scope whose title shares significant words with
     `title` (cheap near-duplicate detector for the dedup hint)."""
@@ -246,7 +268,8 @@ def register(mcp):
     def memory_write(title: str, content: str,
                      type: Annotated[str, Field(json_schema_extra={"enum": list(CANON_TYPES)})],
                      scope: str = "shared", tags: str = "",
-                     source: str = "", review: str = "", project: str = "") -> str:
+                     source: str = "", review: str = "", project: str = "",
+                     expected_version: int = 0) -> str:
         """Save a durable, TYPED memory and write it back to the brain.
         type (REQUIRED) = one of: user (who the user is / preferences) ·
         feedback (how you should work — corrections & confirmed approaches) ·
@@ -258,7 +281,9 @@ def register(mcp):
         project = the project this fact belongs to (e.g. "Birdhouse"); cortex_start
         and memory_search(project=…) bring it along when that project is worked on.
         Writing the same title again REPLACES that memory (read it first and fold
-        the old content in); the dedup hint flags related titles to merge."""
+        the old content in); the dedup hint flags related titles to merge.
+        expected_version = the version you read (memory_read shows it); if someone
+        changed the memory since, the write is refused instead of overwriting."""
         t = canon_type(type)
         if not t:
             return ("Refused: a memory MUST be typed (house rule, so the brain "
@@ -270,22 +295,31 @@ def register(mcp):
         slug = _slug(title)
         path = _scope_dir(scope) / f"{slug}.md"
         today = _today()
-        created = today
-        if path.exists():
-            meta, _ = read_meta(path)
-            created = meta.get("created", today)
-        fm = _frontmatter(title=title, type_=t, tags=_tag_list(tags),
-                          source=source or "session", created=created,
-                          updated=today, review=review.strip(),
-                          project=(project or "").strip())
-        store.write_text_atomic(path, f"{fm}\n\n{content.strip()}\n")
+        with store.locked(path):
+            created, current, last_author = today, 0, ""
+            if path.exists():
+                meta, _ = read_meta(path)
+                created = meta.get("created", today)
+                current, last_author = _version(meta), meta.get("author", "")
+            if expected_version and int(expected_version) != current:
+                return (f"Not saved: '{slug}' was changed since you read it (now version "
+                        f"{current}{', by ' + last_author if last_author else ''}). "
+                        f"memory_read it again, merge your change and retry with "
+                        f"expected_version={current}.")
+            version = current + 1
+            fm = _frontmatter(title=title, type_=t, tags=_tag_list(tags),
+                              source=source or "session", created=created,
+                              updated=today, review=review.strip(),
+                              project=(project or "").strip(),
+                              author=_caller_label(), version=version)
+            store.write_text_atomic(path, f"{fm}\n\n{content.strip()}\n")
         hits = _overlap_hits(scope, title, slug)
         note = ""
         if hits:
             note = ("\n⚠ possible overlap with: " + ", ".join(hits)
                     + " — consider merging (memory_read them, fold into one, "
                       "memory_delete the rest) to avoid duplicates.")
-        return f"Saved [{t}] memory '{slug}' in scope '{scope}'.{note}"
+        return f"Saved [{t}] memory '{slug}' in scope '{scope}' (version {version}).{note}"
 
     @mcp.tool
     def memory_note(title: str, content: str, type: str = "reference",

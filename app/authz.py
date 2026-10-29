@@ -55,7 +55,7 @@ ADMIN_TOOLS = {
     # cron_add/cron_delete are NOT here: a non-admin may schedule/delete their OWN
     # jobs (forced act-as as themselves); the tools enforce owner-scoping in-tool.
     "secret_set", "secret_delete",
-    "agent_register", "agent_remove",
+    
     # Per-user data areas (who-may-see-what) — identity/policy management.
     "tenancy_set", "tenancy_unset", "tenancy_show", "tenancy_list", "tenancy_status",
     # REST API key control plane — minting/revoking credentials is admin-only.
@@ -289,6 +289,25 @@ def key_allows(tool: str) -> bool:
             and not apikeys.hard_denied(tool))
 
 
+def caller_label() -> str:
+    """'person' or 'person/agent' for attribution — taken from the token, never
+    from tool arguments (so nobody can write in someone else's name)."""
+    ident, _ = effective_identity()
+    _, _, claims = _identity()
+    agent = claims.get("agent") if isinstance(claims, dict) else ""
+    return f"{ident}/{agent}" if agent else ident
+
+
+def sees(owner_person: str) -> bool:
+    """May the current caller see/change an item owned by `owner_person`? With
+    enforcement off (homelab) or for admins: everything. Otherwise only their own
+    items and unowned ones."""
+    if not enabled():
+        return True
+    ident, role = effective_identity()
+    return role == "admin" or not owner_person or owner_person == ident
+
+
 def effective_identity():
     """(identity, role) for the CURRENT call, honoring (in order) a REST per-task
     identity, then an active cron act-as binding, else the real caller. When the
@@ -414,9 +433,9 @@ def build_middleware():
                     args = getattr(context.message, "arguments", None)
                     if isinstance(args, dict) and identity and identity != "unknown":
                         if tool == "inbox_post":
-                            args["sender"] = identity
+                            args["sender"] = caller_label()
                         elif tool == "task_add":
-                            args["created_by"] = identity
+                            args["created_by"] = caller_label()
                     # Per-user data isolation (tenancy, rides on AUTH_ENFORCE):
                     # confine a non-admin caller's memory_* calls to their OWN scope
                     # so two people on one brain don't read/overwrite each other. Under
