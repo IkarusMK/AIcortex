@@ -56,7 +56,8 @@ def _parse(text: str):
     return (meta if isinstance(meta, dict) else {}), body
 
 
-def _frontmatter(name: str, description: str, category: str, tags: str) -> str:
+def _frontmatter(name: str, description: str, category: str, tags: str,
+                 author: str = "") -> str:
     """Serialize skill frontmatter as guaranteed-valid YAML. ``yaml.safe_dump``
     quotes values automatically when needed (colons, quotes, '#', leading
     symbols, unicode), so arbitrary descriptions can never corrupt the file."""
@@ -66,6 +67,8 @@ def _frontmatter(name: str, description: str, category: str, tags: str) -> str:
         "category": " ".join(str(category or "").split()),
         "tags": " ".join(str(tags or "").split()),
     }
+    if author:
+        fields["author"] = author
     dumped = yaml.safe_dump(fields, sort_keys=False, allow_unicode=True,
                             default_flow_style=False, width=100000)
     return f"---\n{dumped}---\n\n"
@@ -106,26 +109,78 @@ def _canonical_category(category: str) -> str:
     return cat
 
 
+_INDEX: dict = {}   # SKILL.md path -> (mtime_ns, meta, body); re-read only when changed
+
+
+def _indexed() -> list[tuple]:
+    """[(folder name, meta, body)] for every skill, from a cache keyed by mtime —
+    searching hundreds of skills no longer re-reads every file on every call."""
+    out, seen = [], set()
+    for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        key = str(sk)
+        seen.add(key)
+        try:
+            mtime = sk.stat().st_mtime_ns
+        except OSError:
+            continue
+        hit = _INDEX.get(key)
+        if not hit or hit[0] != mtime:
+            meta, body = _parse(sk.read_text(encoding="utf-8"))
+            hit = _INDEX[key] = (mtime, meta, body)
+        out.append((sk.parent.name, hit[1], hit[2]))
+    for gone in set(_INDEX) - seen:
+        _INDEX.pop(gone, None)
+    return out
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"\w+", (text or "").lower()) if len(w) >= 3}
+
+
 def search(query: str, category: str = "", limit: int = 10) -> list[tuple]:
     """Skills relevant to `query` that the caller may use: [(score, name, description)],
-    best first. Words shorter than 3 letters are ignored (they match everything)."""
+    best first. Per query word: name 4, description 3, tags 2, body 1 — so a skill
+    ABOUT the topic beats one that merely mentions it. Words under 3 letters are
+    ignored (they match everything)."""
     import tenancy
-    words = [w for w in (query or "").lower().split() if len(w) >= 3]
+    words = _words(query)
     cat = (category or "").strip().lower()
     results = []
-    for sk in sorted(SKILLS_DIR.glob("*/SKILL.md")):
-        meta, body = _parse(sk.read_text(encoding="utf-8"))
+    for folder, meta, body in _indexed():
         if cat and _category(meta).lower() != cat:
             continue
         # Per-user capability area: hide skills this caller may not use.
-        if not tenancy.caller_skill_allowed(sk.parent.name, _category(meta)):
+        if not tenancy.caller_skill_allowed(folder, _category(meta)):
             continue
-        hay = f"{sk.parent.name} {meta.get('name','')} {meta.get('description','')} {meta.get('tags','')} {body}".lower()
-        score = sum(1 for w in words if w in hay)
+        name_w = _words(f"{folder.replace('-', ' ')} {meta.get('name', '')}")
+        desc_w, tag_w, body_w = (_words(str(meta.get("description", ""))),
+                                 _words(str(meta.get("tags", ""))), _words(body))
+        score = sum(4 * (w in name_w) + 3 * (w in desc_w) + 2 * (w in tag_w) + (w in body_w)
+                    for w in words)
         if score:
-            results.append((score, sk.parent.name, str(meta.get("description", ""))))
-    results.sort(reverse=True)
+            results.append((score, folder, str(meta.get("description", ""))))
+    results.sort(key=lambda r: (-r[0], r[1]))
     return results[:limit]
+
+
+def _may_change(folder: Path) -> tuple[bool, str]:
+    """Shared skills belong to everyone: with enforcement on, only an admin or the
+    skill's own author may overwrite or delete an existing one."""
+    try:
+        import authz
+        if not authz.enabled() or not (folder / "SKILL.md").exists():
+            return True, ""
+        ident, role = authz.effective_identity()
+        if role == "admin":
+            return True, ""
+        meta, _ = _parse((folder / "SKILL.md").read_text(encoding="utf-8"))
+        author = str(meta.get("author", ""))
+        if author and author.split("/")[0] == ident:
+            return True, ""
+        return False, (f"Refused: '{folder.name}' is a shared skill. Ask an admin to change "
+                       f"it, or save your variant under another name.")
+    except Exception:
+        return True, ""
 
 
 def register(mcp):
@@ -234,8 +289,17 @@ def register(mcp):
                     "library tidy and bootstrap compact). Re-call skill_write with "
                     f"category=\"…\". {hint}")
         folder = SKILLS_DIR / _slug(name)
+        ok, why = _may_change(folder)
+        if not ok:
+            return why
         folder.mkdir(parents=True, exist_ok=True)
-        fm = _frontmatter(name, description, category, tags)
+        try:
+            import authz
+            author = authz.caller_label()
+        except Exception:
+            author = ""
+        fm = _frontmatter(name, description, category, tags,
+                          author="" if author == "unknown" else author)
         store.write_text_atomic(folder / "SKILL.md", fm + (instructions or "").rstrip() + "\n")
         return f"Saved skill '{folder.name}' [{category}]."
 
@@ -244,6 +308,9 @@ def register(mcp):
         """Delete a skill and its folder by name."""
         import shutil
         folder = SKILLS_DIR / _slug(name)
+        ok, why = _may_change(folder)
+        if not ok:
+            return why
         if folder.exists() and folder.is_dir():
             shutil.rmtree(folder)
             return f"Deleted skill '{folder.name}'."

@@ -61,14 +61,38 @@ def _today() -> str:
 
 
 def _slug(text: str) -> str:
-    """Filesystem-safe slug from a title."""
-    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-    return s[:60] or "untitled"
+    """Filesystem-safe slug from a title. Letters of any script are kept (umlauts,
+    CJK, …); a title with no letters at all gets a stable hash, so different
+    titles never collapse onto one file."""
+    s = re.sub(r"[^\w]+", "-", (text or "").lower()).strip("-_")[:60]
+    if s:
+        return s
+    import hashlib
+    return "m-" + hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:10]
 
 
 def project_key(name: str) -> str:
     """Normalized project name for matching ("Birdhouse", "birdhouse " → "birdhouse")."""
-    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:60]
+    return re.sub(r"[^\w]+", "-", (name or "").lower()).strip("-_")[:60]
+
+
+# Words too common to signal that two titles are about the same thing.
+_STOPWORDS = frozenset("""
+the and for with from that this into over about your their there what when where
+which while will would should could have has had been being were they them then
+than also just only more most some such very not are was der die das und mit von
+für fuer auf aus bei nach oder aber auch eine einer eines einem einen dass wenn
+wie was wer ist sind war hat haben wird werden zum zur über ueber unter noch
+""".split())
+
+
+def _words(text: str) -> list[str]:
+    """Lower-case words of at least two letters, any script."""
+    return [w for w in re.findall(r"\w+", (text or "").lower()) if len(w) >= 2]
+
+
+def _significant(text: str) -> set[str]:
+    return {w for w in _words(text) if len(w) >= 4 and w not in _STOPWORDS}
 
 
 def _scope_dir(scope: str) -> Path:
@@ -227,18 +251,18 @@ def _version(meta: dict) -> int:
 def _overlap_hits(scope: str, title: str, exclude_slug: str) -> list[str]:
     """Existing memories in a scope whose title shares significant words with
     `title` (cheap near-duplicate detector for the dedup hint)."""
-    words = {w for w in re.split(r"[^a-z0-9]+", (title or "").lower())
-             if len(w) >= 4}
+    words = _significant(title)
     if not words:
         return []
     hits = []
     for p in sorted(_scope_dir(scope).glob("*.md")):
         if p.stem == exclude_slug:
             continue
-        meta, _ = read_meta(p)
-        other = {w for w in re.split(r"[^a-z0-9]+", (meta.get("title") or "").lower())
-                 if len(w) >= 4}
-        if words & other:
+        other = _significant(read_meta(p)[0].get("title") or "")
+        shared = words & other
+        # flag only when the titles share at least half of the shorter one's
+        # meaningful words — one common word ("printer") alone isn't a duplicate
+        if shared and len(shared) / min(len(words), len(other)) >= 0.5:
             hits.append(p.stem)
     return hits[:5]
 
@@ -353,22 +377,38 @@ def register(mcp):
         return path.read_text(encoding="utf-8")
 
     @mcp.tool
-    def memory_search(query: str, scope: str = "shared", project: str = "") -> str:
-        """Search a scope's memories for a keyword; returns matching names + snippets.
-        project = only memories of that project (as set by memory_write)."""
-        q = (query or "").lower()
-        want = project_key(project)
-        hits = []
+    def memory_search(query: str, scope: str = "shared", project: str = "",
+                      type: str = "", tag: str = "", limit: int = 20) -> str:
+        """Find memories by words (any order); best matches first — a hit in the
+        title counts most, then tags/project, then the text. Filters: project, type
+        (user/feedback/project/reference), tag. Returns name, title and a snippet."""
+        words = _words(query)
+        want_project, want_type = project_key(project), canon_type(type)
+        want_tag = (tag or "").strip().lower()
+        scored = []
         for p in sorted(_scope_dir(scope).glob("*.md")):
-            if want and project_key(read_meta(p)[0].get("project", "")) != want:
+            meta, body = read_meta(p)
+            if want_project and project_key(meta.get("project", "")) != want_project:
                 continue
-            text = p.read_text(encoding="utf-8")
-            if q and q in text.lower():
-                snippet = next((ln for ln in text.splitlines()
-                                if q in ln.lower() and not ln.startswith(("---", "title:", "type:"))),
-                               "")
-                hits.append(f"- {p.stem}: {snippet.strip()[:120]}")
-        return "\n".join(hits) if hits else f"No matches for '{query}' in scope '{scope}'."
+            if want_type and canon_type(meta.get("type", "")) != want_type:
+                continue
+            tags = [t.lower() for t in meta.get("tags", [])]
+            if want_tag and want_tag not in tags:
+                continue
+            title_w = set(_words(meta.get("title", p.stem)))
+            meta_w = set(_words(" ".join(tags) + " " + meta.get("project", "")))
+            body_w = set(_words(body))
+            score = sum(3 * (w in title_w) + 2 * (w in meta_w) + (w in body_w) for w in words)
+            if score or not words:
+                snippet = next((ln.strip() for ln in body.splitlines()
+                                if ln.strip() and any(w in ln.lower() for w in words)),
+                               next((ln.strip() for ln in body.splitlines() if ln.strip()), ""))
+                scored.append((-score, p.stem, meta.get("title", p.stem), snippet[:120]))
+        if not scored:
+            return f"No matches for '{query}' in scope '{scope}'."
+        scored.sort()
+        return "\n".join(f"- {name} — {title}: {snip}"
+                         for _, name, title, snip in scored[:max(1, min(int(limit or 20), 100))])
 
     @mcp.tool
     def memory_delete(name: str, scope: str = "shared") -> str:
