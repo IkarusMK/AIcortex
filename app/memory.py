@@ -68,7 +68,7 @@ def _slug(text: str) -> str:
     if s:
         return s
     import hashlib
-    return "m-" + hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:10]
+    return "m-" + hashlib.sha1((text or "").encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
 
 
 def project_key(name: str) -> str:
