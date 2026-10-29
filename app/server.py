@@ -19,6 +19,7 @@ from fastmcp import FastMCP
 import version
 import cfgstore
 import profiles
+import tool_hints
 import memory
 import skills
 import services
@@ -215,6 +216,9 @@ mcp.add_middleware(cfgstore.build_middleware())
 
 # Tool profiles: "core" lists ten tools (the router reaches the rest), "full" all.
 mcp.add_middleware(profiles.build_middleware())
+
+# Title + read-only / destructive / open-world hints for every tool (one rule set).
+mcp.add_transform(tool_hints.ToolHints())
 
 
 # Auto-Memory (Tier B): a single, central, FAIL-OPEN middleware that stages
