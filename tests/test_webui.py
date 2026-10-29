@@ -118,7 +118,7 @@ def test_non_admin_session_is_forbidden(monkeypatch, tmp_path):
 def test_admin_session_passes(monkeypatch, tmp_path):
     webui, mcp = _webui(monkeypatch, tmp_path, oidc=True)
     status, body = _call(mcp, "/ui/api/secrets", cookies=_admin_cookie(webui))
-    assert status == 200 and body == {"secrets": []}
+    assert status == 200 and body["secrets"] == []
 
 
 # ── CSRF ─────────────────────────────────────────────────────────────────────
@@ -152,7 +152,8 @@ def test_secret_set_list_delete_never_returns_value(monkeypatch, tmp_path):
     assert "SUPERSECRET" not in json.dumps(body)
     status, body = _call(mcp, "/ui/api/secrets")
     assert status == 200
-    assert body["secrets"] == [{"name": "API_KEY", "owner": ""}]
+    assert [{k: e[k] for k in ("name", "owner")} for e in body["secrets"]] == \
+        [{"name": "API_KEY", "owner": ""}]
     assert "SUPERSECRET" not in json.dumps(body)
     status, body = _call(
         mcp, "/ui/api/secrets/delete", "POST", headers=hdr,

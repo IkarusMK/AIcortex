@@ -6,6 +6,13 @@ Lets secrets be created via the connector without hand-editing the server's
 ``secret_set`` writes, ``secret_list`` shows only names, and ``call_service``
 reads them server-side by name. Plain ``.env`` variables still work and take
 precedence over the vault.
+
+For the admin WebUI the vault also keeps non-secret context in ``meta.json``
+(description, who changed a secret and when), computes which registered
+services/devices use each secret, and reports its state (empty / encrypted /
+plaintext / unreadable). Key rotation: set the new key as STORAGE_ENCRYPTION_KEY
+and the previous one as STORAGE_ENCRYPTION_KEY_OLD, re-encrypt (vault_rekey),
+then drop the old one. A plaintext vault is encrypted the same way.
 """
 import json
 import os
@@ -17,6 +24,9 @@ import store
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
 VAULT_FILE = VAULT_DIR / "secrets.enc"
 VAULT_BAK = VAULT_DIR / "secrets.enc.bak"
+VAULT_META = VAULT_DIR / "meta.json"     # non-secret: description, updated, updated_by
+# Config fields that hold the NAME of a secret, across all registries.
+_REF_FIELDS = ("token_env", "password_env", "key_env", "secret_env", "hmac_secret_env")
 
 
 class VaultUnreadable(Exception):
@@ -26,12 +36,36 @@ class VaultUnreadable(Exception):
 
 
 def _fernet():
+    """The vault cipher, or None without a key. With STORAGE_ENCRYPTION_KEY_OLD set
+    (rotation) it decrypts with either key and encrypts with the new one."""
     key = os.environ.get("STORAGE_ENCRYPTION_KEY")
     if not key:
         return None
-    from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet, MultiFernet
 
-    return Fernet(key.encode() if isinstance(key, str) else key)
+    keys = [Fernet(key.encode())]
+    old = os.environ.get("STORAGE_ENCRYPTION_KEY_OLD")
+    if old:
+        keys.append(Fernet(old.encode()))
+    return MultiFernet(keys) if len(keys) > 1 else keys[0]
+
+
+def _decode(raw: bytes):
+    """(state, dict) for the vault bytes: 'encrypted' or 'plaintext'; raises on garbage.
+    A plaintext JSON vault (written with ALLOW_PLAINTEXT_VAULT) stays readable after
+    a key is set, so it can be re-encrypted instead of being locked out."""
+    f = _fernet()
+    if f is not None:
+        try:
+            obj = json.loads(f.decrypt(raw))
+            if isinstance(obj, dict):
+                return "encrypted", obj
+        except Exception:
+            pass
+    obj = json.loads(raw)
+    if not isinstance(obj, dict):
+        raise ValueError("vault content is not a JSON object")
+    return "plaintext", obj
 
 
 def _read_all(strict: bool = False) -> dict:
@@ -42,13 +76,7 @@ def _read_all(strict: bool = False) -> dict:
     if not VAULT_FILE.exists():
         return {}
     try:
-        raw = VAULT_FILE.read_bytes()
-        f = _fernet()
-        data = f.decrypt(raw) if f else raw
-        obj = json.loads(data)
-        if not isinstance(obj, dict):
-            raise ValueError("vault content is not a JSON object")
-        return obj
+        return _decode(VAULT_FILE.read_bytes())[1]
     except Exception as exc:
         if strict:
             raise VaultUnreadable(str(exc)) from exc
@@ -74,6 +102,73 @@ def _write_all(d: dict) -> None:
 # Every read-modify-write of the vault runs under this lock (parallel secret_set
 # calls used to lose each other's entries).
 _serialized = store.serialized(lambda: VAULT_FILE)
+
+
+def vault_status() -> dict:
+    """{"state": empty|encrypted|plaintext|unreadable, "key": bool, "rotating": bool}."""
+    info = {"key": bool(os.environ.get("STORAGE_ENCRYPTION_KEY")),
+            "rotating": bool(os.environ.get("STORAGE_ENCRYPTION_KEY_OLD"))}
+    if not VAULT_FILE.exists():
+        return {"state": "empty", **info}
+    try:
+        return {"state": _decode(VAULT_FILE.read_bytes())[0], **info}
+    except Exception:
+        return {"state": "unreadable", **info}
+
+
+@_serialized
+def vault_rekey() -> str:
+    """Re-encrypt the whole vault with the current STORAGE_ENCRYPTION_KEY (after a
+    key rotation, or to encrypt a plaintext vault)."""
+    if _fernet() is None:
+        return "Refused: set STORAGE_ENCRYPTION_KEY first."
+    try:
+        data = _read_all(strict=True)
+    except VaultUnreadable as exc:
+        return (f"Refused: the vault can't be read with the configured keys ({exc}). "
+                f"Set the previous key as STORAGE_ENCRYPTION_KEY_OLD and retry.")
+    _write_all(data)
+    return f"Re-encrypted {len(data)} secret(s) with the current key."
+
+
+def _meta() -> dict:
+    try:
+        return store.read_json(VAULT_META, {})
+    except store.StoreCorrupt:
+        return {}
+
+
+def _registries():
+    import bootstrap
+    return [("service", bootstrap.SERVICES_DIR), ("mqtt", bootstrap.MQTT_DIR),
+            ("ftp", bootstrap.FTP_DIR), ("webdav", bootstrap.WEBDAV_DIR),
+            ("caldav", bootstrap.CALDAV_DIR), ("ssh", bootstrap.SSH_DIR),
+            ("mail", bootstrap.MAIL_DIR), ("imap", bootstrap.IMAP_DIR),
+            ("mcp", bootstrap.MCP_DIR), ("scan", bootstrap.SCAN_DIR),
+            ("webhook", bootstrap.WEBHOOK_DIR)]
+
+
+def secret_references() -> dict:
+    """secret name -> ["service home-assistant", ...] from every registered config."""
+    refs: dict = {}
+    for kind, d in _registries():
+        for p in sorted(Path(d).glob("*.json")):
+            try:
+                cfg = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for field in _REF_FIELDS:
+                name = str(cfg.get(field) or "").strip() if isinstance(cfg, dict) else ""
+                if name:
+                    refs.setdefault(name, []).append(f"{kind} {p.stem}")
+    return refs
+
+
+def missing_references() -> list:
+    """Secret names a config refers to that neither the vault nor the environment has."""
+    stored = {k.rsplit("/", 1)[-1] for k in _read_all()}
+    return sorted(n for n in secret_references()
+                  if n not in stored and not os.environ.get(n))
 
 
 def _owner_prefix(owner: str) -> str:
@@ -146,7 +241,8 @@ def get_secret(name: str):
 # share one implementation — same refusal logic, same guards, no drift.
 
 @_serialized
-def vault_set(name: str, value: str, owner: str = "") -> str:
+def vault_set(name: str, value: str, owner: str = "", description: str = "",
+              by: str = "") -> str:
     """Store a secret (shared, or in `owner`'s private namespace). Returns a
     user-facing message; the value is never echoed back."""
     name = (name or "").strip()
@@ -171,6 +267,13 @@ def vault_set(name: str, value: str, owner: str = "") -> str:
     key = f"{_owner_prefix(owner)}/{name}" if owner else name
     d[key] = value
     _write_all(d)
+    from datetime import datetime, timezone
+    meta = _meta()
+    old = meta.get(key, {})
+    meta[key] = {"description": (description or "").strip() or old.get("description", ""),
+                 "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 "updated_by": (by or "").strip()}
+    store.write_json(VAULT_META, meta)
     where = f"in {owner}'s private vault" if owner else "as a shared secret"
     return f"Stored '{name}' {where} (encrypted on the NAS). It will not be shown again."
 
@@ -194,6 +297,9 @@ def vault_delete(name: str, owner: str = "") -> str:
     if key in d:
         del d[key]
         _write_all(d)
+        meta = _meta()
+        if meta.pop(key, None) is not None:
+            store.write_json(VAULT_META, meta)
         where = f" from {owner}'s vault" if owner else ""
         return f"Deleted secret '{name}'{where}."
     return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
@@ -203,14 +309,20 @@ def vault_entries() -> list:
     """NAMES ONLY, structured, unconfined — for the admin WebUI (which enforces
     the admin role itself). Each entry: {"name", "owner"} with owner="" = shared.
     Values never leave this module."""
+    meta, refs = _meta(), secret_references()
     out = []
     for key in sorted(_read_all().keys()):
+        name, owner = key, ""
         if key.startswith("users/"):
             parts = key.split("/", 2)
             if len(parts) == 3:
-                out.append({"name": parts[2], "owner": parts[1]})
-                continue
-        out.append({"name": key, "owner": ""})
+                owner, name = parts[1], parts[2]
+        m = meta.get(key, {})
+        out.append({"name": name, "owner": owner,
+                    "owner_label": owner.rsplit("-", 1)[0] if owner else "",
+                    "description": m.get("description", ""), "updated": m.get("updated", ""),
+                    "updated_by": m.get("updated_by", ""), "used_by": refs.get(name, []),
+                    "env_override": bool(os.environ.get(name)) and not is_internal_env(name)})
     return out
 
 
@@ -228,14 +340,20 @@ def _fmt_key(key: str, own_ns: str) -> str:
 
 def register(mcp):
     @mcp.tool
-    def secret_set(name: str, value: str, owner: str = "") -> str:
+    def secret_set(name: str, value: str, owner: str = "", description: str = "") -> str:
         """Store a secret on the NAS, encrypted at rest. Reference it by `name`
         as a service's token_env. The value is never shown back. ADMIN-ONLY.
         `owner` (optional) = a user's Pocket ID `sub`: the secret is then stored in
         THAT user's private vault namespace (only their own service calls resolve
         it). Leave empty for a shared secret. Users can't set secrets themselves —
-        an admin grants vault access this way."""
-        return vault_set(name, value, owner)
+        an admin grants vault access this way. `description` = what it is for
+        (shown in the WebUI, never the value)."""
+        try:
+            import authz
+            by = authz.caller_label()
+        except Exception:
+            by = ""
+        return vault_set(name, value, owner, description=description, by=by)
 
     @mcp.tool
     def secret_list() -> str:

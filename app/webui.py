@@ -497,7 +497,9 @@ def register(mcp):
         sess = _require_admin(request)
         if isinstance(sess, JSONResponse):
             return sess
-        return _json({"secrets": secrets_store.vault_entries()})
+        return _json({"secrets": secrets_store.vault_entries(),
+                      "status": secrets_store.vault_status(),
+                      "missing": secrets_store.missing_references()})
 
     @mcp.custom_route("/ui/api/secrets", methods=["POST"])
     async def _secrets_set(request):
@@ -513,9 +515,11 @@ def register(mcp):
         name = str(body.get("name", "")).strip()
         value = str(body.get("value", ""))
         owner = str(body.get("owner", "")).strip()
+        description = str(body.get("description", "")).strip()[:300]
         if not name or not value:
             return _json({"error": "name and value are required"}, 400)
-        msg = secrets_store.vault_set(name, value, owner)
+        msg = secrets_store.vault_set(name, value, owner, description=description,
+                                      by=str(sess.get("sub", "")))
         ok = msg.startswith("Stored")
         _audit(sess, "secret_set", "allow" if ok else "deny",
                f"name={name} owner={owner or 'shared'}")  # NEVER the value
@@ -539,6 +543,32 @@ def register(mcp):
         _audit(sess, "secret_delete", "allow" if ok else "deny",
                f"name={name} owner={owner or 'shared'}")
         return _json({"ok": ok, "message": msg}, 200 if ok else 404)
+
+    @mcp.custom_route("/ui/api/secrets/rekey", methods=["POST"])
+    async def _secrets_rekey(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        msg = secrets_store.vault_rekey()
+        ok = msg.startswith("Re-encrypted")
+        _audit(sess, "secret_rekey", "allow" if ok else "deny", msg[:120])
+        return _json({"ok": ok, "message": msg}, 200 if ok else 409)
+
+    @mcp.custom_route("/ui/api/identities", methods=["GET"])
+    async def _identities(request):
+        """Known people (policy users/roles, agent-key owners) for owner pickers."""
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        import apikeys
+        pol = tenancy._policy() or {}
+        names = set((pol.get("users") or {}).keys()) | set((pol.get("roles") or {}).keys())
+        names |= {k.get("sub", "") for k in apikeys.list_keys()}
+        names.add(str(sess.get("sub", "")))
+        return _json({"identities": sorted(n for n in names if n)})
 
     # ── services & devices (read-only) + audit log ───────────────────────────
     @mcp.custom_route("/ui/api/services", methods=["GET"])
