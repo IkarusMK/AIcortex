@@ -5,8 +5,9 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
-Proposed as **2.0.0** when released — optimized and updated, nothing removed
-(`bootstrap` and all tools keep working).
+
+## [2.0.0] — 2026-10-31
+Optimized and updated, nothing removed (`bootstrap` and all tools keep working).
 
 ### Upgrading from 1.x
 Pull the new image and restart with the same `data/` folder and `.env`; there is no
@@ -59,7 +60,7 @@ are. What changes for you:
   filters, conflict detection), **scheduled jobs** (plain-language schedule, next/last
   run, presets with a preview) and **playbook runs**; admins also **edit services and
   devices** of every registry (forms built from the `*_add` tools). Every page takes the
-  same policy path as the MCP tools.
+  same policy path as the MCP tools. Screenshots in the README.
 - **Any AI client can connect.** Per-agent keys (`ak_…`) and `RUNNER_TOKEN` work as
   bearer tokens on `/mcp`, with or without OIDC (Hermes, OpenClaw, Codex, Claude Code,
   LM Studio, Open WebUI, LibreChat, Claude API, OpenAI Responses/Agents SDK). OAuth for
