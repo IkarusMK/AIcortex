@@ -22,16 +22,24 @@ Throughout, replace the placeholders:
 
 1. Sign in to Pocket ID as an admin → **OIDC Clients** → **Add OIDC Client**.
 2. **Name:** `AICortex` (anything you like).
-3. **Callback URL(s):** add exactly
+3. **Client type:** **Confidential Client** — AICortex has a backend and authenticates
+   to Pocket ID with a client secret. A public client cannot have one.
+4. **Callback URLs:** add exactly
    ```
    https://<aicortex-host>/auth/callback
+   https://<aicortex-host>/ui/callback
    ```
-   This must match `BASE_URL` + `/auth/callback` character-for-character (scheme,
-   host, no trailing slash). A mismatch is the #1 cause of login failures.
-4. Leave it as a **confidential client** (i.e. *not* "Public" / PKCE-only) so a
-   **client secret** is generated — AICortex authenticates to Pocket ID with it.
-5. **Save**, then copy the **Client ID** and **Client Secret** (the secret is shown
-   once). You'll paste both into AICortex's `.env` next.
+   The first is for MCP clients, the second for the WebUI. Each must match `BASE_URL`
+   plus the path character for character (scheme, host, no trailing slash). A mismatch
+   is the #1 cause of login failures.
+5. **Save**, then copy the **Client ID** from the **General** tab.
+6. **Client secret:** open the **Credentials** tab → **Client secrets**. Since Pocket ID
+   2.14 secrets live here rather than in the client form (several can be active at once,
+   so you can rotate without downtime), and not every 2.x version creates one when the
+   client is added — the card then says *This app has no client secrets yet.* Pick an
+   **Expiration** (*No expiration* is simplest; with one, add a new secret and update
+   `.env` before it runs out) and click **Add client secret**. The secret is shown
+   **once** — copy it. You'll paste the ID and secret into AICortex's `.env` next.
 
 Your Pocket ID **discovery URL** is:
 ```

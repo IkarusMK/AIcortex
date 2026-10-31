@@ -100,9 +100,11 @@ returns an HTTP status (401/406 is fine at this point — it means the proxy pat
 
 ## Phase 4 — OIDC authentication
 
-1. **Human step:** register an OAuth client in the OIDC provider with redirect URI
-   `https://agent.example.com/auth/callback`. (Pocket ID users: follow
-   `docs/pocketid-setup.md` click by click.)
+1. **Human step:** register a confidential OAuth client in the OIDC provider with the
+   redirect URIs `https://agent.example.com/auth/callback` and
+   `https://agent.example.com/ui/callback`. (Pocket ID users: follow
+   `docs/pocketid-setup.md` click by click — since Pocket ID 2.14 the client secret is
+   created in the client's **Credentials** tab, not shown in the form.)
 2. Fill `.env`:
 
 ```env
