@@ -10,6 +10,15 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# buildx writes provenance into the "Metadata" block build-push-action prints to
+# the log — even with the image attestation off below — and the build record and
+# summary carry the build too. In a public repository that is the complete GitHub
+# event, including the pusher's email address.
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
+  BUILDX_METADATA_PROVENANCE: "disabled"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -55,6 +64,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
+          # No BuildKit provenance: in a public repository the action defaults to
+          # mode=max, which embeds the complete GitHub event — for a push, the
+          # pusher's email address — in the image's attestation.
+          provenance: false
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
