@@ -8,6 +8,7 @@
   <a href="https://github.com/IkarusMK/AIcortex/actions/workflows/build.yml"><img alt="Build" src="https://github.com/IkarusMK/AIcortex/actions/workflows/build.yml/badge.svg"></a>
   <img alt="Protocol: MCP" src="https://img.shields.io/badge/protocol-MCP-7c3aed">
   <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2ea043">
+  <a href="https://buymeacoffee.com/ikarusmk"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy_me_a_coffee-ikarusmk-fbbf24?logo=buymeacoffee&logoColor=black"></a>
 </p>
 
 <p align="center"><b>A private, self-hosted brain for your LLM — on your own NAS.</b></p>
@@ -464,6 +465,25 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | **A new tool or parameter from an update doesn't appear** | Your LLM client cached the old tool schema. **Fully restart the client session** (re-adding the connector is often not enough). |
 | **Pulled a new image but old behaviour persists** | The container didn't recreate (or `latest` wasn't rebuilt yet). Run `docker compose pull && docker compose up -d --force-recreate`, then verify with diagnostic #3 above. |
 | **The assistant says the AICortex tools "aren't loaded" / it can't call `cortex_start`** | A client-side setting — the connector's tools aren't enabled for that conversation. In the chat's tools/connectors menu, toggle **AICortex on as a tool source** (web/mobile); if it won't stick, remove the connector, fully reopen the app, re-add it, start a fresh chat. See [docs/client-project-instructions.md](docs/client-project-instructions.md). |
+
+## Support ☕
+
+AICortex is free and open source, and it will stay that way — no paid tier, no
+features held back.
+
+If it keeps your assistant's memory going and you feel like saying thanks, a coffee is
+always gladly received:
+
+<p align="center">
+  <a href="https://buymeacoffee.com/ikarusmk"><img alt="Buy me a coffee"
+     src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+</p>
+
+Not in the mood for coffee? These help just as much:
+
+- ⭐ **A star** — so others looking for a self-hosted brain find the project.
+- 🐛 **An issue** — when something is wrong, unclear or could be better.
+- 💬 **A word to a friend** — who wishes their assistant would finally remember them.
 
 ## License
 
