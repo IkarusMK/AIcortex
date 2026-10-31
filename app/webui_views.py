@@ -372,3 +372,10 @@ def register(mcp, h):
             return h.json({"ok": False, "message": text}, 404)
         h.audit(sess, "ui:cron_delete", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
+
+    # ── playbooks (library + a person's runs) ─────────────────────────────────
+    import types
+
+    import webui_playbooks
+    webui_playbooks.register(mcp, h, types.SimpleNamespace(
+        who=who, confine=confine, run_tool=run_tool, session_and_body=session_and_body))

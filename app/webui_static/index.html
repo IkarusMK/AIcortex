@@ -52,6 +52,7 @@
         <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
         <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
         <a href="#cron"     data-nav="cron"><span class="ico">⏱</span><span data-i18n="nav_cron"></span></a>
+        <a href="#playbooks" data-nav="playbooks"><span class="ico">☰</span><span data-i18n="nav_playbooks"></span></a>
         <a href="#vault"    data-nav="vault" data-admin><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
         <a href="#clients"  data-nav="clients" data-admin><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
         <a href="#skills"   data-nav="skills" data-admin><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
@@ -368,6 +369,95 @@
         </div>
       </section>
 
+      <!-- Playbooks -->
+      <section id="view-playbooks" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_playbooks"></h1>
+          <button id="btn-pb-start" class="btn primary sm" data-i18n="pb_start"></button>
+        </header>
+        <div class="chips">
+          <button id="pb-tab-runs" class="chip active" data-i18n="pb_tab_runs"></button>
+          <button id="pb-tab-lib" class="chip" data-i18n="pb_tab_lib"></button>
+        </div>
+        <div id="pb-runs">
+          <div class="panel accent hidden" id="pb-start-form">
+            <form id="form-pb-start" autocomplete="off">
+              <div class="row-2">
+                <div>
+                  <label for="pb-f-playbook" data-i18n="pb_f_playbook"></label>
+                  <select id="pb-f-playbook" class="inp" required></select>
+                </div>
+                <div>
+                  <label for="pb-f-project" data-i18n="pb_f_project"></label>
+                  <input id="pb-f-project" class="inp" required maxlength="80">
+                </div>
+              </div>
+              <label for="pb-f-title" data-i18n="pb_f_title"></label>
+              <input id="pb-f-title" class="inp" maxlength="120">
+              <div class="btn-row">
+                <button class="btn primary" data-i18n="pb_go"></button>
+                <button type="button" id="btn-pb-start-close" class="btn ghost" data-i18n="cancel"></button>
+              </div>
+            </form>
+          </div>
+          <div class="toolbar">
+            <input id="pb-project" class="inp" data-i18n-ph="pb_project_ph" aria-label="Project">
+            <select id="pb-status" class="inp" aria-label="Status">
+              <option value="active" data-i18n="pb_st_active"></option>
+              <option value="done" data-i18n="pb_st_done"></option>
+              <option value="cancelled" data-i18n="pb_st_cancelled"></option>
+              <option value="all" data-i18n="pb_st_all"></option>
+            </select>
+          </div>
+          <div class="grid-2 skills-layout">
+            <div class="panel scroll" id="pb-run-list"></div>
+            <div class="panel accent hidden" id="pb-run" aria-live="polite"></div>
+          </div>
+        </div>
+        <div id="pb-lib" class="hidden">
+          <div class="btn-row">
+            <button id="btn-pb-example" class="btn primary sm hidden" data-i18n="pb_example"></button>
+            <button id="btn-pb-new" class="btn ghost sm" data-i18n="pb_new"></button>
+          </div>
+          <div class="grid-2 skills-layout">
+            <div class="panel scroll" id="pb-lib-list"></div>
+            <div class="panel accent hidden" id="pb-def"></div>
+          </div>
+          <div class="panel accent hidden" id="pb-def-editor">
+            <h3 id="pb-def-editor-title"></h3>
+            <form id="form-pb-def" autocomplete="off">
+              <div class="row-2">
+                <div>
+                  <label for="pbd-name" data-i18n="pb_f_name"></label>
+                  <input id="pbd-name" class="inp" required maxlength="60">
+                </div>
+                <div>
+                  <label for="pbd-category" data-i18n="pb_f_category"></label>
+                  <input id="pbd-category" class="inp" maxlength="60">
+                </div>
+              </div>
+              <label for="pbd-title" data-i18n="pb_f_title2"></label>
+              <input id="pbd-title" class="inp" required maxlength="120">
+              <label for="pbd-desc" data-i18n="pb_f_desc"></label>
+              <input id="pbd-desc" class="inp" maxlength="600">
+              <label for="pbd-source" data-i18n="pb_f_source"></label>
+              <input id="pbd-source" class="inp" type="url" maxlength="300">
+              <h4 data-i18n="pb_stages"></h4>
+              <div id="pb-stage-forms"></div>
+              <button type="button" id="btn-pb-add-stage" class="btn ghost sm" data-i18n="pb_add_stage"></button>
+              <label for="pbd-plays" data-i18n="pb_f_plays"></label>
+              <textarea id="pbd-plays" class="inp mono" rows="5" spellcheck="false"></textarea>
+              <label for="pbd-guidance" data-i18n="pb_f_guidance"></label>
+              <textarea id="pbd-guidance" class="inp" rows="8"></textarea>
+              <div class="btn-row">
+                <button class="btn primary" data-i18n="save"></button>
+                <button type="button" id="btn-pb-def-close" class="btn ghost" data-i18n="cancel"></button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <!-- Users -->
       <section id="view-users" class="view hidden">
         <header class="view-head">
@@ -520,5 +610,7 @@
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
   <script src="/ui/assets/view-cron.js?v={{v}}"></script>
+  <script src="/ui/assets/view-playbooks.js?v={{v}}"></script>
+  <script src="/ui/assets/view-playbook-lib.js?v={{v}}"></script>
 </body>
 </html>

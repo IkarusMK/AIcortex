@@ -15,6 +15,7 @@ from pathlib import Path
 
 import coordination
 import memory
+import playbooks
 import sessions
 import skills
 import version
@@ -109,6 +110,9 @@ def build(project: str = "", task: str = "") -> str:
         tasks = [f"  - [{t.get('status')}] {t.get('title')} (id {t.get('id')})"
                  for t in coordination.open_tasks(project)]
         parts.append(_block("Open tasks:", tasks, 350))
+        runs = [f"  - {r['title']} ({r['playbook']}, run {r['id']}): {playbooks.next_step(r)}"
+                for r in playbooks.runs_for(project=project)]
+        parts.append(_block("Playbook runs (playbook_status for details):", runs, 450))
         s = sessions.latest_for_project(key)
         if s:
             last = (s.get("entries") or [{}])[-1]

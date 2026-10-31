@@ -49,6 +49,8 @@ _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "view-memory.js": "application/javascript; charset=utf-8",
     "view-registry.js": "application/javascript; charset=utf-8",
     "view-cron.js": "application/javascript; charset=utf-8",
+    "view-playbooks.js": "application/javascript; charset=utf-8",
+    "view-playbook-lib.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
     "logo.svg": "image/svg+xml",
 }

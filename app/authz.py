@@ -69,6 +69,7 @@ READ_ONLY_TOOLS = {
     "integration_call",
     "memory_read", "memory_list", "memory_search", "memory_candidates",
     "skill_search", "skill_list", "skill_load", "skill_resource",
+    "playbook_list", "playbook_search", "playbook_load", "playbook_status", "playbook_runs",
     "service_list", "mqtt_list", "mqtt_get",
     "ftp_list", "ftp_list_endpoints",
     "webdav_list", "webdav_list_endpoints",

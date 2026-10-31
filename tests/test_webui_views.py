@@ -210,3 +210,40 @@ def test_schedule_preview_and_refusal(ui):
     assert not d["ok"] and d["message"]
     r = _job(alice, "Broken", schedule="0 0 30 2 *")
     assert r.status_code == 400
+
+
+# ── E: playbooks ────────────────────────────────────────────────────────────
+
+def test_playbook_library_and_a_run_in_the_webui(ui):
+    alice = ui("alice", "user")
+    assert alice.post("/ui/api/playbooks/example", json={}).json()["ok"]
+    names = [p["name"] for p in alice.get("/ui/api/playbooks").json()["playbooks"]]
+    assert names == ["ai-native-sdlc"]
+    d = alice.get("/ui/api/playbooks/get", params={"name": "ai-native-sdlc"}).json()
+    assert len(d["stages"]) == 6 and len(d["plays"]) == 14
+    r = alice.post("/ui/api/playbooks/runs/start", json={"playbook": "ai-native-sdlc",
+                                                         "project": "Garden", "title": "Watering"})
+    run_id = r.json()["id"]
+    assert alice.post("/ui/api/playbooks/runs/submit", json={
+        "id": run_id, "artifact": "# Intent: watering", "ref_path": "intent/watering.md"}).json()["ok"]
+    assert alice.post("/ui/api/playbooks/runs/decide", json={
+        "id": run_id, "decision": "approve", "note": "fine"}).json()["ok"]
+    run = alice.get("/ui/api/playbooks/runs/get", params={"id": run_id}).json()["run"]
+    assert run["current"] == 1 and run["stages"][0]["decision"]["via"] == "webui"
+    assert run["stages"][0]["decision"]["by"] == "alice"
+    rows = alice.get("/ui/api/playbooks/runs", params={"project": "garden"}).json()["runs"]
+    assert [r["id"] for r in rows] == [run_id] and "spec.md" in rows[0]["next_step"]
+
+
+def test_others_cannot_see_or_decide_a_persons_run(ui):
+    alice = ui("alice", "user")
+    alice.post("/ui/api/playbooks/example", json={})
+    run_id = alice.post("/ui/api/playbooks/runs/start", json={
+        "playbook": "ai-native-sdlc", "project": "Garden"}).json()["id"]
+    alice.post("/ui/api/playbooks/runs/submit", json={"id": run_id, "artifact": "x"})
+    bob = ui("bob", "user")
+    assert bob.get("/ui/api/playbooks/runs/get", params={"id": run_id}).status_code == 404
+    assert not bob.post("/ui/api/playbooks/runs/decide", json={"id": run_id, "decision": "approve"}).json().get("ok")
+    vera = ui("alice", "viewer")
+    assert vera.post("/ui/api/playbooks/runs/decide", json={"id": run_id, "decision": "approve"}).status_code == 403
+    assert ui("boss", "admin").get("/ui/api/playbooks/runs/get", params={"id": run_id}).status_code == 200

@@ -16,6 +16,7 @@ While working:
 - Look things up before assuming: memory_search(query, project), skill_search(query).
 - Save durable facts with memory_write (type: user, feedback, project or reference; add project=...). Not chat chatter, never secrets.
 - Before you stop, save a checkpoint with session_save(summary, next_steps, project) so another app or agent can continue.
+- Multi-stage work (e.g. a software change) can follow a playbook: playbook_start, then playbook_submit each stage's artifact. A person approves every stage; never approve for them.
 
 Rules:
 - Reply in the user's language. AICortex itself speaks English only so every model understands it.
@@ -92,6 +93,14 @@ MEMORY (Fakten über User & Projekte) — LERN-PFLICHT (Auto-Memory)
 - UNSICHER? → memory_note(...) legt einen KANDIDATEN ab (nicht live), den du oder
   der User später prüft. Wartende Kandidaten: memory_candidates → memory_promote
   (übernehmen) / memory_reject (verwerfen). bootstrap zeigt die Anzahl oben an.
+
+PLAYBOOKS (mehrstufige Arbeit mit Freigabe je Phase)
+- playbook_list / playbook_load zeigen die Bibliothek (z. B. AI-native SDLC).
+- playbook_start(playbook, project) startet einen Lauf; Ergebnis der Phase schreiben
+  und mit playbook_submit(run_id, artifact, ref_path, ref_commit) einreichen.
+- Ein Mensch gibt in der AICortex-WebUI frei oder lehnt mit Notiz ab. Nie selbst
+  freigeben; playbook_record_approval nur, wenn die Person es im Gespräch gesagt hat
+  und die Phase Chat-Freigabe erlaubt.
 
 SKILLS (wiederverwendbares Know-how)
 - Vor Spezial-Aufgaben skill_search(query), dann skill_load(name) und befolgen.
@@ -266,6 +275,16 @@ MEMORY (facts about user & projects) — LEARN AS YOU GO (auto-memory)
 - UNSURE? → memory_note(...) stages a CANDIDATE (not live) for later review.
   Pending candidates: memory_candidates → memory_promote (keep) / memory_reject
   (drop). bootstrap shows the count at the top.
+
+PLAYBOOKS: multi-stage work where a person approves each hand-off (e.g. the
+AI-native SDLC: intent.md → spec.md → plan.md → test report → review → maintain).
+playbook_list / playbook_load show the library; playbook_start(playbook, project)
+begins a run and returns the first stage's goal and template; write the artifact
+and playbook_submit(run_id, artifact, ref_path, ref_commit) — text and/or where it is
+committed. The person approves or rejects in the AICortex WebUI; a rejection comes
+back with a note — rework and submit again. playbook_record_approval only records a
+decision the person gave you in this conversation, and only where the stage allows
+chat approval. cortex_start shows each run's next step.
 
 SKILLS: before specialized work, skill_search(query) then skill_load(name) and
 follow it. To "learn", call skill_write(name, description, instructions, category,

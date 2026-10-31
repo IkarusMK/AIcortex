@@ -22,6 +22,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - One short `cortex_start` call — who you are, how you work, and the current project's notes, open tasks and last session (a few hundred characters; `cortex_catalog` has the full list)
 - Self-learning, **typed** memory with a review queue, so it grows without polluting itself
 - A **skill router** — search your skills, load only what's needed, author new ones at runtime
+- **Playbooks** — multi-stage work where a person approves each stage's artifact (e.g. Anthropic's AI-native SDLC: `intent.md` → `spec.md` → `plan.md` …), bundled as a template — see [docs/playbooks.md](docs/playbooks.md)
 - The *same* brain across models, desktop **and** mobile — one account, one state
 
 **🔌 Real reach — every integration is just data**
@@ -35,9 +36,9 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **Per-user API keys**: scoped (default-deny), hashed at rest, rate-limited, optional expiry — and a key runs the *same* per-user areas as an OIDC session, never admin by default
 
 **🖥 Built-in admin WebUI — no terminal needed**
-- Manage the brain from any browser at **`/ui`**: **vault** (secret *names* only — values are write-only), **skills**, **users & roles**, a read-only **services & devices** inventory and the **audit log** — language-switchable **DE/EN**
-- Same SSO as the connector (**OIDC + PKCE** against *your* IdP, e.g. Pocket ID), admin-only, CSRF-guarded, fully self-contained (strict CSP, no CDNs, no build step) — served by the **same container**, no extra service
-- The UI calls the *same functions* as the MCP tools, so browser and assistant can never drift
+- Every signed-in person manages **their own notes, scheduled jobs and playbook runs** (and approves playbook stages) at **`/ui`**; admins also get the **vault** (secret *names* only — values are write-only), **skills**, **users & roles**, **services & devices** editing and the **audit log** — language-switchable **DE/EN**
+- Same SSO as the connector (**OIDC + PKCE** against *your* IdP, e.g. Pocket ID), CSRF-guarded, fully self-contained (strict CSP, no CDNs, no build step) — served by the **same container**, no extra service
+- Every page takes the *same policy path* as the MCP tools, so the browser never gets more than the person's AI
 
 **👥 Team, autonomy & continuity**
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
@@ -325,17 +326,21 @@ language-switchable **DE/EN**:
 | Page | What you can do |
 |------|-----------------|
 | **Overview** | Version, enforce status, live counts (skills, secrets, services, devices, users) |
+| **Notes** *(everyone)* | Your memories: search, filter by type/project, edit with conflict detection; admins also review auto-captured candidates |
+| **Scheduled jobs** *(everyone)* | Your cron jobs: plain-language schedule, next/last run, on/off, presets with a preview of the next runs |
+| **Playbooks** *(everyone)* | Library (adopt the AI-native SDLC template, edit stages) and your runs: progress, artifact versions, approve or reject each stage |
 | **Vault** | See secret **names**, add tokens/API keys/passwords (shared or per-user), delete. Values are **write-only** — they never leave the vault |
 | **Skills** | Browse by category, view, create/edit/delete skills (same house rules as `skill_write`) |
 | **Users** | Roles (`admin`/`user`/`viewer`) + per-user areas (memory, vault, services, skills, device grants) in `policy.json` |
-| **Services & devices** | Read-only inventory of every registry (services, MQTT, FTP, printers, scanners, WebDAV, CalDAV, SSH, mail, IMAP, MCP, webhooks) — target + referenced secret **name** |
+| **Services & devices** | Every registry (services, MQTT, FTP, printers, scanners, WebDAV, CalDAV, SSH, mail, IMAP, MCP, webhooks): create, edit, delete — forms built from each `*_add` tool, secrets picked by **name** |
 | **Logs** | The authz audit log — who called which tool, allowed/denied and why; filterable, newest first |
 
 Login rides on your existing IdP (authorization code + **PKCE**): register **one extra
 redirect URI** in the OIDC client — `<BASE_URL>/ui/callback` — and open `<BASE_URL>/ui`.
-Only the **admin** role may manage; sessions are signed HttpOnly cookies, mutations are
-CSRF-guarded, every action lands in the audit log (names only, never values). The UI calls
-the **same module functions** as the MCP tools, so browser and assistant can't drift.
+Everyone works in their own area; the management pages are for the **admin** role. Sessions
+are signed HttpOnly cookies, mutations are CSRF-guarded, every action lands in the audit log
+(names only, never values). Each page runs the **same policy path** as the MCP tools, so the
+browser gets exactly the rights of the person's AI.
 Without OIDC (local testing) the UI is open on the localhost-only bind — the same trust
 model as the MCP endpoint itself. Opt-out: `UI_ENABLED=0`.
 

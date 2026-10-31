@@ -21,6 +21,7 @@ import cfgstore
 import profiles
 import tool_hints
 import memory
+import playbooks
 import skills
 import services
 import mqtt_tools
@@ -231,6 +232,7 @@ memory.register(mcp)
 
 # Skill router: search / list / load / resource / write (folder-based under SKILLS_DIR)
 skills.register(mcp)
+playbooks.register(mcp)
 
 # Generic service caller: call_service / service_add / service_list (HTTP integrations as data)
 services.register(mcp)

@@ -324,3 +324,25 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; text-transform: none;
   letter-spacing: 0; font-size: 14px; }
 .check input { width: 18px; height: 18px; }
+
+/* playbooks: stage progress, artifacts, decisions */
+.pb-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0; padding: 0; }
+.pb-steps li { display: flex; flex-direction: column; min-width: 0; flex: 1 1 90px; padding: 6px 8px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 12px; }
+.pb-steps li .a { opacity: .7; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.pb-steps li.st-approved { border-color: rgba(52, 211, 153, .45); }
+.pb-steps li.st-submitted { border-color: rgba(34, 211, 238, .55); }
+.pb-steps li.st-rejected { border-color: rgba(248, 113, 113, .55); }
+.pb-steps li.current { box-shadow: 0 0 0 1px var(--border-hi); }
+.pb-next { margin: 8px 0 14px; }
+.pb-stage { margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--border); }
+.pb-stage summary { cursor: pointer; }
+.pb-version { margin: 8px 0; }
+.pb-artifact { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto;
+  padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .25); font-size: 12.5px; }
+.pb-decide, .pb-submit { margin-top: 10px; }
+.pb-guidance { white-space: pre-wrap; }
+.pb-plays { padding-left: 18px; }
+.pb-plays li { margin: 4px 0; }
+.pb-stage-edit { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin: 10px 0; }
+.pb-stage-edit legend { padding: 0 6px; font-size: 12px; opacity: .7; }

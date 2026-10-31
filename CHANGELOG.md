@@ -39,9 +39,27 @@ are. What changes for you:
   `BASE_URL` host work as before. Native clients are not affected.
 - **`webhook_send` by non-admins** can attach only their own personal secrets; shared
   secrets stay with registered services (`call_service`).
+- **`cron_add` refuses schedules that never run** (out-of-range fields, dates such as
+  30 February) instead of storing a job that silently never fires; editing a job keeps
+  its creation date and last run.
+- **The WebUI is open to every signed-in person** for their own area (notes, jobs,
+  playbook runs); the management pages stay admin-only as before.
 - Start a new session in your AI apps after the update so they load the new tool list.
 
 ### Added
+- **Playbooks** — multi-stage work where a person approves each hand-off, modelled on
+  Anthropic's "The AI-native SDLC playbook" (bundled as a template, in our own words):
+  every stage produces a versioned artifact (`intent.md` → `spec.md` → `plan.md` …,
+  text and/or a repo path, commit or URL); approval per stage in the WebUI (default),
+  in chat (only by the person in an interactive app, never an agent key, the runner or
+  a scheduled job) or none. `playbook_*` tools, `cortex_start` shows each run's next
+  step, WebUI library with a stage editor and runs with approve/reject. See
+  `docs/playbooks.md`.
+- **WebUI for everyone**: each signed-in person manages their own **notes** (search,
+  filters, conflict detection), **scheduled jobs** (plain-language schedule, next/last
+  run, presets with a preview) and **playbook runs**; admins also **edit services and
+  devices** of every registry (forms built from the `*_add` tools). Every page takes the
+  same policy path as the MCP tools.
 - **Any AI client can connect.** Per-agent keys (`ak_…`) and `RUNNER_TOKEN` work as
   bearer tokens on `/mcp`, with or without OIDC (Hermes, OpenClaw, Codex, Claude Code,
   LM Studio, Open WebUI, LibreChat, Claude API, OpenAI Responses/Agents SDK). OAuth for

@@ -38,6 +38,7 @@ services:
       RUNNER_TOKEN: "${RUNNER_TOKEN:-}"
       MEMORY_DIR: /data/memory
       SKILLS_DIR: /data/skills
+      PLAYBOOKS_DIR: /data/playbooks
       SERVICES_DIR: /data/services
       VAULT_DIR: /data/vault
       WORK_DIR: /data/work

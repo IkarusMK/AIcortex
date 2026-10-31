@@ -17,6 +17,7 @@ from mcp_types import ToolAnnotations
 _READ_ONLY_EXACT = {
     "ping", "guide", "bootstrap", "cortex_start", "cortex_catalog", "integration_search",
     "session_load", "inbox_read", "task_next", "mqtt_get", "skill_resource",
+    "playbook_status", "playbook_runs",
     "memory_candidates", "fs_view", "fs_info", "tenancy_show", "tenancy_status",
 }
 _READ_ONLY_SUFFIX = ("_list", "_read", "_search", "_load", "_list_endpoints",
@@ -33,6 +34,8 @@ _DESTRUCTIVE_EXACT = {
     # printed page, a calendar invite — clients that confirm only destructive tools
     # must ask before these
     "mail_send", "webhook_send", "mqtt_publish", "print_document", "caldav_add_event",
+    # replaces a shared playbook; ends a run
+    "playbook_write", "playbook_cancel",
 }
 _DESTRUCTIVE_PART = ("_delete", "_remove", "_revoke", "_unset")
 
