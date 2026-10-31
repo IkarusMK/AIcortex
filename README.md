@@ -39,6 +39,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - Every signed-in person manages **their own notes, scheduled jobs and playbook runs** (and approves playbook stages) at **`/ui`**; admins also get the **vault** (secret *names* only — values are write-only), **skills**, **users & roles**, **services & devices** editing and the **audit log** — language-switchable **DE/EN**
 - Same SSO as the connector (**OIDC + PKCE** against *your* IdP, e.g. Pocket ID), CSRF-guarded, fully self-contained (strict CSP, no CDNs, no build step) — served by the **same container**, no extra service
 - Every page takes the *same policy path* as the MCP tools, so the browser never gets more than the person's AI
+- See it in [screenshots](#admin-webui)
 
 **👥 Team, autonomy & continuity**
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
@@ -167,7 +168,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Group | Tools | What it does |
 |-------|-------|--------------|
 | Onboarding | `cortex_start` · `cortex_catalog` · `bootstrap` | **Start here** — a short briefing for the project at hand; the full catalog on request; `bootstrap` = alias of `cortex_start` |
-| Router | `integration_search` · `integration_call` | Find and run any tool beyond the ten listed by default (profile `core`); same permissions as a direct call. Profile `full` lists every tool. |
+| Router | `integration_search` · `integration_call` | Find and run any tool beyond the eleven listed by default (profile `core`); same permissions as a direct call. Profile `full` lists every tool. |
 | Health | `ping` | Connectivity check |
 | Memory | `memory_write` (typed) · `memory_read`/`list`/`search`/`delete` · `memory_note` · `memory_candidates` · `memory_promote`/`memory_reject` | Self-learning, **typed** facts with dedup + a candidate review queue |
 | Skills | `skill_search` · `skill_list` · `skill_load` · `skill_resource` · `skill_write` | Searchable know-how; learn new skills at runtime |
@@ -322,6 +323,31 @@ Security, by design: keys are **hashed at rest** (constant-time compare) and **d
 Not everyone wants to manage secrets from a terminal or chat. **`/ui`** is a built-in,
 self-contained admin panel (no extra container, no build step, no CDNs — strict CSP),
 language-switchable **DE/EN**:
+
+<p align="center">
+  <img src="assets/screenshots/webui-playbook-run.webp" alt="Playbooks: a run of the AI-native SDLC template — the plan stage approved, the design stage's spec.md waiting for approval" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/webui-memory.webp" alt="Notes: a person's typed memories with filters and the note editor"></td>
+    <td width="50%"><img src="assets/screenshots/webui-cron.webp" alt="Scheduled jobs: plain-language schedules with the next run"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Notes</b> — your memories, typed and searchable</sub></td>
+    <td align="center"><sub><b>Scheduled jobs</b> — plain-language schedules and the next run</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/webui-services.webp" alt="Services and devices: every registry in one list, secrets referenced by name"></td>
+    <td width="50%"><img src="assets/screenshots/webui-vault.webp" alt="Vault: secret names, scope and where each one is used; values are write-only"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Services &amp; devices</b> — every registry, secrets by name</sub></td>
+    <td align="center"><sub><b>Vault</b> — names only, values never leave it</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Screenshots use made-up demo data.</sub></p>
 
 | Page | What you can do |
 |------|-----------------|
