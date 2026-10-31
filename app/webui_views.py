@@ -76,7 +76,7 @@ def _coerce(field: dict, value):
         if kind in ("object", "array"):
             return json.loads(value) if isinstance(value, str) else value
         return str(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"{field['name']}: expected {kind}") from exc
 
 
@@ -179,7 +179,7 @@ def register(mcp, h):
             return h.json({"ok": False, "message": text}, 409)
         if not saved:
             return h.json({"ok": False, "message": text}, 400)
-        h.audit(sess, "ui:memory_write", "allow", f"name={saved.group(1)}")
+        h.audit(sess, "memory_write", "allow", f"name={saved.group(1)}")
         return h.json({"ok": True, "message": text.splitlines()[0],
                        "name": saved.group(1), "version": int(saved.group(2))})
 
@@ -194,7 +194,7 @@ def register(mcp, h):
             return h.json({"error": "forbidden", "detail": text}, 403)
         if not text.startswith("Deleted"):
             return h.json({"ok": False, "message": text}, 404)
-        h.audit(sess, "ui:memory_delete", "allow", f"name={args['name']}")
+        h.audit(sess, "memory_delete", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
     # Candidates are one shared queue (auto-captured from everyone's work), so
@@ -219,7 +219,7 @@ def register(mcp, h):
                 return h.json({"error": "forbidden", "detail": text}, 403)
             done = text.startswith(("Promoted", "Rejected"))
             if done:
-                h.audit(sess, f"ui:memory_{action}", "allow", f"name={args['name']}")
+                h.audit(sess, f"memory_{action}", "allow", f"name={args['name']}")
             return h.json({"ok": done, "message": text}, 200 if done else 404)
         mcp.custom_route(f"/ui/api/memory/candidates/{action}", methods=["POST"])(_decide)
 
@@ -285,7 +285,7 @@ def register(mcp, h):
         if not text.startswith("Registered"):
             return h.json({"ok": False, "message": text}, 400)
         saved = _REGISTERED.search(text)
-        h.audit(sess, f"ui:{REGISTRIES[kind][0]}", "allow", f"name={args.get('name', '')}")
+        h.audit(sess, f"{REGISTRIES[kind][0]}", "allow", f"name={args.get('name', '')}")
         return h.json({"ok": True, "message": text, "name": saved.group(1) if saved else ""})
 
     @mcp.custom_route("/ui/api/registry/{kind}/delete", methods=["POST"])
@@ -302,7 +302,7 @@ def register(mcp, h):
             return h.json({"error": "forbidden", "detail": text}, 403)
         if not text.startswith("Deleted"):
             return h.json({"ok": False, "message": text}, 404)
-        h.audit(sess, f"ui:{REGISTRIES[kind][1]}", "allow", f"name={args['name']}")
+        h.audit(sess, f"{REGISTRIES[kind][1]}", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
     # ── scheduled jobs (own jobs; admins see all) ─────────────────────────────
@@ -356,7 +356,7 @@ def register(mcp, h):
             return h.json({"error": "forbidden", "detail": text}, 403)
         if not text.startswith("Scheduled"):
             return h.json({"ok": False, "message": text}, 400)
-        h.audit(sess, "ui:cron_add", "allow", f"name={args['name']}")
+        h.audit(sess, "cron_add", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
     @mcp.custom_route("/ui/api/cron/delete", methods=["POST"])
@@ -370,7 +370,7 @@ def register(mcp, h):
             return h.json({"error": "forbidden", "detail": text}, 403)
         if not text.startswith("Deleted"):
             return h.json({"ok": False, "message": text}, 404)
-        h.audit(sess, "ui:cron_delete", "allow", f"name={args['name']}")
+        h.audit(sess, "cron_delete", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
     # ── playbooks (library + a person's runs) ─────────────────────────────────

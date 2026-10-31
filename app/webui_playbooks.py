@@ -49,19 +49,26 @@ def register(mcp, h, b):
 
     @mcp.custom_route("/ui/api/playbooks", methods=["POST"])
     async def _playbook_save(request):
+        # Saving here is a person's decision, so it may also relax a stage's approval
+        # (via_webui) — the playbook_write tool, used by AIs, may not.
         sess, body = await b.session_and_body(request)
         if body is None:
             return sess
-        args = {k: body.get(k, "") for k in ("name", "title", "description", "category",
-                                             "guidance", "source")}
-        args["stages"] = body.get("stages") or []
-        args["plays"] = body.get("plays") or ""
-        ok, text = await b.run_tool(sess, "playbook_write", args)
+        ok, reason = b.confine(sess, "playbook_write", {})
         if not ok:
-            return h.json({"error": "forbidden", "detail": text}, 403)
+            return h.json({"error": "forbidden", "detail": reason}, 403)
+        fields = {k: str(body.get(k, "") or "") for k in ("name", "title", "description",
+                                                          "category", "guidance", "source")}
+        try:
+            with as_person(sess):
+                text = playbooks.save(fields["name"], fields["title"], fields["description"],
+                                      body.get("stages"), fields["category"], body.get("plays"),
+                                      fields["guidance"], fields["source"], via_webui=True)
+        except (TypeError, ValueError, AttributeError) as exc:
+            text = f"Refused: {type(exc).__name__}"
         saved = text.startswith("Saved")
         if saved:
-            h.audit(sess, "ui:playbook_write", "allow", f"name={args['name']}")
+            h.audit(sess, "playbook_write", "allow", f"name={fields['name']}")
         return h.json({"ok": saved, "message": text}, 200 if saved else 400)
 
     @mcp.custom_route("/ui/api/playbooks/delete", methods=["POST"])
@@ -77,16 +84,18 @@ def register(mcp, h, b):
 
     @mcp.custom_route("/ui/api/playbooks/example", methods=["POST"])
     async def _example(request):
-        sess, body = await b.session_and_body(request)
+        # The bundled templates fill the shared library for everyone: an admin's job,
+        # and never over an existing (possibly edited) playbook unless forced.
+        sess, body = await b.session_and_body(request, admin=True)
         if body is None:
             return sess
-        ok, reason = b.confine(sess, "playbook_write", {})
-        if not ok:
-            return h.json({"error": "forbidden", "detail": reason}, 403)
         with as_person(sess):
-            text = playbooks.install_example(str(body.get("name", "") or "ai-native-sdlc"))
+            text = playbooks.install_example(str(body.get("name", "") or "ai-native-sdlc"),
+                                             force=body.get("force") is True)
         saved = text.startswith("Saved")
-        return h.json({"ok": saved, "message": text}, 200 if saved else 400)
+        if saved:
+            h.audit(sess, "playbook_example", "allow", text)
+        return h.json({"ok": saved, "message": text}, 200 if saved else (409 if "exists" in text else 400))
 
     # ── runs ─────────────────────────────────────────────────────────────────
     def summary(run: dict) -> dict:
@@ -159,7 +168,7 @@ def register(mcp, h, b):
                                             via="webui", note=str(body.get("note", "")))
         if problem:
             return h.json({"ok": False, "message": problem}, _status(problem))
-        h.audit(sess, "ui:playbook_decide", "allow", f"run={run_id} decision={decision}")
+        h.audit(sess, "playbook_decide", "allow", f"run={run_id} decision={decision}")
         return h.json({"ok": True, "message": playbooks.next_step(run)})
 
     @mcp.custom_route("/ui/api/playbooks/runs/cancel", methods=["POST"])

@@ -85,17 +85,25 @@ def _is_due(expr: str, dt: datetime) -> bool:
     if len(parts) != 5:
         return False
     minute, hour, dom, mon, dow = parts
-    dow = dow.replace("7", "0")  # cron: 0 and 7 both mean Sunday
     dow_val = (dt.weekday() + 1) % 7  # Python Mon=0 → cron Sun=0
     return (_field_match(minute, dt.minute, 0, 59)
             and _field_match(hour, dt.hour, 0, 23)
             and _field_match(dom, dt.day, 1, 31)
             and _field_match(mon, dt.month, 1, 12)
-            and _field_match(dow, dow_val, 0, 6))
+            and _dow_match(dow, dow_val))
+
+
+def _dow_match(expr: str, dow_val: int) -> bool:
+    """Weekday field: 0 and 7 both mean Sunday — also inside ranges such as 1-7."""
+    return _field_match(expr, dow_val, 0, 7) or (dow_val == 0 and _field_match(expr, 7, 0, 7))
 
 
 # Four years and a day, so a leap-day schedule (29 Feb) still finds its next run.
 _HORIZON_DAYS = 4 * 366
+# Real schedules are short. Longer ones only cost CPU on every save, preview and
+# listing (a 180 KB schedule froze the server for seconds), so they are refused.
+MAX_SCHEDULE = 120
+MAX_PARTS = 24
 _PART = re.compile(r"^(\*|(\d+)(?:-(\d+))?)(?:/(\d+))?$")
 _FIELDS = (("minute", 0, 59), ("hour", 0, 23), ("day of month", 1, 31), ("month", 1, 12),
            ("weekday", 0, 7))
@@ -106,22 +114,26 @@ def next_run(expr: str, after: datetime | None = None) -> datetime | None:
     is due — checked with the runner's own matcher (_is_due) — or None if it never
     is within four years."""
     parts = (expr or "").split()
-    if len(parts) != 5:
+    if len(parts) != 5 or len(expr) > MAX_SCHEDULE or any(p.count(",") >= MAX_PARTS for p in parts):
         return None
     minute, hour, dom, mon, dow = parts
-    dow = dow.replace("7", "0")
+    # Each field once into the values it allows; the days are then cheap to scan.
+    minutes = sorted(v for v in range(60) if _field_match(minute, v, 0, 59))
+    hours = sorted(v for v in range(24) if _field_match(hour, v, 0, 23))
+    doms = {v for v in range(1, 32) if _field_match(dom, v, 1, 31)}
+    mons = {v for v in range(1, 13) if _field_match(mon, v, 1, 12)}
+    dows = {v for v in range(7) if _dow_match(dow, v)}
+    if not (minutes and hours and doms and mons and dows):
+        return None
     start = (after or datetime.now()).replace(second=0, microsecond=0) + timedelta(minutes=1)
     for offset in range(_HORIZON_DAYS):
         day = (start + timedelta(days=offset)).date()
-        if not (_field_match(dom, day.day, 1, 31) and _field_match(mon, day.month, 1, 12)
-                and _field_match(dow, (day.weekday() + 1) % 7, 0, 6)):
+        if day.day not in doms or day.month not in mons or (day.weekday() + 1) % 7 not in dows:
             continue
-        for h in range(24):
-            if not _field_match(hour, h, 0, 23):
-                continue
-            for m in range(60):
+        for h in hours:
+            for m in minutes:
                 dt = datetime.combine(day, time(h, m))
-                if dt >= start and _field_match(minute, m, 0, 59) and _is_due(expr, dt):
+                if dt >= start and _is_due(expr, dt):
                     return dt
     return None
 
@@ -129,10 +141,14 @@ def next_run(expr: str, after: datetime | None = None) -> datetime | None:
 def schedule_problem(expr: str) -> str:
     """'' for a schedule the runner can run, else a short reason — five fields,
     numbers in range, and at least one real date (no 30 February)."""
+    if len(expr or "") > MAX_SCHEDULE:
+        return f"a schedule has at most {MAX_SCHEDULE} characters"
     parts = (expr or "").split()
     if len(parts) != 5:
         return "a schedule has five fields: minute hour day-of-month month weekday"
     for value, (label, lo, hi) in zip(parts, _FIELDS):
+        if value.count(",") >= MAX_PARTS:
+            return f"{label} has more than {MAX_PARTS} entries"
         for part in value.split(","):
             m = _PART.match(part)
             if not m:

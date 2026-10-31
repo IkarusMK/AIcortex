@@ -132,6 +132,15 @@ are. What changes for you:
     Unicode `BASE_URL` hosts match the punycode browsers send, `*.domain` entries work
     in `MCP_ALLOWED_HOSTS`, and a `---` inside a title or description no longer ends
     the header of a note or skill early (it lost type, author and version).
+  - A review of the new WebUI views, cron and playbooks (same day) found no access to
+    other people's data; fixed: nested YAML aliases in playbook stages could exhaust
+    memory and very long cron schedules could stall the server (both refused now,
+    schedules evaluated field by field); an AI could save a playbook whose stages skip
+    the human approval (only a person in the WebUI may relax an approval, and relaxed
+    approvals count only in the author's own runs); the bundled template could be
+    claimed or silently overwritten (admin-only, never overwrites); a template line
+    `---` could break a playbook's header; weekday ranges ending in 7; a run limit per
+    person; 500 errors on odd input.
   - Sending tools (`mail_send`, `webhook_send`, `mqtt_publish`, `print_document`,
     `caldav_add_event`) are marked destructive, so clients ask before running them.
   - Pillow ≥ 13 (39 advisories in 12.x for decoding untrusted images); pytest ≥ 9.0.3

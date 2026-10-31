@@ -17,6 +17,7 @@ scheduled job.
 The bundled template follows Anthropic's "The AI-native SDLC playbook"
 (claude.com, 21 Aug 2026), written in our own words.
 """
+import json
 import os
 import re
 import uuid
@@ -34,7 +35,34 @@ APPROVALS = ("webui", "chat", "none")
 MAX_ARTIFACT = 100_000
 MAX_VERSIONS = 20
 MAX_STAGES = 20
+MAX_TEMPLATE = 8_000
+MAX_INPUT = 200_000         # stages/plays as text — anything bigger is refused unread
+MAX_ACTIVE_RUNS = 30        # per person
+_STRENGTH = {"none": 0, "chat": 1, "webui": 2}
 _ID = re.compile(r"^[a-f0-9]{8,32}$")
+
+
+class _NoAliasLoader(yaml.SafeLoader):
+    """SafeLoader without anchors/aliases: a few hundred bytes of nested aliases
+    expand to gigabytes in memory."""
+    def compose_node(self, parent, index):
+        if self.check_event(yaml.events.AliasEvent):
+            raise yaml.YAMLError("YAML aliases are not allowed")
+        return super().compose_node(parent, index)
+
+
+class _Dumper(yaml.SafeDumper):
+    pass
+
+
+def _str_block(dumper, value):
+    # Multi-line text as an indented block: a line such as "---" can then never
+    # stand at the start of a line and end the header early.
+    style = "|" if "\n" in value else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+
+
+_Dumper.add_representer(str, _str_block)
 
 
 def _now() -> str:
@@ -92,13 +120,31 @@ def _interactive_person() -> bool:
 
 
 # ── definitions ─────────────────────────────────────────────────────────────
+def _as_list(value, what: str) -> tuple[list | None, str]:
+    """A list from a list, or from JSON/YAML text without aliases and within size."""
+    if isinstance(value, list):
+        return value, ""
+    if value in (None, ""):
+        return [], ""
+    if not isinstance(value, str):
+        return None, f"{what} must be a list"
+    if len(value) > MAX_INPUT:
+        return None, f"{what} are too large"
+    try:
+        return json.loads(value), ""
+    except ValueError:
+        pass
+    try:
+        return yaml.load(value, Loader=_NoAliasLoader), ""
+    except yaml.YAMLError as exc:
+        return None, f"{what} must be a list (JSON or YAML): {str(exc).splitlines()[0]}"
+
+
 def _clean_stages(stages) -> tuple[list, str]:
     """(stages, problem) — normalized stage dicts, or why they can't be used."""
-    if isinstance(stages, str):
-        try:
-            stages = yaml.safe_load(stages)
-        except yaml.YAMLError:
-            return [], "stages must be a list (JSON or YAML)"
+    stages, problem = _as_list(stages, "stages")
+    if problem:
+        return [], problem
     if not isinstance(stages, list) or not stages:
         return [], "a playbook needs at least one stage"
     if len(stages) > MAX_STAGES:
@@ -107,7 +153,7 @@ def _clean_stages(stages) -> tuple[list, str]:
     for i, s in enumerate(stages, 1):
         if not isinstance(s, dict):
             return [], f"stage {i} is not an object"
-        sid = _slug(s.get("id") or s.get("name") or f"stage-{i}")
+        sid = _slug(str(s.get("id") or s.get("name") or f"stage-{i}"))
         approval = str(s.get("approval") or "webui").strip().lower()
         if approval not in APPROVALS:
             return [], f"stage {i}: approval must be one of {', '.join(APPROVALS)}"
@@ -116,26 +162,29 @@ def _clean_stages(stages) -> tuple[list, str]:
         seen.add(sid)
         out.append({"id": sid, "name": _one(s.get("name") or sid, 80),
                     "goal": _one(s.get("goal"), 600), "artifact": _one(s.get("artifact"), 120),
-                    "template": str(s.get("template") or "")[:20_000],
+                    "template": str(s.get("template") or "")[:MAX_TEMPLATE],
                     "approval": approval, "approver": _one(s.get("approver"), 120)})
     return out, ""
 
 
 def _clean_plays(plays, stage_ids: set) -> tuple[list, str]:
-    if isinstance(plays, str):
-        try:
-            plays = yaml.safe_load(plays) if plays.strip() else []
-        except yaml.YAMLError:
-            return [], "plays must be a list (JSON or YAML)"
+    plays, problem = _as_list(plays, "plays")
+    if problem:
+        return [], problem
+    if not isinstance(plays, list) or len(plays) > 100:
+        return [], "plays must be a list (at most 100)"
     out, ids = [], set()
-    for p in plays or []:
+    for p in plays:
         if not isinstance(p, dict) or not p.get("id"):
             return [], "every play needs an id"
-        pid = _slug(p["id"])
+        requires = p.get("requires") or []
+        if not isinstance(requires, list):
+            return [], f"play '{p['id']}': requires must be a list"
+        pid = _slug(str(p["id"]))
         ids.add(pid)
-        out.append({"id": pid, "stage": _slug(p.get("stage", "")), "title": _one(p.get("title"), 120),
+        out.append({"id": pid, "stage": _slug(str(p.get("stage", ""))), "title": _one(p.get("title"), 120),
                     "summary": _one(p.get("summary"), 300),
-                    "requires": [_slug(r) for r in p.get("requires") or []]})
+                    "requires": [_slug(str(r)) for r in requires]})
     for p in out:
         if p["stage"] and p["stage"] not in stage_ids:
             return [], f"play '{p['id']}' names an unknown stage '{p['stage']}'"
@@ -188,9 +237,11 @@ def listing() -> list[dict]:
 
 def _may_change(name: str) -> str:
     """'' if the caller may overwrite/delete playbook `name`, else why not. Shared
-    playbooks belong to everyone: only an admin or the author changes one."""
+    playbooks belong to everyone: only an admin or the author changes one; one that
+    exists but can't be read is left to an admin."""
     existing = load(name)
-    if not existing:
+    unreadable = existing is None and (_folder(name) / "PLAYBOOK.md").exists()
+    if not existing and not unreadable:
         return ""
     try:
         import authz
@@ -199,14 +250,18 @@ def _may_change(name: str) -> str:
     except Exception:
         return "Refused: permissions could not be checked."
     person, role = _caller()
-    if role == "admin" or existing["author"].split("/")[0] == person:
+    if role == "admin" or (existing and existing["author"].split("/")[0] == person):
         return ""
-    return (f"Refused: '{existing['name']}' is a shared playbook. Ask an admin to change it, "
+    return (f"Refused: '{_slug(name)}' is a shared playbook. Ask an admin to change it, "
             f"or save your variant under another name.")
 
 
-def save(name, title, description, stages, category="", plays=None, guidance="", source="") -> str:
-    slug = _slug(name)
+def save(name, title, description, stages, category="", plays=None, guidance="", source="",
+         via_webui=False) -> str:
+    """Create or update playbook `name`. Only a person in the WebUI (`via_webui`) may
+    let a stage need less than a WebUI approval; through the tools an AI can keep or
+    tighten a stage's approval but never loosen it — or it could approve its own work."""
+    slug = _slug(str(name or ""))
     if not slug or slug == "runs":
         return "Refused: give the playbook a name (letters or digits; 'runs' is reserved)."
     clean, problem = _clean_stages(stages)
@@ -218,12 +273,26 @@ def save(name, title, description, stages, category="", plays=None, guidance="",
     denied = _may_change(slug)
     if denied:
         return denied
+    if not via_webui:
+        before = {s["id"]: s["approval"] for s in (load(slug) or {}).get("stages", [])}
+        for s in clean:
+            allowed = before.get(s["id"], "webui")
+            if _STRENGTH[s["approval"]] < _STRENGTH[allowed]:
+                return (f"Refused: stage '{s['name']}' would need less than its "
+                        f"'{allowed}' approval. Only a person in the AICortex WebUI can relax "
+                        f"an approval — an AI must not be able to approve its own work.")
     head = {"title": _one(title or name, 120), "description": _one(description, 600),
             "category": _one(category or "uncategorized", 60), "source": _one(source, 300),
             "author": _label(), "stages": clean, "plays": clean_plays}
-    body = yaml.safe_dump(head, sort_keys=False, allow_unicode=True, width=100000)
-    store.write_text_atomic(_folder(slug) / "PLAYBOOK.md",
-                            f"---\n{body}---\n\n{str(guidance or '').strip()}\n")
+    body = yaml.dump(head, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=100000)
+    if len(body) > 4 * MAX_INPUT:
+        return "Refused: the playbook is too large."
+    path = _folder(slug) / "PLAYBOOK.md"
+    store.write_text_atomic(path, f"---\n{body}---\n\n{str(guidance or '').strip()}\n")
+    check = load(slug)
+    if not check or check["stages"] != clean:          # must read back exactly as saved
+        path.unlink(missing_ok=True)
+        return "Refused: the playbook could not be stored readably."
     return f"Saved playbook '{slug}' ({len(clean)} stages)."
 
 
@@ -241,14 +310,17 @@ def delete(name: str) -> str:
     return f"Deleted playbook '{_slug(name)}'."
 
 
-def install_example(name: str = "ai-native-sdlc") -> str:
-    """Copy a bundled template into the library (overwrites only with change rights)."""
+def install_example(name: str = "ai-native-sdlc", force: bool = False) -> str:
+    """Copy a bundled template into the library — never over an existing playbook
+    of that name unless `force` (an edited copy would be lost silently)."""
     src = TEMPLATES_DIR / _slug(name) / "PLAYBOOK.md"
     if not src.is_file():
         return f"No bundled template '{name}'."
     d = _read_def(src.parent)
+    if not force and (_folder(d["name"]) / "PLAYBOOK.md").exists():
+        return f"Refused: '{d['name']}' exists already in the library."
     return save(d["name"], d["title"], d["description"], d["stages"], d["category"],
-                d["plays"], d["guidance"], d["source"])
+                d["plays"], d["guidance"], d["source"], via_webui=True)
 
 
 # ── runs ─────────────────────────────────────────────────────────────────────
@@ -294,13 +366,19 @@ def start(playbook: str, project: str, title: str = "") -> tuple[dict | None, st
     if not d:
         return None, f"No playbook '{playbook}'. playbook_list shows the library."
     person, _ = _caller()
+    if person != "unknown" and len(runs_for(person=person)) >= MAX_ACTIVE_RUNS:
+        return None, (f"Refused: {MAX_ACTIVE_RUNS} active runs already — finish or cancel "
+                      f"some first (playbook_runs).")
+    # Approvals looser than the WebUI are the author's choice for their own runs; a run
+    # of someone else's playbook always waits for its person in the WebUI.
+    own = d["author"].split("/")[0] == person
     run = {"id": uuid.uuid4().hex[:12], "playbook": d["name"], "playbook_title": d["title"],
            "title": _one(title or d["title"], 120), "project": _one(project, 80),
            "person": "" if person == "unknown" else person, "created_by": _label(),
            "created": _now(), "updated": _now(), "status": "active", "current": 0,
            "stages": [{"id": s["id"], "name": s["name"], "goal": s["goal"],
                        "artifact": s["artifact"], "template": s["template"],
-                       "approval": s["approval"], "approver": s["approver"],
+                       "approval": s["approval"] if own else "webui", "approver": s["approver"],
                        "status": "pending", "versions": [], "decision": None}
                       for s in d["stages"]]}
     store.write_json(_run_path(run["id"]), run)

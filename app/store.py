@@ -127,9 +127,9 @@ def split_frontmatter(text: str):
     Line-anchored, so '---' inside a value (a title like "Plan --- draft") does not
     end the header early — str.split("---") did, and the note lost its fields."""
     lines = (text or "").split("\n")
-    if lines[0].strip() != "---":
+    if lines[0].rstrip() != "---":
         return None
     for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
+        if lines[i].rstrip() == "---":       # at the line start: indented text is content
             return "\n".join(lines[1:i]), "\n".join(lines[i + 1:])
     return None

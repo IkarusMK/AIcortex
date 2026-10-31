@@ -55,11 +55,22 @@ Each stage declares how it is approved:
   and jobs acting for their owner: an AI never approves its own work.
 - **`none`** — the stage moves on as soon as its artifact is submitted.
 
+Only a person saving the playbook in the **WebUI** can make a stage's approval looser
+than `webui`. Through the tools an AI can keep or tighten a stage's approval, never
+loosen it — otherwise it could write a playbook that approves its own work. Looser
+approvals also count only in the **author's own runs**: a run of someone else's
+playbook always waits for its person in the WebUI.
+
+Without OIDC (local mode) the WebUI is the machine's own admin page with no sign-in.
+Any program on that machine — including an AI with shell access — can then approve.
+Use OIDC when AIs run on the same host as AICortex.
+
 ## Who sees what
 
 Playbooks in the library are shared; a shared playbook is changed only by an admin or
-its author. A run belongs to the person who started it; admins see all runs. Viewers
-can read but not start, submit or decide.
+its author. Adding the bundled template is an admin's job and never overwrites an
+existing playbook of the same name. A run belongs to the person who started it;
+admins see all runs. Viewers can read but not start, submit or decide.
 
 ## Storage and limits
 
@@ -67,4 +78,6 @@ can read but not start, submit or decide.
   the guidance below it) — default `/data/playbooks`.
 - Runs: `PLAYBOOKS_DIR/runs/<id>.json`, written atomically under a lock.
 - An artifact holds at most 100,000 characters (link larger ones); each stage keeps its
-  last 20 versions; a playbook has at most 20 stages.
+  last 20 versions; a playbook has at most 20 stages with templates of up to 8,000
+  characters; a person has at most 30 active runs. Stages and plays given as text are
+  read as JSON or as YAML without anchors/aliases, up to 200,000 characters.

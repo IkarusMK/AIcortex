@@ -63,6 +63,12 @@ def _write(server, who="alice", stages=TWO_STAGES, name="Small change", role="us
         "stages": stages})
 
 
+def _write_in_webui(stages, who="alice", name="Small change"):
+    """A person saving in the WebUI may relax approvals; an AI through the tools may not."""
+    with sys.modules["authz"].rest_identity(who, "user"):
+        return sys.modules["playbooks"].save(name, name, "Two stages", stages, "Dev", via_webui=True)
+
+
 def _start(server, who="alice"):
     text = _as(server, who, "user", "playbook_start", {"playbook": "small-change",
                                                        "project": "Garden", "title": "Watering"})
@@ -125,7 +131,7 @@ def test_webui_stage_cannot_be_approved_from_the_chat(pb, monkeypatch):
 def test_chat_approval_only_from_the_person_themselves(pb, monkeypatch):
     server, playbooks = pb
     stages = [dict(TWO_STAGES[0], approval="chat"), TWO_STAGES[1]]
-    _write(server, stages=stages)
+    assert "Saved" in _write_in_webui(stages)
     run_id, _ = _start(server)
     _as(server, "alice", "user", "playbook_submit", {"run_id": run_id, "artifact": "x"})
     for claims, runner in (({"aicortex_key": "k1", "key_scopes": ["all"], "agent": "bot"}, False),
@@ -141,7 +147,7 @@ def test_chat_approval_only_from_the_person_themselves(pb, monkeypatch):
 
 def test_a_stage_without_approval_moves_on_when_submitted(pb):
     server, playbooks = pb
-    _write(server, stages=[dict(TWO_STAGES[0], approval="none"), TWO_STAGES[1]])
+    assert "Saved" in _write_in_webui([dict(TWO_STAGES[0], approval="none"), TWO_STAGES[1]])
     run_id, _ = _start(server)
     _as(server, "alice", "user", "playbook_submit", {"run_id": run_id, "artifact": "x"})
     assert playbooks.get_run(run_id)["current"] == 1

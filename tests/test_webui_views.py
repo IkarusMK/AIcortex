@@ -215,8 +215,8 @@ def test_schedule_preview_and_refusal(ui):
 # ── E: playbooks ────────────────────────────────────────────────────────────
 
 def test_playbook_library_and_a_run_in_the_webui(ui):
+    assert ui("boss", "admin").post("/ui/api/playbooks/example", json={}).json()["ok"]
     alice = ui("alice", "user")
-    assert alice.post("/ui/api/playbooks/example", json={}).json()["ok"]
     names = [p["name"] for p in alice.get("/ui/api/playbooks").json()["playbooks"]]
     assert names == ["ai-native-sdlc"]
     d = alice.get("/ui/api/playbooks/get", params={"name": "ai-native-sdlc"}).json()
@@ -236,8 +236,8 @@ def test_playbook_library_and_a_run_in_the_webui(ui):
 
 
 def test_others_cannot_see_or_decide_a_persons_run(ui):
+    ui("boss", "admin").post("/ui/api/playbooks/example", json={})
     alice = ui("alice", "user")
-    alice.post("/ui/api/playbooks/example", json={})
     run_id = alice.post("/ui/api/playbooks/runs/start", json={
         "playbook": "ai-native-sdlc", "project": "Garden"}).json()["id"]
     alice.post("/ui/api/playbooks/runs/submit", json={"id": run_id, "artifact": "x"})
