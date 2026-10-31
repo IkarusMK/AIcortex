@@ -287,6 +287,57 @@ def _overlap_hits(scope: str, title: str, exclude_slug: str) -> list[str]:
     return hits[:5]
 
 
+def _entry(path: Path, meta: dict, body: str) -> dict:
+    first = next((ln.strip() for ln in body.splitlines() if ln.strip()), "")
+    return {"name": path.stem, "title": meta.get("title", path.stem),
+            "type": canon_type(meta.get("type", "")), "project": meta.get("project", ""),
+            "tags": list(meta.get("tags", [])), "review": meta.get("review", ""),
+            "version": _version(meta), "author": meta.get("author", ""),
+            "source": meta.get("source", ""), "created": meta.get("created", ""),
+            "updated": meta.get("updated", ""), "first": first[:110]}
+
+
+def entries(scope: str) -> list[dict]:
+    """Every note of one scope as a dict (name, title, type, project, tags, review,
+    version, author, source, created, updated, first line) — for the briefing, the
+    WebUI and other callers that need structure rather than text."""
+    d = MEMORY_DIR / scope
+    if not d.is_dir():
+        return []
+    return [_entry(p, *read_meta(p)) for p in sorted(d.glob("*.md"))]
+
+
+def search_entries(scope: str, query: str, project: str = "", type_: str = "",
+                   tag: str = "", limit: int = 20) -> list[dict]:
+    """Notes of `scope` matching the words of `query` (any order), best first — a hit
+    in the title counts 3, tags/project 2, the text 1 — each with a `snippet`.
+    Without words: every note passing the project/type/tag filters."""
+    words = _words(query)
+    want_project, want_type = project_key(project), canon_type(type_)
+    want_tag = (tag or "").strip().lower()
+    scored = []
+    for p in sorted(_scope_dir(scope).glob("*.md")):
+        meta, body = read_meta(p)
+        if want_project and project_key(meta.get("project", "")) != want_project:
+            continue
+        if want_type and canon_type(meta.get("type", "")) != want_type:
+            continue
+        tags = [t.lower() for t in meta.get("tags", [])]
+        if want_tag and want_tag not in tags:
+            continue
+        title_w = set(_words(meta.get("title", p.stem)))
+        meta_w = set(_words(" ".join(tags) + " " + meta.get("project", "")))
+        body_w = set(_words(body))
+        score = sum(3 * (w in title_w) + 2 * (w in meta_w) + (w in body_w) for w in words)
+        if score or not words:
+            snippet = next((ln.strip() for ln in body.splitlines()
+                            if ln.strip() and any(w in ln.lower() for w in words)),
+                           next((ln.strip() for ln in body.splitlines() if ln.strip()), ""))
+            scored.append((-score, p.stem, dict(_entry(p, meta, body), snippet=snippet[:120])))
+    scored.sort(key=lambda s: (s[0], s[1]))
+    return [e for _, _, e in scored[:max(1, int(limit or 20))]]
+
+
 def stage_candidate(title: str, content: str, type_: str = "reference",
                     source: str = "auto", tags="") -> str:
     """Write a candidate (not live!) into the reserved candidates scope. Used by
@@ -402,33 +453,11 @@ def register(mcp):
         """Find memories by words (any order); best matches first — a hit in the
         title counts most, then tags/project, then the text. Filters: project, type
         (user/feedback/project/reference), tag. Returns name, title and a snippet."""
-        words = _words(query)
-        want_project, want_type = project_key(project), canon_type(type)
-        want_tag = (tag or "").strip().lower()
-        scored = []
-        for p in sorted(_scope_dir(scope).glob("*.md")):
-            meta, body = read_meta(p)
-            if want_project and project_key(meta.get("project", "")) != want_project:
-                continue
-            if want_type and canon_type(meta.get("type", "")) != want_type:
-                continue
-            tags = [t.lower() for t in meta.get("tags", [])]
-            if want_tag and want_tag not in tags:
-                continue
-            title_w = set(_words(meta.get("title", p.stem)))
-            meta_w = set(_words(" ".join(tags) + " " + meta.get("project", "")))
-            body_w = set(_words(body))
-            score = sum(3 * (w in title_w) + 2 * (w in meta_w) + (w in body_w) for w in words)
-            if score or not words:
-                snippet = next((ln.strip() for ln in body.splitlines()
-                                if ln.strip() and any(w in ln.lower() for w in words)),
-                               next((ln.strip() for ln in body.splitlines() if ln.strip()), ""))
-                scored.append((-score, p.stem, meta.get("title", p.stem), snippet[:120]))
-        if not scored:
+        found = search_entries(scope, query, project=project, type_=type, tag=tag,
+                               limit=max(1, min(int(limit or 20), 100)))
+        if not found:
             return f"No matches for '{query}' in scope '{scope}'."
-        scored.sort()
-        return "\n".join(f"- {name} — {title}: {snip}"
-                         for _, name, title, snip in scored[:max(1, min(int(limit or 20), 100))])
+        return "\n".join(f"- {e['name']} — {e['title']}: {e['snippet']}" for e in found)
 
     @mcp.tool
     def memory_delete(name: str, scope: str = "shared") -> str:

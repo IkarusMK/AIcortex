@@ -268,9 +268,14 @@ function confirmModal(text) {
 const VIEWS = { overview: loadOverview, vault: loadVault, clients: loadClients, skills: loadSkills,
   services: loadServices, users: loadUsers, logs: loadLogs };
 
+// Views of the management plane; everyone else starts in their own notes.
+const ADMIN_VIEWS = new Set(["overview", "vault", "clients", "skills", "services", "users", "logs"]);
+const isAdmin = () => ME && ME.role === "admin";
+
 function route() {
-  const name = (location.hash || "#overview").slice(1);
-  const view = VIEWS[name] ? name : "overview";
+  const home = isAdmin() ? "overview" : "memory";
+  const name = (location.hash || `#${home}`).slice(1);
+  const view = VIEWS[name] && (isAdmin() || !ADMIN_VIEWS.has(name)) ? name : home;
   $$(".view").forEach((v) => v.classList.add("hidden"));
   $(`#view-${view}`).classList.remove("hidden");
   $$(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.nav === view));
@@ -676,7 +681,7 @@ async function boot() {
     el.classList.remove("hidden");
   }
   if (!ME.authenticated) { show("view-login"); return; }
-  if (ME.role !== "admin") { show("view-denied"); return; }
+  $$("[data-admin]").forEach((el) => el.classList.toggle("hidden", !isAdmin()));
   $("#user-name").textContent = ME.name || ME.sub;
   $("#ui-version").textContent = `AICortex v${ME.version}`;
   show("app");

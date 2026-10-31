@@ -49,13 +49,14 @@
         <span class="brand">AI<em>cortex</em></span>
       </div>
       <nav class="nav">
-        <a href="#overview" data-nav="overview"><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
-        <a href="#vault"    data-nav="vault"><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
-        <a href="#clients"  data-nav="clients"><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
-        <a href="#skills"   data-nav="skills"><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
-        <a href="#services" data-nav="services"><span class="ico">⇄</span><span data-i18n="nav_services"></span></a>
-        <a href="#users"    data-nav="users"><span class="ico">◉</span><span data-i18n="nav_users"></span></a>
-        <a href="#logs"     data-nav="logs"><span class="ico">≣</span><span data-i18n="nav_logs"></span></a>
+        <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
+        <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
+        <a href="#vault"    data-nav="vault" data-admin><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
+        <a href="#clients"  data-nav="clients" data-admin><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
+        <a href="#skills"   data-nav="skills" data-admin><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
+        <a href="#services" data-nav="services" data-admin><span class="ico">⇄</span><span data-i18n="nav_services"></span></a>
+        <a href="#users"    data-nav="users" data-admin><span class="ico">◉</span><span data-i18n="nav_users"></span></a>
+        <a href="#logs"     data-nav="logs" data-admin><span class="ico">≣</span><span data-i18n="nav_logs"></span></a>
       </nav>
       <div class="rail-foot">
         <div class="lang-switch" role="group" aria-label="Language">
@@ -228,6 +229,72 @@
         </div>
       </section>
 
+      <!-- Notes -->
+      <section id="view-memory" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_memory"></h1>
+          <button id="btn-mem-new" class="btn primary sm" data-i18n="mem_new"></button>
+        </header>
+        <div class="chips">
+          <button id="mem-tab-notes" class="chip active" data-i18n="mem_tab_notes"></button>
+          <button id="mem-tab-cand" class="chip hidden" data-i18n="mem_tab_cand"></button>
+        </div>
+        <div id="mem-notes">
+          <div class="toolbar">
+            <input id="mem-q" class="inp" type="search" data-i18n-ph="mem_search_ph" aria-label="Search">
+            <select id="mem-type" class="inp" aria-label="Type"></select>
+            <input id="mem-project" class="inp" list="mem-proj-list" data-i18n-ph="mem_project_ph" aria-label="Project">
+            <datalist id="mem-proj-list"></datalist>
+          </div>
+          <div class="grid-2 skills-layout">
+            <div class="panel scroll" id="mem-list"></div>
+            <div class="panel accent hidden" id="mem-editor">
+              <h3 id="mem-editor-title"></h3>
+              <form id="form-mem" autocomplete="off">
+                <label for="mem-title" data-i18n="mem_f_title"></label>
+                <input id="mem-title" class="inp" required maxlength="200">
+                <div class="row-2">
+                  <div>
+                    <label for="mem-f-type" data-i18n="mem_f_type"></label>
+                    <select id="mem-f-type" class="inp" required></select>
+                  </div>
+                  <div>
+                    <label for="mem-f-project" data-i18n="mem_f_project"></label>
+                    <input id="mem-f-project" class="inp" list="mem-proj-list" maxlength="80">
+                  </div>
+                </div>
+                <div class="row-2">
+                  <div>
+                    <label for="mem-f-tags" data-i18n="mem_f_tags"></label>
+                    <input id="mem-f-tags" class="inp">
+                  </div>
+                  <div>
+                    <label for="mem-f-review" data-i18n="mem_f_review"></label>
+                    <input id="mem-f-review" class="inp" type="date">
+                  </div>
+                </div>
+                <label for="mem-body" data-i18n="mem_f_body"></label>
+                <textarea id="mem-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+                <p id="mem-meta" class="dim small"></p>
+                <div id="mem-conflict" class="notice hidden">
+                  <span data-i18n="mem_conflict"></span>
+                  <button type="button" id="btn-mem-reload" class="btn sm" data-i18n="mem_reload"></button>
+                </div>
+                <div class="btn-row">
+                  <button class="btn primary" data-i18n="save"></button>
+                  <button type="button" id="btn-mem-close" class="btn ghost" data-i18n="cancel"></button>
+                  <span class="spacer"></span>
+                  <button type="button" id="btn-mem-delete" class="btn danger hidden" data-i18n="delete"></button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div id="mem-cand" class="hidden">
+          <div class="panel scroll" id="mem-cand-list"></div>
+        </div>
+      </section>
+
       <!-- Users -->
       <section id="view-users" class="view hidden">
         <header class="view-head">
@@ -359,5 +426,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="/ui/assets/app.js?v={{v}}"></script>
+  <script src="/ui/assets/view-memory.js?v={{v}}"></script>
 </body>
 </html>

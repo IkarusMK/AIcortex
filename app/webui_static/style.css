@@ -306,3 +306,10 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 /* setup snippet on the connect-clients page */
 #cl-snippet { white-space: pre-wrap; word-break: break-all; min-height: 96px; margin: 8px 0; }
 #cl-result { margin-top: 18px; }
+
+/* filter bar above a list, and an inline notice inside a form */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.toolbar .inp { flex: 1 1 160px; min-width: 0; margin: 0; }
+.notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(248, 113, 113, .45);
+  background: rgba(248, 113, 113, .1); font-size: 13px; }

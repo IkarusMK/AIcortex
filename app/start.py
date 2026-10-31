@@ -33,21 +33,6 @@ def _caller():
         return "unknown", "user", "shared"
 
 
-def _memories(scope: str) -> list[dict]:
-    d = memory.MEMORY_DIR / scope
-    if not d.is_dir():
-        return []
-    out = []
-    for p in sorted(d.glob("*.md")):
-        meta, body = memory.read_meta(p)
-        first = next((ln.strip() for ln in body.splitlines() if ln.strip()), "")
-        out.append({"name": p.stem, "title": meta.get("title", p.stem),
-                    "type": memory.canon_type(meta.get("type", "")),
-                    "project": meta.get("project", ""), "review": meta.get("review", ""),
-                    "first": first[:110]})
-    return out
-
-
 def _clip(lines: list[str], budget: int) -> list[str]:
     """Keep whole lines while they fit in `budget` characters; note what was cut."""
     kept, used = [], 0
@@ -102,7 +87,7 @@ def _integrations(task: str, ident: str, role: str) -> list[str]:
 
 def build(project: str = "", task: str = "") -> str:
     ident, role, scope = _caller()
-    mems = _memories(scope)
+    mems = memory.entries(scope)
     key = memory.project_key(project)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     parts = [f"AICortex v{version.__version__} — briefing"

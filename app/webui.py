@@ -46,6 +46,7 @@ _MAX_BODY = int(os.environ.get("UI_MAX_BODY_BYTES", str(1_000_000)))
 
 _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "app.js": "application/javascript; charset=utf-8",
+    "view-memory.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
     "logo.svg": "image/svg+xml",
 }
@@ -321,9 +322,20 @@ def register(mcp):
         resp.set_cookie(name, value, max_age=max_age, path=path, httponly=True,
                         samesite="lax", secure=_secure_cookies(request))
 
+    def _require_session(request):
+        """(session) or a JSONResponse short-circuit — any signed-in person. For the
+        views of a person's own area (notes, jobs, playbook runs); what they may do
+        there is decided per call by the same policy as their AI's tools."""
+        if not _enabled():
+            return _json({"error": "ui disabled"}, 404)
+        sess = _session(request)
+        if not sess:
+            return _json({"error": "unauthorized"}, 401)
+        return sess
+
     def _require_admin(request):
-        """(session) or a JSONResponse short-circuit. Admin only — the UI is the
-        management plane; viewers/users have no business here (yet)."""
+        """(session) or a JSONResponse short-circuit. Admin only — the management
+        plane: vault, users, agent keys, registries, audit log."""
         if not _enabled():
             return _json({"error": "ui disabled"}, 404)
         sess = _session(request)
@@ -450,8 +462,7 @@ def register(mcp):
         sess = {"sub": sub, "name": _display_name(claims), "role": role,
                 "csrf": pysecrets.token_urlsafe(16),
                 "exp": time.time() + SESSION_TTL}
-        _audit(sess, "login", "allow" if role == "admin" else "deny",
-               f"browser login, role={role}")
+        _audit(sess, "login", "allow", f"browser login, role={role}")
         resp = RedirectResponse("/ui", status_code=302)
         _cookie(resp, SESSION_COOKIE, _sign(sess), request, SESSION_TTL)
         _cookie(resp, OAUTH_COOKIE, "", request, 0)  # one-shot
@@ -813,3 +824,11 @@ def register(mcp):
         tenancy._write_policy(pol)
         _audit(sess, "user_delete", "allow", f"identity={identity}")
         return _json({"ok": True, "message": f"Removed '{identity}'."})
+
+    # ── a person's own area + registries (notes, jobs, playbooks) ────────────
+    import types
+
+    import webui_views
+    webui_views.register(mcp, types.SimpleNamespace(
+        json=_json, require_session=_require_session, require_admin=_require_admin,
+        body=_body, gate=_gate_mutation, audit=_audit))

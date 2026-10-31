@@ -9,10 +9,7 @@
   ChatGPT prefers CIMD, Pocket ID itself refuses DCR.
 - Per-agent bearer tokens keep working next to OAuth.
 """
-import json
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
 import pytest
@@ -20,41 +17,6 @@ import pytest
 PUBLIC = "https://agent.example.net"
 
 pytestmark = pytest.mark.oidc
-
-
-@pytest.fixture
-def fake_idp():
-    """A minimal OIDC provider: just the discovery document and an empty JWKS."""
-    server = HTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
-    base = f"http://127.0.0.1:{server.server_address[1]}"
-    docs = {
-        "/.well-known/openid-configuration": {
-            "issuer": base,
-            "authorization_endpoint": f"{base}/authorize",
-            "token_endpoint": f"{base}/token",
-            "jwks_uri": f"{base}/jwks",
-            "response_types_supported": ["code"],
-            "subject_types_supported": ["public"],
-            "id_token_signing_alg_values_supported": ["RS256"],
-        },
-        "/jwks": {"keys": []},
-    }
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = json.dumps(docs.get(self.path, {})).encode()
-            self.send_response(200 if self.path in docs else 404)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *args):
-            pass
-
-    server.RequestHandlerClass = Handler
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield base
-    server.shutdown()
 
 
 @pytest.fixture
