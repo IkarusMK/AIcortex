@@ -51,6 +51,7 @@
       <nav class="nav">
         <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
         <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
+        <a href="#cron"     data-nav="cron"><span class="ico">⏱</span><span data-i18n="nav_cron"></span></a>
         <a href="#vault"    data-nav="vault" data-admin><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
         <a href="#clients"  data-nav="clients" data-admin><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
         <a href="#skills"   data-nav="skills" data-admin><span class="ico">⌘</span><span data-i18n="nav_skills"></span></a>
@@ -295,6 +296,78 @@
         </div>
       </section>
 
+      <!-- Scheduled jobs -->
+      <section id="view-cron" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_cron"></h1>
+          <button id="btn-cron-new" class="btn primary sm" data-i18n="cron_new"></button>
+        </header>
+        <div class="panel">
+          <p class="dim small" data-i18n="cron_hint"></p>
+          <div class="tbl-scroll">
+            <table class="tbl" id="cron-table">
+              <thead><tr>
+                <th data-i18n="cron_col_name"></th>
+                <th data-i18n="cron_col_when"></th>
+                <th data-i18n="cron_col_next"></th>
+                <th data-i18n="cron_col_last"></th>
+                <th data-i18n="cron_col_on"></th>
+                <th data-admin data-i18n="cron_col_owner"></th>
+                <th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p id="cron-empty" class="dim hidden" data-i18n="cron_empty"></p>
+        </div>
+        <div class="panel accent hidden" id="cron-editor">
+          <h3 id="cron-editor-title"></h3>
+          <form id="form-cron" autocomplete="off">
+            <label for="cron-name" data-i18n="cron_f_name"></label>
+            <input id="cron-name" class="inp" required maxlength="80">
+            <label data-i18n="cron_f_when"></label>
+            <div class="chips" id="cron-presets">
+              <button type="button" class="chip" data-preset="daily" data-i18n="cron_p_daily"></button>
+              <button type="button" class="chip" data-preset="weekdays" data-i18n="cron_p_weekdays"></button>
+              <button type="button" class="chip" data-preset="weekly" data-i18n="cron_p_weekly"></button>
+              <button type="button" class="chip" data-preset="hourly" data-i18n="cron_p_hourly"></button>
+            </div>
+            <div class="row-2">
+              <div>
+                <label for="cron-time" data-i18n="cron_f_time"></label>
+                <input id="cron-time" class="inp" type="time" value="06:30">
+              </div>
+              <div>
+                <label for="cron-dow" data-i18n="cron_f_dow"></label>
+                <select id="cron-dow" class="inp" disabled></select>
+              </div>
+            </div>
+            <label for="cron-expr" data-i18n="cron_f_expr"></label>
+            <input id="cron-expr" class="inp mono" required spellcheck="false">
+            <p id="cron-preview" class="dim small" aria-live="polite"></p>
+            <label for="cron-prompt" data-i18n="cron_f_prompt"></label>
+            <textarea id="cron-prompt" class="inp" rows="6" required></textarea>
+            <div class="row-2">
+              <div>
+                <label for="cron-notify" data-i18n="cron_f_notify"></label>
+                <input id="cron-notify" class="inp" value="user">
+              </div>
+              <div data-admin>
+                <label for="cron-owner" data-i18n="cron_f_owner"></label>
+                <input id="cron-owner" class="inp mono">
+              </div>
+            </div>
+            <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
+            <div class="btn-row">
+              <button class="btn primary" data-i18n="save"></button>
+              <button type="button" id="btn-cron-close" class="btn ghost" data-i18n="cancel"></button>
+              <span class="spacer"></span>
+              <button type="button" id="btn-cron-delete" class="btn danger hidden" data-i18n="delete"></button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <!-- Users -->
       <section id="view-users" class="view hidden">
         <header class="view-head">
@@ -446,5 +519,6 @@
   <script src="/ui/assets/app.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
+  <script src="/ui/assets/view-cron.js?v={{v}}"></script>
 </body>
 </html>

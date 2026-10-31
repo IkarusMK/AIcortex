@@ -14,6 +14,7 @@ from pathlib import Path
 
 import authz
 import cfgstore
+import cron
 import memory
 
 _SAVED = re.compile(r"memory '([^']+)'.*\(version (\d+)\)")
@@ -302,4 +303,72 @@ def register(mcp, h):
         if not text.startswith("Deleted"):
             return h.json({"ok": False, "message": text}, 404)
         h.audit(sess, f"ui:{REGISTRIES[kind][1]}", "allow", f"name={args['name']}")
+        return h.json({"ok": True, "message": text})
+
+    # ── scheduled jobs (own jobs; admins see all) ─────────────────────────────
+    @mcp.custom_route("/ui/api/cron", methods=["GET"])
+    async def _cron_list(request):
+        sess = h.require_session(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        ok, reason = confine(sess, "cron_list", {})
+        if not ok:
+            return h.json({"error": "forbidden", "detail": reason}, 403)
+        sub, role = who(sess)
+        with authz.rest_identity(sub, role):
+            rows = cron.job_rows()
+        return h.json({"jobs": rows})
+
+    @mcp.custom_route("/ui/api/cron/preview", methods=["GET"])
+    async def _cron_preview(request):
+        sess = h.require_session(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        expr = request.query_params.get("schedule", "")
+        problem = cron.schedule_problem(expr)
+        if problem:
+            return h.json({"ok": False, "message": problem})
+        runs, at = [], None
+        for _ in range(3):
+            at = cron.next_run(expr, at)
+            if at is None:
+                break
+            runs.append(at.strftime("%Y-%m-%dT%H:%M"))
+        return h.json({"ok": True, "next": runs})
+
+    @mcp.custom_route("/ui/api/cron", methods=["POST"])
+    async def _cron_save(request):
+        sess, body = await session_and_body(request)
+        if body is None:
+            return sess
+        args = {"name": str(body.get("name", "")).strip(),
+                "schedule": " ".join(str(body.get("schedule", "")).split()),
+                "prompt": str(body.get("prompt", "")),
+                "notify": str(body.get("notify", "") or "user"),
+                "enabled": body.get("enabled", True) is not False}
+        if str(body.get("owner", "")).strip():
+            args["owner"] = str(body["owner"]).strip()
+        problem = cron.schedule_problem(args["schedule"])
+        if not args["name"] or problem:
+            return h.json({"ok": False, "message": problem or "name is required"}, 400)
+        ok, text = await run_tool(sess, "cron_add", args)
+        if not ok:
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        if not text.startswith("Scheduled"):
+            return h.json({"ok": False, "message": text}, 400)
+        h.audit(sess, "ui:cron_add", "allow", f"name={args['name']}")
+        return h.json({"ok": True, "message": text})
+
+    @mcp.custom_route("/ui/api/cron/delete", methods=["POST"])
+    async def _cron_delete(request):
+        sess, body = await session_and_body(request)
+        if body is None:
+            return sess
+        args = {"name": str(body.get("name", ""))}
+        ok, text = await run_tool(sess, "cron_delete", args)
+        if not ok:
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        if not text.startswith("Deleted"):
+            return h.json({"ok": False, "message": text}, 404)
+        h.audit(sess, "ui:cron_delete", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})

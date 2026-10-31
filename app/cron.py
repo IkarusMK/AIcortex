@@ -16,7 +16,7 @@ import functools
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 import store
@@ -94,6 +94,72 @@ def _is_due(expr: str, dt: datetime) -> bool:
             and _field_match(dow, dow_val, 0, 6))
 
 
+# Four years and a day, so a leap-day schedule (29 Feb) still finds its next run.
+_HORIZON_DAYS = 4 * 366
+_PART = re.compile(r"^(\*|(\d+)(?:-(\d+))?)(?:/(\d+))?$")
+_FIELDS = (("minute", 0, 59), ("hour", 0, 23), ("day of month", 1, 31), ("month", 1, 12),
+           ("weekday", 0, 7))
+
+
+def next_run(expr: str, after: datetime | None = None) -> datetime | None:
+    """The first minute after `after` (default: now, server time) at which `expr`
+    is due — checked with the runner's own matcher (_is_due) — or None if it never
+    is within four years."""
+    parts = (expr or "").split()
+    if len(parts) != 5:
+        return None
+    minute, hour, dom, mon, dow = parts
+    dow = dow.replace("7", "0")
+    start = (after or datetime.now()).replace(second=0, microsecond=0) + timedelta(minutes=1)
+    for offset in range(_HORIZON_DAYS):
+        day = (start + timedelta(days=offset)).date()
+        if not (_field_match(dom, day.day, 1, 31) and _field_match(mon, day.month, 1, 12)
+                and _field_match(dow, (day.weekday() + 1) % 7, 0, 6)):
+            continue
+        for h in range(24):
+            if not _field_match(hour, h, 0, 23):
+                continue
+            for m in range(60):
+                dt = datetime.combine(day, time(h, m))
+                if dt >= start and _field_match(minute, m, 0, 59) and _is_due(expr, dt):
+                    return dt
+    return None
+
+
+def schedule_problem(expr: str) -> str:
+    """'' for a schedule the runner can run, else a short reason — five fields,
+    numbers in range, and at least one real date (no 30 February)."""
+    parts = (expr or "").split()
+    if len(parts) != 5:
+        return "a schedule has five fields: minute hour day-of-month month weekday"
+    for value, (label, lo, hi) in zip(parts, _FIELDS):
+        for part in value.split(","):
+            m = _PART.match(part)
+            if not m:
+                return f"{label} '{value}' is not a cron field"
+            a, b, step = m.group(2), m.group(3), m.group(4)
+            nums = [int(x) for x in (a, b) if x is not None]
+            if any(n < lo or n > hi for n in nums) or (len(nums) == 2 and nums[0] > nums[1]):
+                return f"{label} '{value}' is outside {lo}-{hi}"
+            if step is not None and int(step) < 1:
+                return f"{label} '{value}' has a step of 0"
+    if next_run(expr) is None:
+        return "this schedule never runs (no date matches it)"
+    return ""
+
+
+def job_rows() -> list[dict]:
+    """The caller's visible jobs with their next run (server time; '' when off)."""
+    rows = []
+    for j in visible_jobs():
+        nxt = next_run(j.get("schedule", "")) if j.get("enabled") else None
+        row = {k: j.get(k, "") for k in ("id", "name", "schedule", "prompt", "notify", "owner",
+                                         "created", "last_run", "last_result")}
+        rows.append(dict(row, enabled=bool(j.get("enabled")),
+                         next_run=nxt.strftime("%Y-%m-%dT%H:%M") if nxt else ""))
+    return rows
+
+
 def _caller():
     """(identity, role, is_runner) for the REAL current caller (the token identity —
     NOT the act-as owner), for owner-scoping and runner-only gates. Fail-safe to
@@ -147,8 +213,10 @@ def register(mcp):
         services / skills). A NON-ADMIN may schedule ONLY as themselves — their job
         is always tagged with their own identity and runs as them (no escalation). An
         ADMIN may set any owner, or leave it empty to run as the runner's default."""
-        if len(schedule.split()) != 5:
-            return "schedule must be a 5-field cron expression: 'min hour dom mon dow'."
+        problem = schedule_problem(schedule)
+        if problem:
+            return (f"Refused: {problem}. A schedule is 'min hour dom mon dow', e.g. "
+                    f"\"30 6 * * *\" = 06:30 daily, \"0 8 * * 1-5\" = 08:00 on weekdays.")
         caller, role, _ = _caller()
         req_owner = (owner or "").strip()
         if role == "admin":
@@ -174,11 +242,14 @@ def register(mcp):
             return (f"Refused: a job named '{sid}' already belongs to someone else — "
                     "pick another name.")
         jobs = [j for j in jobs if j.get("id") != sid]
+        history = taken or {}        # an edit keeps when the job was made and last ran
         jobs.append({"id": sid, "name": name, "schedule": schedule, "prompt": prompt,
                      "notify": notify or "user", "enabled": bool(enabled),
                      "owner": act_as,
-                     "created": datetime.now().isoformat(timespec="seconds"),
-                     "last_run": ""})
+                     "created": history.get("created")
+                     or datetime.now().isoformat(timespec="seconds"),
+                     "last_run": history.get("last_run", ""),
+                     **({"last_result": history["last_result"]} if history.get("last_result") else {})})
         _write(jobs)
         as_note = f" as {act_as}" if act_as else ""
         return f"Scheduled job '{sid}' ({schedule}){as_note}.{warn}"

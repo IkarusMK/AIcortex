@@ -321,3 +321,6 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .tbl td.actions .btn + .btn { margin-left: 6px; }
 /* wide tables scroll inside their panel instead of widening the page */
 .tbl-scroll { overflow-x: auto; max-width: 100%; }
+.check { display: flex; align-items: center; gap: 8px; margin: 10px 0; text-transform: none;
+  letter-spacing: 0; font-size: 14px; }
+.check input { width: 18px; height: 18px; }

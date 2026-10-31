@@ -171,3 +171,42 @@ def test_invalid_value_is_refused_with_a_reason(ui):
     r = ui("boss", "admin").post("/ui/api/registry/mqtt", json={"name": "Broker", "host": "broker.example.com",
                                                                  "port": "not-a-number"})
     assert r.status_code == 400 and "port" in r.json()["message"]
+
+
+# ── D: scheduled jobs ───────────────────────────────────────────────────────
+
+def _job(c, name, schedule="0 6 * * *", **extra):
+    return c.post("/ui/api/cron", json={"name": name, "schedule": schedule,
+                                        "prompt": f"{name} prompt", **extra})
+
+
+def test_people_manage_their_own_jobs(ui):
+    alice, bob = ui("alice", "user"), ui("bob", "user")
+    assert _job(alice, "Morning summary").status_code == 200
+    rows = alice.get("/ui/api/cron").json()["jobs"]
+    assert [r["name"] for r in rows] == ["Morning summary"]
+    assert rows[0]["next_run"] and rows[0]["owner"] == "alice"
+    assert bob.get("/ui/api/cron").json()["jobs"] == []
+    # switching off keeps the job, and it no longer has a next run
+    assert _job(alice, "Morning summary", enabled=False).status_code == 200
+    row = alice.get("/ui/api/cron").json()["jobs"][0]
+    assert row["enabled"] is False and row["next_run"] == ""
+    assert bob.post("/ui/api/cron/delete", json={"name": "Morning summary"}).status_code != 200
+    assert alice.post("/ui/api/cron/delete", json={"name": "Morning summary"}).status_code == 200
+    assert alice.get("/ui/api/cron").json()["jobs"] == []
+
+
+def test_admin_sees_every_job_with_its_owner(ui):
+    _job(ui("alice", "user"), "Alice job")
+    rows = ui("boss", "admin").get("/ui/api/cron").json()["jobs"]
+    assert [(r["name"], r["owner"]) for r in rows] == [("Alice job", "alice")]
+
+
+def test_schedule_preview_and_refusal(ui):
+    alice = ui("alice", "user")
+    d = alice.get("/ui/api/cron/preview", params={"schedule": "0 8 * * 1-5"}).json()
+    assert d["ok"] and len(d["next"]) == 3
+    d = alice.get("/ui/api/cron/preview", params={"schedule": "61 * * * *"}).json()
+    assert not d["ok"] and d["message"]
+    r = _job(alice, "Broken", schedule="0 0 30 2 *")
+    assert r.status_code == 400
