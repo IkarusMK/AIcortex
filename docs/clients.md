@@ -49,13 +49,60 @@ Settings → Connectors → **Add custom connector** → URL `https://<your-host
 
 ## Claude Code
 
-```bash
-claude mcp add --transport http aicortex https://<your-host>/mcp \
-  --header "Authorization: Bearer ${AICORTEX_KEY}"
-```
+Recommended setup — the key stays in the macOS keychain, the long-term memory is
+loaded at every session start, and a missing AICortex is reported instead of
+silently ignored.
 
-Or without a header: `claude mcp add --transport http aicortex https://<your-host>/mcp`
-and sign in via `/mcp` (OAuth).
+1. **Key in the keychain** (asks for the key; paste the agent key from the WebUI):
+
+   ```bash
+   security add-generic-password -s aicortex -a "$USER" -w
+   ```
+
+2. **Connect the MCP server.** Export the key in your shell profile (`~/.zshrc`) and
+   register the server with the variable *in single quotes*, so Claude Code stores
+   `${AICORTEX_KEY}` and expands it at runtime instead of saving the key:
+
+   ```bash
+   export AICORTEX_KEY="$(security find-generic-password -s aicortex -w 2>/dev/null)"
+   ```
+
+   ```bash
+   claude mcp add --transport http --scope user aicortex https://<your-host>/mcp --header 'Authorization: Bearer ${AICORTEX_KEY}'
+   ```
+
+   Or without a key: `claude mcp add --transport http aicortex https://<your-host>/mcp`
+   and sign in via `/mcp` (OAuth).
+
+3. **Load the long-term memory automatically.** Copy
+   `clients/claude-code/session_start.py` from this repository (for example to
+   `~/.claude/hooks/aicortex_session_start.py`) and add to `~/.claude/settings.json`:
+
+   ```json
+   {
+     "env": {
+       "AICORTEX_URL": "https://<your-host>",
+       "AICORTEX_KEY_CMD": "security find-generic-password -s aicortex -w"
+     },
+     "hooks": {
+       "SessionStart": [
+         {"hooks": [{"type": "command", "timeout": 15,
+                     "command": "python3 ~/.claude/hooks/aicortex_session_start.py"}]}
+       ]
+     }
+   }
+   ```
+
+   At every start — and after `/clear` or a compaction — the hook fetches the
+   `cortex_start` briefing for the current repository (name from a
+   `.aicortex-project` file, else the repository folder) and adds it to the session.
+   If AICortex can't be reached you see a warning and Claude is told to say so.
+
+**How the memory is split.** Claude Code keeps the *short-term* memory of the work at
+hand (its own memory and `CLAUDE.md`). AICortex holds the *long-term* memory every app
+and agent shares: who you are, how you work, your projects and decisions — and
+checkpoints of big projects (`session_save`) that need to survive between sessions.
+The hook tells Claude this rule at every start.
 
 ## Claude API (Messages API MCP connector)
 
