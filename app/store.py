@@ -119,3 +119,17 @@ def read_json(path, default):
         raise StoreCorrupt(
             f"{path.name} is unreadable ({exc.__class__.__name__}); it was left "
             f"untouched — restore it from a backup or fix it by hand") from exc
+
+
+def split_frontmatter(text: str):
+    """(header, body) of a Markdown file that opens with a '---' line and whose header
+    ends at the next line that is exactly '---'; None when there is no such header.
+    Line-anchored, so '---' inside a value (a title like "Plan --- draft") does not
+    end the header early — str.split("---") did, and the note lost its fields."""
+    lines = (text or "").split("\n")
+    if lines[0].strip() != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "\n".join(lines[1:i]), "\n".join(lines[i + 1:])
+    return None

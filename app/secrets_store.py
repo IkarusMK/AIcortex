@@ -128,6 +128,9 @@ def vault_rekey() -> str:
         return (f"Refused: the vault can't be read with the configured keys ({exc}). "
                 f"Set the previous key as STORAGE_ENCRYPTION_KEY_OLD and retry.")
     _write_all(data)
+    # The backup still holds the previous generation — plaintext, or readable with the
+    # key being retired. Replace it with the freshly encrypted vault.
+    store.write_bytes_atomic(VAULT_BAK, VAULT_FILE.read_bytes())
     return f"Re-encrypted {len(data)} secret(s) with the current key."
 
 
@@ -197,7 +200,7 @@ _INTERNAL_ENV = frozenset({
     # generic process environment
     "PATH", "HOME", "HOSTNAME", "PWD", "USER", "LANG", "TZ", "PUID", "PGID",
 })
-_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON")
+_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_")
 _INTERNAL_SUFFIXES = ("_DIR",)
 
 
@@ -216,24 +219,39 @@ def get_secret(name: str):
     secret (``users/<sub>/<name>``) is preferred over the shared/flat one — so an
     admin can hand a single user their own token for a shared service. Fail-open:
     if the caller can't be resolved, only env + the flat secret are used (the
-    original behaviour)."""
-    if not name or is_internal_env(name):
+    original behaviour). A name with "/" (a storage path such as another person's
+    ``users/<ns>/<name>``) is never resolved."""
+    if not name or "/" in name or is_internal_env(name):
         return None
     env = os.environ.get(name)
     if env:
         return env
     data = _read_all()
-    try:
-        import tenancy
-        ident, role = tenancy.current_identity()
-        ns = tenancy.vault_namespace(ident, role) if ident else ""
-    except Exception:
-        ns = ""
+    ns = _caller_namespace()
     if ns:
         personal = data.get(f"{ns}/{name}")
         if personal is not None:
             return personal
     return data.get(name)
+
+
+def _caller_namespace() -> str:
+    try:
+        import tenancy
+        ident, role = tenancy.current_identity()
+        return tenancy.vault_namespace(ident, role) if ident else ""
+    except Exception:
+        return ""
+
+
+def get_own_secret(name: str):
+    """Only the current caller's PERSONAL secret `name` — never an env value, never a
+    shared one. For tools that send a secret to a destination the caller chooses
+    (webhook_send): a user may send their own token, not everyone's."""
+    if not name or "/" in name:
+        return None
+    ns = _caller_namespace()
+    return _read_all().get(f"{ns}/{name}") if ns else None
 
 
 # ── Core vault operations ────────────────────────────────────────────────────

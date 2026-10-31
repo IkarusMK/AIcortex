@@ -32,6 +32,13 @@ are. What changes for you:
   without `ALLOW_INSECURE`, 1.x listened on localhost only, without a token; 2.0 listens
   on `MCP_HOST` and asks for a bearer token (`RUNNER_TOKEN` or an agent key), and the
   WebUI's no-login admin works only on the machine itself.
+- **Browser access under a dotted name** (e.g. a VPN name such as
+  `nas.tail1234.ts.net` or a router name such as `nas.localdomain`) needs that origin in
+  `MCP_ALLOWED_ORIGINS`; IP addresses,
+  names without a dot, `.local` / `.lan` / `.home.arpa` / `.internal` names and the
+  `BASE_URL` host work as before. Native clients are not affected.
+- **`webhook_send` by non-admins** can attach only their own personal secrets; shared
+  secrets stay with registered services (`call_service`).
 - Start a new session in your AI apps after the update so they load the new tool list.
 
 ### Added
@@ -82,6 +89,35 @@ are. What changes for you:
   to the admin default; identity now uses `original_client_id`.
 - Agent keys never become admin by default and keep their scopes on `/mcp`.
 - `tools/list` hides tools the caller's role may not call.
+- Security review (October 2026), every finding reproduced first and pinned by a test
+  (`tests/test_security_review.py`, `tests/test_host_guard.py`):
+  - **DNS rebinding**: the Host/Origin guard was never installed, so a website opened
+    in a local browser could use the WebUI's no-login admin (store secrets, mint agent
+    keys) and, in open mode, every tool. A new guard refuses browser requests from
+    foreign sites (403) and the WebUI under foreign host names (421); native clients
+    are unaffected. `MCP_ALLOWED_HOSTS` now really makes the host check strict.
+  - **`webhook_send`** let any user send shared vault secrets — and, by naming the
+    storage path, other people's private ones — to a URL of their choice. Non-admins
+    can now send only their own personal secrets; storage paths are never resolved.
+    `STORAGE_ENCRYPTION_KEY_OLD` is internal like the current key.
+  - **REST keys in open mode** scheduled cron jobs as another person and fetched their
+    act-as tokens; cron now uses the key's person and role.
+  - `cortex_catalog` and `agent_list` showed every person's cron prompts and agents;
+    `session_prune` deleted other people's sessions; `cron_add` replaced another
+    person's job of the same name. All per person now (admins: everything).
+  - Line breaks in memory fields forged the server-stamped `author` and `version`.
+  - A non-ASCII bearer token crashed the verifier (500 instead of 401).
+  - `vault_rekey` left the previous generation in `secrets.enc.bak` (plaintext, or
+    readable with the retired key).
+  - A second review of these fixes found no bypass; its leftovers are fixed too:
+    malformed, repeated or userinfo-carrying Host/Origin headers count as foreign,
+    Unicode `BASE_URL` hosts match the punycode browsers send, `*.domain` entries work
+    in `MCP_ALLOWED_HOSTS`, and a `---` inside a title or description no longer ends
+    the header of a note or skill early (it lost type, author and version).
+  - Sending tools (`mail_send`, `webhook_send`, `mqtt_publish`, `print_document`,
+    `caldav_add_event`) are marked destructive, so clients ask before running them.
+  - Pillow ≥ 13 (39 advisories in 12.x for decoding untrusted images); pytest ≥ 9.0.3
+    for development.
 
 ### Fixed
 - Parallel tool calls lost data (40 parallel `task_add` kept 8) and an unreadable store

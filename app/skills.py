@@ -43,16 +43,15 @@ def _parse(text: str):
     Strict YAML first; if that fails (e.g. an unquoted ': ' inside a value),
     fall back to tolerant line-based parsing instead of dropping the metadata."""
     meta, body = {}, text
-    if text.startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) == 3:
-            try:
-                meta = yaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            if not isinstance(meta, dict) or not meta:
-                meta = _fallback_parse(parts[1])
-            body = parts[2].lstrip("\n")
+    split = store.split_frontmatter(text)
+    if split:
+        try:
+            meta = yaml.safe_load(split[0]) or {}
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict) or not meta:
+            meta = _fallback_parse(split[0])
+        body = split[1].lstrip("\n")
     return (meta if isinstance(meta, dict) else {}), body
 
 

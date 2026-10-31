@@ -35,7 +35,8 @@ class AgentTokenVerifier(TokenVerifier):
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token:
             return None
-        if self._runner_token and hmac.compare_digest(token, self._runner_token):
+        # Bytes, not str: compare_digest raises on non-ASCII text (→ 500, not 401).
+        if self._runner_token and hmac.compare_digest(token.encode(), self._runner_token.encode()):
             return AccessToken(token=token, client_id="runner", scopes=[], claims={})
         if not token.startswith("ak_"):
             return None

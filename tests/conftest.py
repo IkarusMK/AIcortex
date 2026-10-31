@@ -82,7 +82,7 @@ def http_server(fresh_server):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    app = fresh_server.mcp.http_app(path="/mcp")
+    app = fresh_server.mcp.http_app(path="/mcp", middleware=fresh_server.http_middleware())
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()

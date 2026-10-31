@@ -100,10 +100,16 @@ def _caller():
     ('unknown', 'user', False)."""
     try:
         import authz
-        ident, is_runner, claims = authz._identity()
-        return ident, authz.role_for(ident, is_runner, claims), is_runner
+        return authz.real_caller()
     except Exception:
         return "unknown", "user", False
+
+
+def visible_jobs() -> list:
+    """The jobs the real caller may see: an admin all of them, anyone else their own."""
+    jobs = _read()
+    caller, role, _ = _caller()
+    return jobs if role == "admin" else [j for j in jobs if j.get("owner") == caller]
 
 
 def _runner_or_admin():
@@ -163,6 +169,10 @@ def register(mcp):
                 pass
         jobs = _read()
         sid = _slug(name)
+        taken = next((j for j in jobs if j.get("id") == sid), None)
+        if taken and role != "admin" and taken.get("owner") != caller:
+            return (f"Refused: a job named '{sid}' already belongs to someone else — "
+                    "pick another name.")
         jobs = [j for j in jobs if j.get("id") != sid]
         jobs.append({"id": sid, "name": name, "schedule": schedule, "prompt": prompt,
                      "notify": notify or "user", "enabled": bool(enabled),
@@ -177,10 +187,7 @@ def register(mcp):
     def cron_list() -> str:
         """List scheduled jobs (id — schedule — enabled — last run). A non-admin sees
         only their OWN jobs; an admin sees all."""
-        jobs = _read()
-        caller, role, _ = _caller()
-        if role != "admin":
-            jobs = [j for j in jobs if j.get("owner") == caller]
+        jobs = visible_jobs()
         if not jobs:
             return "No scheduled jobs yet. Use cron_add."
         return "\n".join(

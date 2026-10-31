@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 import sessions
+import store
 import memory
 import coordination
 import catalog_cache
@@ -98,13 +99,12 @@ def _skill_list() -> list[str]:
         cat = "uncategorized"
         try:
             text = sk.read_text(encoding="utf-8")
-            if text.startswith("---"):
-                parts = text.split("---", 2)
-                if len(parts) == 3:
-                    m = re.search(r'^(?:category|cluster):\s*"?([^"\n]+)"?',
-                                  parts[1], re.MULTILINE)
-                    if m:
-                        cat = m.group(1).strip()
+            split = store.split_frontmatter(text)
+            if split:
+                m = re.search(r'^(?:category|cluster):\s*"?([^"\n]+)"?',
+                              split[0], re.MULTILINE)
+                if m:
+                    cat = m.group(1).strip()
         except Exception:
             pass
         counts[cat] = counts.get(cat, 0) + 1
@@ -250,10 +250,10 @@ def _catalog() -> str:
 
 
 def _cron_lines() -> list[str]:
-    """Scheduled jobs from cron's single jobs.json (one line each)."""
+    """The caller's scheduled jobs (an admin: all), one line each."""
     try:
         import cron
-        jobs = cron._read()
+        jobs = cron.visible_jobs()
     except Exception:
         return ["  (cron store unreadable — see cron_list)"]
     return [f"  - {j.get('id')} — {j.get('schedule')} · {str(j.get('prompt', ''))[:80]}"

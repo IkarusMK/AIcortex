@@ -29,6 +29,10 @@ _DESTRUCTIVE_EXACT = {
     # over existing files, promotion over an existing memory, replacing grants
     "call_service", "ftp_upload", "webdav_upload", "ssh_upload", "webdav_download",
     "ssh_download", "memory_promote", "tenancy_set",
+    # can't be undone outside AICortex: a sent mail or webhook, a device command, a
+    # printed page, a calendar invite — clients that confirm only destructive tools
+    # must ask before these
+    "mail_send", "webhook_send", "mqtt_publish", "print_document", "caldav_add_event",
 }
 _DESTRUCTIVE_PART = ("_delete", "_remove", "_revoke", "_unset")
 

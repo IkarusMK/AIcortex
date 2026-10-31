@@ -142,22 +142,27 @@ def _frontmatter(*, title: str, type_: str, tags: list[str], source: str,
                  created: str, updated: str, review: str = "",
                  status: str = "", project: str = "", author: str = "",
                  version: int = 0) -> str:
-    lines = ["---", f"title: {title}", f"type: {type_}"]
+    # One line per field: a line break inside a value would start a new field and
+    # forge the server-stamped author/version (the parser keeps the last one).
+    def one(v) -> str:
+        return " ".join(str(v).split())
+
+    lines = ["---", f"title: {one(title)}", f"type: {one(type_)}"]
     if project:
-        lines.append(f"project: {project}")
+        lines.append(f"project: {one(project)}")
     if author:
-        lines.append(f"author: {author}")
+        lines.append(f"author: {one(author)}")
     if version:
-        lines.append(f"version: {version}")
+        lines.append(f"version: {int(version)}")
     if tags:
-        lines.append("tags: " + ", ".join(tags))
-    lines.append(f"source: {source or 'unknown'}")
-    lines.append(f"created: {created}")
-    lines.append(f"updated: {updated}")
+        lines.append("tags: " + ", ".join(one(t) for t in tags))
+    lines.append(f"source: {one(source) or 'unknown'}")
+    lines.append(f"created: {one(created)}")
+    lines.append(f"updated: {one(updated)}")
     if review:
-        lines.append(f"review: {review}")
+        lines.append(f"review: {one(review)}")
     if status:
-        lines.append(f"status: {status}")
+        lines.append(f"status: {one(status)}")
     lines.append("---")
     return "\n".join(lines)
 
@@ -180,13 +185,12 @@ def read_meta(path: Path) -> tuple[dict, str]:
         text = path.read_text(encoding="utf-8")
     except Exception:
         return {"title": path.stem, "type": ""}, ""
-    if text.startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) == 3:
-            meta = _parse_frontmatter(parts[1])
-            meta.setdefault("title", path.stem)
-            meta.setdefault("type", "")
-            return meta, parts[2].lstrip("\n")
+    split = store.split_frontmatter(text)
+    if split:
+        meta = _parse_frontmatter(split[0])
+        meta.setdefault("title", path.stem)
+        meta.setdefault("type", "")
+        return meta, split[1].lstrip("\n")
     # Legacy: first '# ...' line is the title; whole text is the body.
     lines = text.splitlines()
     title = lines[0].lstrip("# ").strip() if lines else path.stem

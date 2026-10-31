@@ -54,40 +54,15 @@ HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
-def _csv_env(name: str) -> list[str]:
-    return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
+def http_middleware():
+    """ASGI middleware for the HTTP app: the DNS-rebinding guard (see hostguard.py).
+    fastmcp's own host/origin guard is off by default and only checks loopback-bound
+    servers, so it never protected the NAS — this one does, without turning away
+    native clients on LAN IPs, Docker names or VPN names."""
+    from starlette.middleware import Middleware
 
-
-def _host_guard():
-    """Host/Origin allow-lists for fastmcp's DNS-rebinding guard.
-
-    Default (None, None): fastmcp's "auto" mode, which checks Host/Origin only for
-    a server bound to loopback — the case DNS rebinding actually threatens. On the
-    NAS every request needs a token or an OAuth login anyway, and a fixed list
-    turned away LAN addresses, Docker neighbours and VPN names with 421.
-
-    Strict opt-in: set MCP_ALLOWED_HOSTS (and optionally MCP_ALLOWED_ORIGINS),
-    comma-separated; the BASE_URL host/origin is added automatically.
-    """
-    from urllib.parse import urlparse
-
-    extra_hosts = _csv_env("MCP_ALLOWED_HOSTS")
-    extra_origins = _csv_env("MCP_ALLOWED_ORIGINS")
-    if not (extra_hosts or extra_origins):
-        return None, None
-    hosts: list[str] = []
-    origins: list[str] = []
-    base = os.environ.get("BASE_URL", "")
-    parsed = urlparse(base) if base else None
-    if parsed and parsed.netloc:
-        netloc = parsed.netloc.split("@")[-1]  # drop any userinfo
-        host_only = netloc.split(":")[0]
-        scheme = parsed.scheme or "https"
-        hosts += [netloc, host_only, f"{host_only}:*"]
-        origins += [f"{scheme}://{netloc}", f"{scheme}://{host_only}", f"{scheme}://{host_only}:*"]
-    hosts = list(dict.fromkeys(hosts + extra_hosts))  # de-dup, preserve order
-    origins = list(dict.fromkeys(origins + extra_origins))
-    return (hosts or None, origins or None)
+    import hostguard
+    return [Middleware(hostguard.HostGuard)]
 
 
 def _client_storage():
@@ -353,10 +328,7 @@ if __name__ == "__main__":
         print(f"[AICortex] auth active — binding {bind_host}:{PORT}")
     # Streamable-HTTP transport — what MCP custom connectors speak.
     # Endpoint: http://HOST:PORT/mcp
-    allowed_hosts, allowed_origins = _host_guard()
-    if allowed_hosts:
-        print(f"[AICortex] host guard: also allowing {allowed_hosts}")
-    mcp.run(
-        transport="http", host=bind_host, port=PORT,
-        allowed_hosts=allowed_hosts, allowed_origins=allowed_origins,
-    )
+    if os.environ.get("MCP_ALLOWED_HOSTS"):
+        print(f"[AICortex] host guard: strict — only {os.environ['MCP_ALLOWED_HOSTS']} "
+              f"(+ BASE_URL host, localhost)")
+    mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware())

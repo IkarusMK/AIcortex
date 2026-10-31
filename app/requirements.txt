@@ -33,5 +33,7 @@ uvloop>=0.22.1; platform_system != "Windows"
 # attachments, downloads) — Pillow downscales/normalizes raster images, pypdfium2
 # rasterizes PDF pages (Apache/BSD, bundles PDFium, no system libs like poppler).
 # cp314 linux wheels verified via `uv pip compile --only-binary :all:` before adding.
-pillow>=12.3.0,<13
+# ≥13: 12.x carries 39 published advisories (decoders for untrusted images — mail
+# attachments, downloads). cp314 linux wheels (amd64 + arm64) verified 2026-10.
+pillow>=13.0.0,<14
 pypdfium2>=5.13.0,<6

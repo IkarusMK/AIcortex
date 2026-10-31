@@ -111,6 +111,20 @@ def _audit(name: str, decision: str, reason: str) -> None:
         pass
 
 
+def _outbound_secret(name: str):
+    """A secret the caller may send to a URL of their choice: an admin (or anyone with
+    enforcement off) any secret; everyone else only their own personal one — or any
+    user could read every shared secret by sending it to themselves."""
+    try:
+        import authz
+        privileged = not authz.enabled() or authz.effective_identity()[1] == "admin"
+    except Exception:
+        privileged = False
+    if privileged:
+        return secrets_store.get_secret(name)
+    return secrets_store.get_own_secret(name)
+
+
 def register(mcp):
     @mcp.tool
     def webhook_add(name: str, secret_env: str = "", hmac_secret_env: str = "",
@@ -176,15 +190,20 @@ def register(mcp):
         """OUTBOUND — POST `json_body` to `url` (a notification/outgoing webhook).
         SSRF-guarded. Optionally send a secret from the vault as a header
         (`secret_header`, e.g. "Authorization"; value = secret named `secret_env`).
+        Non-admins can send only their own personal secrets this way; shared ones
+        are used through registered services (call_service).
         Outbound action → confirm with the user before sending."""
         ok, reason = netguard.check_url(url)
         if not ok:
             return f"Blocked by network policy — {reason}"
         headers = {}
         if secret_env:
-            val = secrets_store.get_secret(secret_env)
+            val = _outbound_secret(secret_env)
             if not val:
-                return f"Secret '{secret_env}' not set. Use secret_set first."
+                return (f"Secret '{secret_env}' is not available to send. You can send "
+                        "only your own personal secrets to a URL you choose; shared "
+                        "secrets stay with registered services (call_service). Ask an "
+                        "admin to store it for you or to register the endpoint.")
             headers[secret_header or "Authorization"] = val
         try:
             import httpx

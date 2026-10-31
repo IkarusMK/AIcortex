@@ -133,8 +133,8 @@ def _agent_caps(name: str) -> set:
 
 # ── Public helpers for bootstrap (live team/board snapshot) ─────────────────
 def agent_rows() -> list[str]:
-    """Registered agents with presence, online first (for bootstrap)."""
-    items = _read(AGENTS_FILE)
+    """The caller's registered agents with presence, online first (for the catalog)."""
+    items = _mine(_read(AGENTS_FILE))
     rank = {"online": 0, "idle": 1, "away": 2}
     items.sort(key=lambda a: (rank.get(_presence(a), 3), a.get("name", "")))
     out = []
@@ -428,8 +428,9 @@ def register(mcp):
     @mcp.tool
     def agent_list() -> str:
         """List registered agents with live presence (online/idle/away), online
-        first — so you can see who's available to take work right now."""
-        items = _read(AGENTS_FILE)
+        first — so you can see who's available to take work right now. You see your
+        own agents (an admin: everyone's)."""
+        items = _mine(_read(AGENTS_FILE))
         if not items:
             return "No agents registered yet."
         rank = {"online": 0, "idle": 1, "away": 2}

@@ -94,14 +94,30 @@ def _sees(s: dict) -> bool:
         return True
 
 
-def _prune(max_age_days: int = None) -> int:
+def _own_only():
+    """None (all sessions) for an admin or with enforcement off, else a filter for the
+    caller's own sessions — fails closed to nothing."""
+    try:
+        import authz
+        if not authz.enabled():
+            return None
+        ident, role = authz.effective_identity()
+    except Exception:
+        return lambda s: False
+    return None if role == "admin" else (lambda s: s.get("person") == ident)
+
+
+def _prune(max_age_days: int = None, only=None) -> int:
     """Delete sessions older than the retention window. Returns count removed.
-    0 (or negative) retention disables pruning."""
+    0 (or negative) retention disables pruning. `only(session)` limits it to the
+    sessions it returns True for."""
     days = RETENTION_DAYS if max_age_days is None else max_age_days
     if days <= 0:
         return 0
     removed = 0
     for s in _all():
+        if only is not None and not only(s):
+            continue
         updated = s.get("updated") or s.get("created") or ""
         if _age_days(updated) > days:
             try:
@@ -245,7 +261,8 @@ def register(mcp):
     @_serialized
     def session_prune(max_age_days: int = 0) -> str:
         """Remove sessions not updated within max_age_days (0 = use the configured
-        SESSION_RETENTION_DAYS default). Runs automatically on save/list too."""
+        SESSION_RETENTION_DAYS default). Runs automatically on save/list too. With
+        enforcement on, a non-admin prunes only their own sessions."""
         days = max_age_days if max_age_days > 0 else RETENTION_DAYS
-        removed = _prune(days)
+        removed = _prune(days, only=_own_only())
         return f"Pruned {removed} session(s) older than {days} days."

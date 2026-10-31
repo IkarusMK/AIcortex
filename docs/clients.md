@@ -170,8 +170,11 @@ URL `https://<your-host>/mcp`, auth **Bearer**, key = the agent key.
 ## On the LAN
 
 Local clients can use `http://<nas-ip>:8787/mcp` directly (no reverse proxy).
-AICortex accepts any host name by default; set `MCP_ALLOWED_HOSTS` /
-`MCP_ALLOWED_ORIGINS` only if you want a strict list.
+Native clients may use any host name (LAN IP, Docker name, VPN name). Browser
+requests and the WebUI must come from an IP address, localhost, a name without a dot,
+a `.local` / `.lan` / `.home.arpa` / `.internal` name or the `BASE_URL` host (DNS
+rebinding protection); add other names to `MCP_ALLOWED_ORIGINS`. `MCP_ALLOWED_HOSTS`
+makes the host check strict for every request.
 
 ## Troubleshooting
 
@@ -179,6 +182,7 @@ AICortex accepts any host name by default; set `MCP_ALLOWED_HOSTS` /
 |---|---|
 | `401` with a token | Key revoked, expired, mistyped, or `Bearer ` prefix missing. |
 | Client reports SSE / `405` / `404` | Client fell back to the old SSE transport — set `streamable-http`. |
-| `421 Misdirected Request` | `MCP_ALLOWED_HOSTS` is set and doesn't include the host you used. |
+| `421 Misdirected Request` | `MCP_ALLOWED_HOSTS` is set and doesn't include the host you used — or the WebUI was opened under a dotted name that isn't listed in `MCP_ALLOWED_ORIGINS`. |
+| `403 Forbidden Origin` | A browser page on another site sent the request (DNS rebinding protection); list your own origin in `MCP_ALLOWED_ORIGINS` if it is legitimate. |
 | Fewer tools than expected | The key's scopes or the person's role limit them (by design). |
 | Claude/ChatGPT sign-in fails | `BASE_URL` ≠ the URL in the dialog, or the IdP isn't reachable from the provider's cloud. |

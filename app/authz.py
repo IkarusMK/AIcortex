@@ -310,6 +310,18 @@ def sees(owner_person: str) -> bool:
     return role == "admin" or not owner_person or owner_person == ident
 
 
+def real_caller():
+    """(identity, role, is_runner) of whoever is really calling — a REST key's person
+    and role, else the token's identity — ignoring any cron act-as binding. Owner
+    checks and runner-only gates need this, not the job owner. (Reading only the
+    token made a REST call without one look like the unauthenticated default.)"""
+    rest = _REST_IDENTITY.get()
+    if rest:
+        return rest[0], rest[1], False
+    ident, is_runner, claims = _identity()
+    return ident, role_for(ident, is_runner, claims), is_runner
+
+
 def effective_identity():
     """(identity, role) for the CURRENT call, honoring (in order) a REST per-task
     identity, then an active cron act-as binding, else the real caller. When the

@@ -133,13 +133,18 @@ def _verify(token: str):
 
 
 def _is_local_request(request) -> bool:
-    """A request made on this machine directly — loopback peer AND not relayed by a
-    reverse proxy (a proxy on the same host also connects from loopback)."""
+    """A request made on this machine directly — loopback peer, addressed to a
+    loopback name, AND not relayed by a reverse proxy (a proxy on the same host also
+    connects from loopback). The name matters: a DNS-rebinding page in a local
+    browser connects from loopback too, but under its own domain."""
+    import hostguard
     client = getattr(request, "client", None)
     host = getattr(client, "host", None) or ""
     if host not in ("127.0.0.1", "::1", "localhost"):
         return False
     headers = request.headers
+    if headers.get("host") and not hostguard.is_loopback_name(headers.get("host")):
+        return False
     return not (headers.get("x-forwarded-for") or headers.get("forwarded")
                 or headers.get("x-real-ip"))
 

@@ -45,3 +45,14 @@ def test_hints_match_what_the_tools_do(fresh_server):
         assert outside(n), n
     for n in ("memory_write", "task_add"):
         assert not outside(n), n
+
+
+def test_sends_to_the_outside_world_count_as_destructive(fresh_server):
+    # Security review 2026-10: a sent mail, a printed page or a device command can't
+    # be undone, but they were marked non-destructive — clients that confirm only
+    # destructive tools would have run them without asking.
+    tools = _tools(fresh_server)
+    for n in ("mail_send", "webhook_send", "mqtt_publish", "print_document",
+              "caldav_add_event"):
+        assert tools[n].annotations.destructive_hint, n
+        assert tools[n].annotations.open_world_hint, n
