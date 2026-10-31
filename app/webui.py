@@ -47,6 +47,7 @@ _MAX_BODY = int(os.environ.get("UI_MAX_BODY_BYTES", str(1_000_000)))
 _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "app.js": "application/javascript; charset=utf-8",
     "view-memory.js": "application/javascript; charset=utf-8",
+    "view-registry.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
     "logo.svg": "image/svg+xml",
 }

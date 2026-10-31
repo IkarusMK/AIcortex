@@ -7,16 +7,82 @@ Every route takes the SAME policy path as a REST or MCP call: ``authz.enforce_re
 rights the person's AI has — a viewer reads, a user works in their own area, an
 admin manages — and the logic lives once, in the tools.
 """
+import json
+import os
 import re
+from pathlib import Path
 
 import authz
+import cfgstore
 import memory
 
 _SAVED = re.compile(r"memory '([^']+)'.*\(version (\d+)\)")
+_REGISTERED = re.compile(r"'([^']+)'")
+_STEM = re.compile(r"^[a-z0-9][a-z0-9._-]{0,100}$")
+
+# Registry (as in webui._DEVICE_DIRS) → its upsert tool and its delete tool.
+REGISTRIES = {
+    "services": ("service_add", "service_delete"),
+    "mqtt": ("mqtt_add", "mqtt_delete"),
+    "ftp": ("ftp_add", "ftp_delete"),
+    "printers": ("print_add", "print_delete"),
+    "scanners": ("scan_add", "scan_delete"),
+    "webdav": ("webdav_add", "webdav_delete_endpoint"),
+    "caldav": ("caldav_add", "caldav_delete_endpoint"),
+    "ssh": ("ssh_add", "ssh_delete_endpoint"),
+    "mail": ("mail_add", "mail_delete_account"),
+    "imap": ("imap_add", "imap_delete_account"),
+    "mcp": ("mcp_add", "mcp_delete"),
+    "webhooks": ("webhook_add", "webhook_delete"),
+}
 
 
 def _text(result) -> str:
     return "\n".join(getattr(c, "text", "") for c in (getattr(result, "content", None) or []))
+
+
+def _fields(tool) -> list[dict]:
+    """Form fields from a tool's input schema: name, type, required, default, enum,
+    and whether it names a vault secret (``*_env``)."""
+    schema = getattr(tool, "parameters", None) or {}
+    required = set(schema.get("required") or [])
+    out = []
+    for name, prop in (schema.get("properties") or {}).items():
+        types = [o.get("type") for o in prop.get("anyOf", []) if o.get("type") != "null"]
+        out.append({"name": name, "type": prop.get("type") or (types[0] if types else "string"),
+                    "required": name in required, "default": prop.get("default"),
+                    "enum": prop.get("enum"), "secret_ref": name.endswith("_env")})
+    return out
+
+
+def _first_sentence(text) -> str:
+    flat = " ".join(str(text or "").split())
+    return re.split(r"(?<=[.!?])\s", flat, maxsplit=1)[0][:200]
+
+
+def _coerce(field: dict, value):
+    """A form value as the type the tool expects; ValueError names the field."""
+    kind = field["type"]
+    try:
+        if value is None:
+            return None
+        if kind == "boolean":
+            return value if isinstance(value, bool) else str(value).lower() in ("1", "true", "yes", "on")
+        if kind == "integer":
+            return int(value)
+        if kind == "number":
+            return float(value)
+        if kind in ("object", "array"):
+            return json.loads(value) if isinstance(value, str) else value
+        return str(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field['name']}: expected {kind}") from exc
+
+
+def _registry_dir(kind: str) -> Path:
+    import webui
+    env, default = webui._DEVICE_DIRS[kind]
+    return Path(os.environ.get(env, default))
 
 
 def register(mcp, h):
@@ -155,3 +221,85 @@ def register(mcp, h):
                 h.audit(sess, f"ui:memory_{action}", "allow", f"name={args['name']}")
             return h.json({"ok": done, "message": text}, 200 if done else 404)
         mcp.custom_route(f"/ui/api/memory/candidates/{action}", methods=["POST"])(_decide)
+
+    # ── services and devices (admin): forms built from the *_add tools ─────────
+    async def kind_fields(kind: str) -> list[dict]:
+        tool = await mcp.get_tool(REGISTRIES[kind][0])
+        return _fields(tool) if tool else []
+
+    @mcp.custom_route("/ui/api/registry/schema", methods=["GET"])
+    async def _registry_schema(request):
+        sess = h.require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        kinds = []
+        for kind, (add, _) in REGISTRIES.items():
+            tool = await mcp.get_tool(add)
+            if tool:
+                kinds.append({"kind": kind, "tool": add, "fields": _fields(tool),
+                              "help": _first_sentence(tool.description)})
+        return h.json({"kinds": kinds})
+
+    @mcp.custom_route("/ui/api/registry/{kind}/{name}", methods=["GET"])
+    async def _registry_get(request):
+        sess = h.require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        kind, name = request.path_params.get("kind", ""), request.path_params.get("name", "")
+        if kind not in REGISTRIES or not _STEM.match(name):
+            return h.json({"error": "not found"}, 404)
+        path = _registry_dir(kind) / f"{name}.json"
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return h.json({"error": "not found"}, 404)
+        # Only fields the form knows leave the server — never the raw config.
+        known = {f["name"] for f in await kind_fields(kind)}
+        return h.json({"kind": kind, "name": name,
+                       "config": {k: v for k, v in stored.items() if k in known}})
+
+    @mcp.custom_route("/ui/api/registry/{kind}", methods=["POST"])
+    async def _registry_save(request):
+        sess, body = await session_and_body(request, admin=True)
+        if body is None:
+            return sess
+        kind = request.path_params.get("kind", "")
+        if kind not in REGISTRIES:
+            return h.json({"error": "not found"}, 404)
+        fields = {f["name"]: f for f in await kind_fields(kind)}
+        try:
+            args = {k: _coerce(fields[k], v) for k, v in body.items() if k in fields}
+        except ValueError as exc:
+            return h.json({"ok": False, "message": str(exc)}, 400)
+        missing = [n for n, f in fields.items() if f["required"] and args.get(n) in (None, "")]
+        if missing:
+            return h.json({"ok": False, "message": f"required: {', '.join(missing)}"}, 400)
+        try:
+            with cfgstore.given(args):
+                ok, text = await run_tool(sess, REGISTRIES[kind][0], args)
+        except Exception as exc:  # pydantic validation and the like
+            return h.json({"ok": False, "message": str(exc).splitlines()[0]}, 400)
+        if not ok:
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        if not text.startswith("Registered"):
+            return h.json({"ok": False, "message": text}, 400)
+        saved = _REGISTERED.search(text)
+        h.audit(sess, f"ui:{REGISTRIES[kind][0]}", "allow", f"name={args.get('name', '')}")
+        return h.json({"ok": True, "message": text, "name": saved.group(1) if saved else ""})
+
+    @mcp.custom_route("/ui/api/registry/{kind}/delete", methods=["POST"])
+    async def _registry_delete(request):
+        sess, body = await session_and_body(request, admin=True)
+        if body is None:
+            return sess
+        kind = request.path_params.get("kind", "")
+        if kind not in REGISTRIES:
+            return h.json({"error": "not found"}, 404)
+        args = {"name": str(body.get("name", ""))}
+        ok, text = await run_tool(sess, REGISTRIES[kind][1], args)
+        if not ok:
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        if not text.startswith("Deleted"):
+            return h.json({"ok": False, "message": text}, 404)
+        h.audit(sess, f"ui:{REGISTRIES[kind][1]}", "allow", f"name={args['name']}")
+        return h.json({"ok": True, "message": text})

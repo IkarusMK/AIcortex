@@ -144,7 +144,7 @@ body {
 .linkish:hover { text-decoration: underline; }
 .version { color: var(--dim); font-size: 11.5px; }
 
-.main { padding: 34px 40px 60px; max-width: 1180px; width: 100%; }
+.main { padding: 34px 40px 60px; max-width: 1180px; width: 100%; min-width: 0; }
 .view-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .view-head h1 { font-size: 26px; letter-spacing: .3px; }
 .view-head .btn { margin-left: auto; }
@@ -290,7 +290,7 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 
 /* ── responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap;
     align-items: center; border-right: 0; border-bottom: 1px solid var(--border); }
   .nav { flex-direction: row; flex-wrap: wrap; }
@@ -313,3 +313,11 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0;
   padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(248, 113, 113, .45);
   background: rgba(248, 113, 113, .1); font-size: 13px; }
+
+/* schema-built forms: label above field; checkboxes stay small */
+.form-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 0; }
+.form-fields input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; margin: 4px 0 10px; }
+.tbl td.actions { white-space: nowrap; text-align: right; }
+.tbl td.actions .btn + .btn { margin-left: 6px; }
+/* wide tables scroll inside their panel instead of widening the page */
+.tbl-scroll { overflow-x: auto; max-width: 100%; }

@@ -114,3 +114,60 @@ def test_admin_reviews_candidates(ui):
     r = boss.post("/ui/api/memory/candidates/promote", json={"name": rows[0]["name"]})
     assert r.status_code == 200, r.text
     assert boss.get("/ui/api/memory/candidates").json()["candidates"] == []
+
+
+# ── C: services and devices (admin) ─────────────────────────────────────────
+
+def test_registry_editing_is_admin_only(ui):
+    alice = ui("alice", "user")
+    assert alice.get("/ui/api/registry/schema").status_code == 403
+    r = alice.post("/ui/api/registry/services", json={"name": "x", "base_url": "https://x.example.com",
+                                                       "category": "Dev"})
+    assert r.status_code == 403
+
+
+def test_schema_covers_every_registry_and_marks_secret_references(ui):
+    kinds = {k["kind"]: k for k in ui("boss", "admin").get("/ui/api/registry/schema").json()["kinds"]}
+    assert {"services", "mqtt", "ftp", "printers", "scanners", "webdav", "caldav", "ssh",
+            "mail", "imap", "mcp", "webhooks"} <= set(kinds)
+    fields = {f["name"]: f for f in kinds["services"]["fields"]}
+    assert fields["name"]["required"] and fields["token_env"]["secret_ref"]
+    assert fields["write_only"]["type"] == "boolean"
+
+
+def test_admin_creates_edits_and_deletes_a_service(ui):
+    boss = ui("boss", "admin")
+    r = boss.post("/ui/api/registry/services", json={
+        "name": "Docs API", "base_url": "https://docs.example.com", "category": "Dev",
+        "token_env": "DOCS_TOKEN", "description": "Documentation"})
+    assert r.status_code == 200, r.text
+    name = r.json()["name"]
+    cfg = boss.get(f"/ui/api/registry/services/{name}").json()["config"]
+    assert cfg["base_url"] == "https://docs.example.com" and cfg["token_env"] == "DOCS_TOKEN"
+    # a partial edit changes only what was sent — and an explicit "" clears a field
+    r = boss.post("/ui/api/registry/services", json={"name": "Docs API", "auth_scheme": "",
+                                                      "base_url": "https://docs.example.com"})
+    assert r.status_code == 200, r.text
+    cfg = boss.get(f"/ui/api/registry/services/{name}").json()["config"]
+    assert cfg["auth_scheme"] == "" and cfg["description"] == "Documentation"
+    assert boss.post("/ui/api/registry/services/delete", json={"name": name}).status_code == 200
+    assert boss.get(f"/ui/api/registry/services/{name}").status_code == 404
+
+
+def test_registry_form_returns_only_known_fields(ui):
+    import json as _json
+    boss = ui("boss", "admin")
+    services = sys.modules["services"]
+    services.SERVICES_DIR.mkdir(parents=True, exist_ok=True)
+    (services.SERVICES_DIR / "legacy.json").write_text(_json.dumps({
+        "name": "legacy", "base_url": "https://legacy.example.com",
+        "api_key_plaintext": "LEAKME-NOT"}), encoding="utf-8")
+    r = boss.get("/ui/api/registry/services/legacy")
+    assert r.status_code == 200 and "LEAKME-NOT" not in r.text
+    assert boss.get("/ui/api/registry/services/..%2Fvault%2Fsecrets").status_code == 404
+
+
+def test_invalid_value_is_refused_with_a_reason(ui):
+    r = ui("boss", "admin").post("/ui/api/registry/mqtt", json={"name": "Broker", "host": "broker.example.com",
+                                                                 "port": "not-a-number"})
+    assert r.status_code == 400 and "port" in r.json()["message"]

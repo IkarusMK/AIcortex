@@ -15,8 +15,6 @@ const I18N = {
     logout: "Abmelden",
     nav_overview: "Übersicht", nav_vault: "Vault", nav_skills: "Skills", nav_users: "Benutzer",
     nav_services: "Services & Geräte", nav_logs: "Logs",
-    sv_badge: "read-only",
-    sv_hint: "Nur Ansicht — anlegen & ändern läuft über den Assistenten (service_add, mqtt_add, …), weil dort Secrets und Spezialfelder dranhängen.",
     sv_col_kind: "Art", sv_col_name: "Name", sv_col_target: "Ziel",
     sv_col_secret: "Secret (Name)", sv_col_desc: "Beschreibung",
     sv_empty: "Noch keine Integrationen registriert.",
@@ -109,8 +107,6 @@ const I18N = {
     logout: "Sign out",
     nav_overview: "Overview", nav_vault: "Vault", nav_skills: "Skills", nav_users: "Users",
     nav_services: "Services & devices", nav_logs: "Logs",
-    sv_badge: "read-only",
-    sv_hint: "View only — create & modify through the assistant (service_add, mqtt_add, …), since secrets and special fields are involved.",
     sv_col_kind: "Kind", sv_col_name: "Name", sv_col_target: "Target",
     sv_col_secret: "Secret (name)", sv_col_desc: "Description",
     sv_empty: "No integrations registered yet.",
@@ -583,7 +579,15 @@ function renderSvTable() {
       sec.append(stag);
     } else { sec.textContent = "—"; sec.className = "dim"; }
     const desc = document.createElement("td"); desc.className = "small dim"; desc.textContent = s.description;
-    tr.append(kind, name, target, sec, desc);
+    const act = document.createElement("td"); act.className = "actions";
+    [["sv_edit", "ghost", () => openRegistry(s.kind, s.name)],
+     ["delete", "danger", () => deleteRegistry(s.kind, s.name)]].forEach(([key, cls, fn]) => {
+      const b = document.createElement("button");
+      b.className = `btn sm ${cls}`; b.textContent = t(key);
+      b.addEventListener("click", () => fn().catch((x) => toast(x.message, false)));
+      act.append(b);
+    });
+    tr.append(kind, name, target, sec, desc, act);
     tbody.append(tr);
   });
 }

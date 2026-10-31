@@ -366,11 +366,12 @@
       <section id="view-services" class="view hidden">
         <header class="view-head">
           <h1 data-i18n="nav_services"></h1>
-          <span class="badge cyan" data-i18n="sv_badge"></span>
+          <button id="btn-sv-new" class="btn primary sm" data-i18n="sv_new"></button>
         </header>
         <div class="chips" id="sv-kinds"></div>
         <div class="panel">
           <p class="dim small" data-i18n="sv_hint"></p>
+          <div class="tbl-scroll">
           <table class="tbl" id="sv-table">
             <thead><tr>
               <th data-i18n="sv_col_kind"></th>
@@ -378,10 +379,27 @@
               <th data-i18n="sv_col_target"></th>
               <th data-i18n="sv_col_secret"></th>
               <th data-i18n="sv_col_desc"></th>
+              <th></th>
             </tr></thead>
             <tbody></tbody>
           </table>
+          </div>
           <p id="sv-empty" class="dim hidden" data-i18n="sv_empty"></p>
+        </div>
+        <div class="panel accent hidden" id="sv-editor">
+          <h3 id="sv-editor-title"></h3>
+          <p id="sv-help" class="dim small"></p>
+          <form id="form-sv" autocomplete="off">
+            <label for="sv-kind" data-i18n="sv_f_kind"></label>
+            <select id="sv-kind" class="inp"></select>
+            <div id="sv-fields" class="form-fields"></div>
+            <div class="btn-row">
+              <button class="btn primary" data-i18n="save"></button>
+              <button type="button" id="btn-sv-close" class="btn ghost" data-i18n="cancel"></button>
+              <span class="spacer"></span>
+              <button type="button" id="btn-sv-delete" class="btn danger hidden" data-i18n="delete"></button>
+            </div>
+          </form>
         </div>
       </section>
 
@@ -427,5 +445,6 @@
 
   <script src="/ui/assets/app.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
+  <script src="/ui/assets/view-registry.js?v={{v}}"></script>
 </body>
 </html>

@@ -14,9 +14,11 @@ config key is named exactly like the tool parameter that sets it.
 
 Which parameters were passed comes from the raw tool-call arguments, recorded by
 ``build_middleware`` (fastmcp hands the function every parameter with defaults
-filled in, so the function itself can't tell). Outside a tool call — the WebUI or
-a direct call — the older rule applies: default-looking values keep the stored one.
+filled in, so the function itself can't tell); the WebUI declares them with
+``given``. Any other direct call falls back to the older rule: default-looking
+values keep the stored one.
 """
+import contextlib
 import contextvars
 import json
 from pathlib import Path
@@ -55,6 +57,17 @@ def write_merged(path: Path, cfg: dict) -> None:
         if not isinstance(existing, dict):
             existing = {}
         store.write_text_atomic(path, json.dumps(merge(existing, cfg, _GIVEN.get()), indent=2))
+
+
+@contextlib.contextmanager
+def given(names):
+    """Declare which parameters a non-MCP caller (the WebUI) actually passed, so an
+    update through it follows the same rules as a tool call."""
+    token = _GIVEN.set(set(names))
+    try:
+        yield
+    finally:
+        _GIVEN.reset(token)
 
 
 def build_middleware():
