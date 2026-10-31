@@ -110,3 +110,49 @@ def test_viewer_can_start_and_search_but_router_stays_read_only(monkeypatch, cor
     start, found, read, write = _session(core_server, go)
     assert not start.is_error and not found.is_error and not read.is_error
     assert write.is_error
+
+
+# Measured 2026-10-31 as an AI client: English intents found their tool in the top
+# three 14/17 times, German ones 2/11 — descriptions are English, the tokenizer cut
+# umlauts ("ausführen" → "ausf") and plurals missed ("services" ≠ "service").
+INTENTS = [
+    ("send an email", {"mail_send"}),
+    ("print a document", {"print_document"}),
+    ("add an event to my calendar", {"caldav_add_event"}),
+    ("read my latest emails", {"imap_search", "imap_fetch"}),
+    ("switch a device via mqtt", {"mqtt_publish"}),
+    ("call an http api", {"call_service"}),
+    ("upload a file", {"ftp_upload", "webdav_upload", "ssh_upload"}),
+    ("run a shell command on a server", {"ssh_run"}),
+    ("schedule a job every morning", {"cron_add"}),
+    ("start a playbook", {"playbook_start"}),
+    ("submit the result of a playbook stage", {"playbook_submit"}),
+    ("scan a document", {"scan_document"}),
+    ("list my registered services", {"service_list"}),
+    ("write a file to the workspace", {"fs_write"}),
+    ("notify a webhook", {"webhook_send"}),
+    ("hand a task to another agent", {"task_add", "task_handoff", "task_claim"}),
+    ("message another agent", {"inbox_post"}),
+    ("E-Mail senden", {"mail_send"}),
+    ("Dokument drucken", {"print_document"}),
+    ("Termin im Kalender eintragen", {"caldav_add_event"}),
+    ("neue Mails lesen", {"imap_search", "imap_fetch"}),
+    ("Gerät über MQTT schalten", {"mqtt_publish"}),
+    ("Datei hochladen", {"ftp_upload", "webdav_upload", "ssh_upload"}),
+    ("Befehl auf dem Server ausführen", {"ssh_run"}),
+    ("jeden Morgen einen Job planen", {"cron_add"}),
+    ("Playbook starten", {"playbook_start"}),
+    ("Dokument scannen", {"scan_document"}),
+    ("Aufgabe an einen anderen Agenten geben", {"task_add", "task_handoff", "task_claim"}),
+]
+
+
+@pytest.mark.parametrize("query, expected", INTENTS, ids=[q for q, _ in INTENTS])
+def test_router_finds_the_tool_in_english_and_german(core_server, query, expected):
+    import re
+
+    async def go(c):
+        res = await c.call_tool("integration_search", {"query": query, "limit": 5})
+        return res.content[0].text
+    top = [m.group(1) for m in re.finditer(r"^- ([a-z0-9_]+)\(", _session(core_server, go), re.M)][:3]
+    assert expected & set(top), top
