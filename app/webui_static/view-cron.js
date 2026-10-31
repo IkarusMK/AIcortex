@@ -13,6 +13,7 @@ Object.assign(I18N.de, {
   cron_p_daily: "Täglich", cron_p_weekdays: "Werktags", cron_p_weekly: "Wöchentlich", cron_p_hourly: "Stündlich",
   cron_next: "Nächste Läufe: {0}", cron_never: "–", cron_off: "aus",
   cron_d_daily: "täglich {0}", cron_d_weekdays: "werktags {0}", cron_d_weekly: "{1} {0}", cron_d_hourly: "stündlich zur Minute {0}",
+  cron_d_monthly: "monatlich am {1}., {0}",
   confirm_cron_delete: "Job „{0}“ löschen?", toast_cron_saved: "Job gespeichert.", toast_cron_deleted: "Job gelöscht.",
 });
 Object.assign(I18N.en, {
@@ -26,6 +27,7 @@ Object.assign(I18N.en, {
   cron_p_daily: "Daily", cron_p_weekdays: "Weekdays", cron_p_weekly: "Weekly", cron_p_hourly: "Hourly",
   cron_next: "Next runs: {0}", cron_never: "–", cron_off: "off",
   cron_d_daily: "daily {0}", cron_d_weekdays: "weekdays {0}", cron_d_weekly: "{1} {0}", cron_d_hourly: "hourly at minute {0}",
+  cron_d_monthly: "monthly, day {1}, {0}",
   confirm_cron_delete: "Delete job “{0}”?", toast_cron_saved: "Job saved.", toast_cron_deleted: "Job deleted.",
 });
 
@@ -49,6 +51,7 @@ function cronDescribe(expr) {
   if (p.length !== 5 || !/^\d+$/.test(p[0])) return expr;
   const hhmm = /^\d+$/.test(p[1]) ? `${p[1].padStart(2, "0")}:${p[0].padStart(2, "0")}` : "";
   if (p[1] === "*" && p.slice(2).every((x) => x === "*")) return t("cron_d_hourly", p[0]);
+  if (hhmm && /^\d+$/.test(p[2]) && p[3] === "*" && p[4] === "*") return t("cron_d_monthly", hhmm, p[2]);
   if (!hhmm || p[2] !== "*" || p[3] !== "*") return expr;
   if (p[4] === "*") return t("cron_d_daily", hhmm);
   if (p[4] === "1-5") return t("cron_d_weekdays", hhmm);
