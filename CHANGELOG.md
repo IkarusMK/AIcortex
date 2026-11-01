@@ -6,6 +6,19 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-11-01
+Models find playbooks without being told the word.
+
+### Changed
+- **`integration_search` finds the playbook tools for everyday words** — workflow,
+  process, stage, approval and the German *Ablauf*, *Phase*, *Freigabe*, *Vorgehen*,
+  *SDLC*. 2.0.2 found nothing for "welche Abläufe gibt es" or "start a multi-stage
+  workflow with approvals" unless the word "playbook" was used.
+- **`integration_search` names playbooks** in its description, next to devices, mail
+  and the rest, so a model knows to look there.
+- **`cortex_start` names the playbook library** in every briefing, not only when a run
+  is already active.
+
 ## [2.0.2] — 2026-11-01
 
 ### Fixed
