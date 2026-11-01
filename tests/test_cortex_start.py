@@ -137,6 +137,20 @@ def test_project_rules_stay_in_their_project(fresh_server):
     assert "Confirm before printing" in _call(fresh_server, "cortex_start", {"project": "bakery"})
 
 
+def test_the_titles_line_counts_exactly(fresh_server):
+    # 2.0.1 counted three characters too many per title, so the closing titles line
+    # dropped the last rule ("… 1 more") although its own length fit the budget.
+    start = sys.modules["start"]
+    ms = [{"title": t, "first": f"{t}: " + "x" * 100, "tags": []} for t in RULES]
+    full = start._names(ms, 10_000)
+    assert "more" not in start._names(ms, len(full))
+    for budget in range(300, 2000, 7):
+        block = start._named_block("Rules:", ms, lambda m: f"  - {m['title']}: {m['first']}", budget)
+        if len(full) <= budget:
+            missing = [t for t in RULES if t not in block]
+            assert not missing, (budget, missing)
+
+
 def test_general_reference_notes_are_named(fresh_server):
     _call(fresh_server, "memory_write", {"title": "Home network map", "type": "reference",
                                          "content": "Router, NAS and printer addresses."})

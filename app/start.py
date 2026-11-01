@@ -62,14 +62,13 @@ def _pinned(m: dict) -> bool:
 
 def _names(ms: list[dict], budget: int) -> str:
     """The titles of `ms` on one line, as many as fit in `budget`."""
-    head, kept = "  - also: ", []
-    used = len(head)
+    out = "  - also: "
     for i, m in enumerate(ms):
-        if used + len(m["title"]) + 3 > budget:
-            return head + " · ".join(kept) + f" … {len(ms) - i} more"
-        kept.append(m["title"])
-        used += len(m["title"]) + 3
-    return head + " · ".join(kept)
+        piece = (" · " if i else "") + m["title"]
+        if len(out) + len(piece) > budget:
+            return out + f" … {len(ms) - i} more"
+        out += piece
+    return out
 
 
 def _named_block(title: str, ms: list[dict], line, budget: int) -> str:
