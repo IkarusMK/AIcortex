@@ -6,6 +6,29 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-11-01
+The start briefing now carries every working rule. Update by pulling the new image;
+nothing else changes.
+
+### Changed
+- **`cortex_start` names every general working rule** (a `feedback` memory without a
+  project). 2.0.0 showed the first four alphabetically and hid the rest behind
+  "… N more", so a session started by a hook or a weak model missed most of them.
+  Rules are listed with their text while there is room, the rest by title.
+- **Pinned rules first:** tag a rule `pinned` (also `important`, `verbindlich`,
+  `wichtig`) and it leads the list, with its text.
+- **Rules that belong to a project** (a `feedback` memory with `project=…`) show up
+  only when that project is worked on, under its project notes — not in every
+  briefing.
+- **General reference notes** (no project) are named in the briefing, so a model
+  knows they exist and can `memory_read` them.
+
+### Documentation
+- `docs/clients.md`: a step-by-step guide for people, keys and connecting clients,
+  including what a key can see under `AUTH_ENFORCE`; `INSTALL_FOR_AGENTS.md` gains
+  the matching phase 8; `docs/pocketid-setup.md` covers client secrets in Pocket ID
+  2.14 and later. The WebUI's tool profile reads "11 tools" (was "10").
+
 ## [2.0.0] — 2026-10-31
 Optimized and updated, nothing removed (`bootstrap` and all tools keep working).
 
