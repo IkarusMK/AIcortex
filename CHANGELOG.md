@@ -6,6 +6,13 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.0.2] — 2026-11-01
+
+### Fixed
+- **The last working rule could still be cut from the briefing** ("… 1 more"): the
+  closing line of rule titles counted three characters too many per title, so it
+  dropped a title even though the whole line fit.
+
 ## [2.0.1] — 2026-11-01
 The start briefing now carries every working rule. Update by pulling the new image;
 nothing else changes.
