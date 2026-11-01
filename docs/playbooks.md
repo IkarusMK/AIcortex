@@ -43,7 +43,11 @@ in the `full` tool profile):
 | `playbook_write`, `playbook_delete` | Manage the library (admin or the playbook's author) |
 
 `cortex_start(project=…)` lists the project's active runs with their next step, so a
-new conversation picks up where the last one stopped.
+new conversation picks up where the last one stopped, and every briefing names the
+playbooks in the library. The tools sit behind `integration_search`, which also finds
+them when nobody says "playbook" — *workflow*, *process*, *stage*, *approval*, German
+*Ablauf*, *Phase*, *Freigabe* or *SDLC* lead there too. For a small model that
+struggles with the two-step search, give its agent key the *Full* tool profile.
 
 ## Approval per stage
 

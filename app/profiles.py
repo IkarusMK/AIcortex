@@ -94,6 +94,14 @@ _SYNONYMS = (
     ("hourly", "cron schedule"), ("command", "run ssh"), ("shell", "run ssh"),
     ("notify", "webhook send"), ("calendar", "caldav"), ("printer", "print"),
     ("switch", "publish mqtt"), ("device", "mqtt"), ("hand", "handoff"),
+    # Playbooks: people say workflow, process, stage or approval — rarely "playbook".
+    ("ablauf", "playbook workflow stage"), ("abläuf", "playbook workflow stage"),
+    ("workflow", "playbook"), ("prozess", "playbook workflow"), ("process", "playbook workflow"),
+    ("vorgehen", "playbook"), ("sdlc", "playbook"), ("mehrstufig", "playbook stage"),
+    ("phase", "stage playbook"), ("stufe", "stage playbook"), ("stage", "playbook"),
+    ("freigab", "approve approval"), ("approv", "approval playbook"), ("beginn", "start"),
+    ("projekt", "project"), ("welche", "list"), ("which", "list"), ("weit", "status"),
+    ("stand", "status"),
 )
 _STOP = frozenset("the and for with from into that this your mine all any via "
                   "der die das den dem des ein eine einen einer und mit auf von für "
@@ -149,7 +157,8 @@ def register(mcp):
     async def integration_search(query: str, limit: int = 8, ctx: Context = None) -> str:
         """Find a tool for what you want to do among everything AICortex offers beyond
         the core set — devices (MQTT, FTP), services, files, mail, calendars, printing,
-        scanning, SSH, webhooks, scheduling, agents and administration. Returns each
+        scanning, SSH, webhooks, scheduling, playbooks (multi-stage work with
+        approvals), agents and administration. Returns each
         match with its parameters (* = required); run one with integration_call.
         Example: integration_search("print a PDF on the office printer")."""
         terms = _terms(query)

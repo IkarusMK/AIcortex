@@ -147,6 +147,11 @@ def build(project: str = "", task: str = "") -> str:
     if refs:
         parts.append("Reference notes (memory_read by name):\n"
                      + _names(sorted(refs, key=lambda m: m["title"].lower()), 300))
+    library = [{"title": f"{p['name']} ({p['title']})" if p["title"] != p["name"] else p["name"]}
+               for p in playbooks.listing()]
+    if library:
+        parts.append("Playbooks for multi-stage work (playbook_start to run one, playbook_load "
+                     "to read it):\n" + _names(library, 300))
 
     if key:
         pm = [line(m) for m in mems if memory.project_key(m["project"]) == key]

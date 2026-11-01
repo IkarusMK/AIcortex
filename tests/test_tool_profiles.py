@@ -156,3 +156,31 @@ def test_router_finds_the_tool_in_english_and_german(core_server, query, expecte
         return res.content[0].text
     top = [m.group(1) for m in re.finditer(r"^- ([a-z0-9_]+)\(", _session(core_server, go), re.M)][:3]
     assert expected & set(top), top
+
+
+# People rarely say "playbook". 2.0.2 found nothing for these (measured on a live
+# installation: "welche Abläufe gibt es", "einen mehrstufigen Ablauf … beginnen").
+PLAYBOOK_INTENTS = [
+    ("start a multi-stage workflow with approvals for a software change", {"playbook_start"}),
+    ("which workflows are there", {"playbook_list", "playbook_search"}),
+    ("where does the process for my project stand", {"playbook_status", "playbook_runs"}),
+    ("approve the current stage", {"playbook_record_approval"}),
+    ("einen mehrstufigen Ablauf mit Freigaben für eine Softwareänderung beginnen",
+     {"playbook_start"}),
+    ("welche Abläufe gibt es", {"playbook_list", "playbook_search"}),
+    ("wie weit ist der Workflow für mein Projekt", {"playbook_status", "playbook_runs"}),
+    ("die aktuelle Phase freigeben", {"playbook_record_approval"}),
+    ("das SDLC-Vorgehen starten", {"playbook_start"}),
+    ("Ergebnis der Phase einreichen", {"playbook_submit"}),
+]
+
+
+@pytest.mark.parametrize("query, expected", PLAYBOOK_INTENTS, ids=[q for q, _ in PLAYBOOK_INTENTS])
+def test_router_finds_playbooks_without_the_word(core_server, query, expected):
+    test_router_finds_the_tool_in_english_and_german(core_server, query, expected)
+
+
+def test_integration_search_says_it_covers_playbooks(core_server):
+    tools = _session(core_server, lambda c: c.list_tools())
+    desc = next(t.description for t in tools if t.name == "integration_search")
+    assert "playbook" in desc.lower()

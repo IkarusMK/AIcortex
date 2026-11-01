@@ -151,6 +151,18 @@ def test_the_titles_line_counts_exactly(fresh_server):
             assert not missing, (budget, missing)
 
 
+def test_the_briefing_names_the_playbook_library(fresh_server):
+    # A model that has never heard of playbooks learns at the start that there are
+    # some — not only when a run is already active.
+    _call(fresh_server, "playbook_write", {
+        "name": "Release flow", "title": "Release flow", "description": "Ship a release",
+        "stages": [{"id": "plan", "name": "Plan", "goal": "g", "artifact": "intent.md",
+                    "template": "# Intent", "approval": "webui"}]})
+    for text in (_call(fresh_server, "cortex_start"),
+                 _call(fresh_server, "cortex_start", {"project": "birdhouse"})):
+        assert "release-flow" in text and "playbook_start" in text
+
+
 def test_general_reference_notes_are_named(fresh_server):
     _call(fresh_server, "memory_write", {"title": "Home network map", "type": "reference",
                                          "content": "Router, NAS and printer addresses."})
