@@ -150,13 +150,39 @@ Ask the user to tell their assistant:
 - `ping` responds (and reports the running version) → connector, proxy and auth
   chain work.
 - `cortex_start` returns a short briefing (user, working style, projects) →
-  **installation complete.**
+  **installation complete.** On a fresh install the briefing is short because
+  the memory is still empty.
 
-Agents and CLIs without an OAuth login (Claude Code, Codex, Hermes, OpenClaw,
-LM Studio, …) get their own key in the WebUI under **Connect clients**, which also
-shows the setup snippet; see `docs/clients.md`. For clients that don't pass the
-server instructions to the model, pin the short block from
-`docs/client-project-instructions.md` into the client's custom instructions.
+For clients that don't pass the server instructions to the model, pin the short
+block from `docs/client-project-instructions.md` into the client's custom
+instructions.
+
+## Phase 8 — People, keys and more clients (human steps in the WebUI)
+
+Walk the user through `docs/clients.md` → *Step by step: people, keys and the first
+clients*. In short:
+
+1. Open `https://agent.example.com/ui` (the bare host shows `404`) and sign in
+   through the IdP. Every OIDC sign-in is admin unless a role is set
+   (`OIDC_DEFAULT_ROLE`).
+2. **Users** page: set role and memory area per person. With `AUTH_ENFORCE=1` and a
+   single owner, give the owner's identity the memory area **everything** — keys
+   for that person otherwise see only their own, empty area, not the shared notes
+   the chat apps write.
+3. **Connect clients** page: one key per agent or CLI (Claude Code, Codex, Hermes,
+   OpenClaw, LM Studio, …) — person, tools profile, allowed tools, expiry. The key
+   is shown once; the page shows the setup snippet per client. Never paste the key
+   into chat; the user stores it (macOS keychain, the client's secret store).
+4. **Claude Code:** offer the start hook from `docs/clients.md` → *Claude Code*
+   (`clients/claude-code/session_start.py`, key from the keychain, a key with
+   allowed tools `cortex_start` is enough). Verify by running the hook once:
+
+   ```bash
+   echo '{"cwd":"'"$PWD"'","source":"startup"}' | python3 ~/.claude/hooks/aicortex_session_start.py
+   ```
+
+   The output must contain `AICortex v… — briefing` and no `systemMessage`
+   warning.
 
 ## If something fails
 

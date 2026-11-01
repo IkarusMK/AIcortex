@@ -12,23 +12,61 @@ There are two ways in:
 | **OAuth** (sign-in via your IdP) | Apps with a "custom connector" dialog: Claude (web, desktop, mobile), ChatGPT | Add the URL; the app opens your IdP's login. Needs OIDC configured (see `pocketid-setup.md`). |
 | **Bearer token** (fixed header) | Agents, CLIs and SDKs: Claude Code, Codex, Claude API, OpenAI Responses API / Agents SDK, Hermes, OpenClaw, LibreChat, Open WebUI, LM Studio | Send `Authorization: Bearer <agent key>`. Works with or without OIDC. |
 
+## Step by step: people, keys and the first clients
+
+This is the whole path after the container runs behind your proxy, in the WebUI —
+no terminal needed except for the keychain in step 4.
+
+1. **Sign in.** Open `https://<your-host>/ui` (the bare host name shows `404`; the
+   WebUI lives under `/ui`) and sign in through your IdP. Everyone who signs in via
+   OIDC is **admin** unless a role is set for them (`OIDC_DEFAULT_ROLE`, default
+   `admin`) — so point AICortex at an IdP only your own people can use.
+2. **Connect your chat apps** (Claude, ChatGPT): add `https://<your-host>/mcp` as a
+   custom connector (sections below) and sign in once. Their notes go to the
+   **shared** memory, because an admin isn't confined to a personal area.
+3. **People** (*Users* page). After someone's first sign-in, their identity (IdP
+   `sub`) is known. Per identity you set the **role** (*Default (not set)* keeps the
+   default above, or *admin* / *user* / *viewer*), the **memory area** (*own area* or
+   *everything*), and which services, skills and devices they may use.
+4. **Keys for agents and CLIs** (*Connect clients* page): *Agent name*, *For person*
+   (the identity from step 3), *Tools* (*Core* = the eleven tools plus search, or
+   *Full*), *Allowed tools* (`all`, aliases such as `memory`, or exact names) and
+   *Valid for days* (0 = no expiry) → **Create key**. The key is shown **once**;
+   *Setup for* then shows the snippet for the chosen client. Keep the key in the
+   client's secret store or the macOS keychain, never in a file you share.
+
+**What a key can see** depends on `AUTH_ENFORCE`:
+
+| `AUTH_ENFORCE` | A key for person *P* … |
+|---|---|
+| `0` (homelab) | reaches everything its *Allowed tools* include. |
+| `1` (default) | gets *P*'s role from *Users*, else **user** — never admin by default. As a user it works in *P*'s **own** memory area only, so it does **not** see the shared notes your chat apps write — unless *P*'s memory area is **everything**. |
+
+For a single owner with `AUTH_ENFORCE=1` that means: set **memory area: everything**
+for your own identity, and limit each key with *Allowed tools* instead (the Claude
+Code start hook needs only `cortex_start`). With several people, leave others on
+*own area* so they never read each other's notes.
+
 ## Agent keys
 
 Give every agent its own key, so its notes and tasks are attributed to it and a
-leaked key can be revoked on its own:
+leaked key can be revoked on its own. The WebUI's *Connect clients* page (above) is
+the easy way; an admin AI can do the same with a tool:
 
 ```text
 apikey_create(identity="<person's id>", name="hermes", scopes="all")
 ```
 
 - `identity` is the person the agent works for (their IdP `sub`, as shown in the
-  WebUI users list). The agent sees that person's memory, vault and grants.
+  WebUI users list). The agent works with that person's role, memory area, vault and
+  grants — see *What a key can see* above.
 - `scopes` limits the tools: `all`, aliases (`memory`, `skills`, `files`,
   `services`, `calendar`, `mail`, `sessions`, `tasks`), globs (`task_*`) or exact
   names. Secret, key and tenancy tools are never reachable with a key.
 - A key never becomes admin by default: it gets the person's explicit role from
   the policy, else `user`.
-- The key is shown once; only its hash is stored. Revoke with `apikey_revoke`.
+- The key is shown once; only its hash is stored. Revoke it on the *Connect clients*
+  page or with `apikey_revoke`.
 
 `RUNNER_TOKEN` (from `.env`) is a separate fixed token for the scheduled-job
 runner only.
@@ -53,13 +91,22 @@ Recommended setup — the key stays in the macOS keychain, the long-term memory 
 loaded at every session start, and a missing AICortex is reported instead of
 silently ignored.
 
-1. **Key in the keychain** (asks for the key; paste the agent key from the WebUI):
+1. **Create the key** on the WebUI's *Connect clients* page (see *Step by step*
+   above): *For person* = your identity, *Allowed tools* = `cortex_start` if the key
+   is only for the start hook in step 4, `all` if you also connect the MCP server
+   with it in step 3. With `AUTH_ENFORCE=1` give your identity the memory area
+   **everything** on the *Users* page, or the briefing won't include the notes your
+   other apps saved.
+
+2. **Key in the keychain** (asks for the key twice; nothing is shown while you
+   paste):
 
    ```bash
    security add-generic-password -s aicortex -a "$USER" -w
    ```
 
-2. **Connect the MCP server.** Export the key in your shell profile (`~/.zshrc`) and
+3. **Connect the MCP server** — skip this if Claude Code already lists AICortex
+   through the connector of your Claude account. Export the key in your shell profile (`~/.zshrc`) and
    register the server with the variable *in single quotes*, so Claude Code stores
    `${AICORTEX_KEY}` and expands it at runtime instead of saving the key:
 
@@ -74,7 +121,7 @@ silently ignored.
    Or without a key: `claude mcp add --transport http aicortex https://<your-host>/mcp`
    and sign in via `/mcp` (OAuth).
 
-3. **Load the long-term memory automatically.** Copy
+4. **Load the long-term memory automatically.** Copy
    `clients/claude-code/session_start.py` from this repository (for example to
    `~/.claude/hooks/aicortex_session_start.py`) and add to `~/.claude/settings.json`:
 

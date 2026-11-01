@@ -359,6 +359,7 @@ language-switchable **DE/EN**:
 | **Vault** | See secret **names**, add tokens/API keys/passwords (shared or per-user), delete. Values are **write-only** — they never leave the vault |
 | **Skills** | Browse by category, view, create/edit/delete skills (same house rules as `skill_write`) |
 | **Users** | Roles (`admin`/`user`/`viewer`) + per-user areas (memory, vault, services, skills, device grants) in `policy.json` |
+| **Connect clients** | One key per agent or CLI (Claude Code, Codex, Hermes, LM Studio, …): person, tools profile, allowed tools, expiry; the key is shown once, with the setup snippet for the chosen client |
 | **Services & devices** | Every registry (services, MQTT, FTP, printers, scanners, WebDAV, CalDAV, SSH, mail, IMAP, MCP, webhooks): create, edit, delete — forms built from each `*_add` tool, secrets picked by **name** |
 | **Logs** | The authz audit log — who called which tool, allowed/denied and why; filterable, newest first |
 
@@ -369,7 +370,12 @@ are signed HttpOnly cookies, mutations are CSRF-guarded, every action lands in t
 (names only, never values). Each page runs the **same policy path** as the MCP tools, so the
 browser gets exactly the rights of the person's AI.
 Without OIDC (local testing) the UI is open on the localhost-only bind — the same trust
-model as the MCP endpoint itself. Opt-out: `UI_ENABLED=0`.
+model as the MCP endpoint itself. There is no separate username/password login: remote
+access always goes through your IdP. Opt-out: `UI_ENABLED=0`.
+
+**First steps after the install** — sign in, set up people, create keys and connect
+Claude, ChatGPT, Claude Code and other agents: **[docs/clients.md](docs/clients.md)**
+→ *Step by step*.
 
 ## Configuration
 
