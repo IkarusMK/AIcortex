@@ -84,6 +84,9 @@ MEMORY (Fakten über User & Projekte) — LERN-PFLICHT (Auto-Memory)
   Typen — user · feedback · project · reference. Ohne Typ LEHNT memory_write ab
   (gleiche Ordnung wie bei skill_write). feedback/project: kurz das „Warum"
   dazuschreiben; project bekommt ein review-Datum.
+- STECKBRIEF: cortex_start nennt jede allgemeine Arbeitsregel (feedback ohne
+  project); mit tags="pinned" (oder „verbindlich") steht sie vorn samt Text. Eine
+  Regel mit project erscheint nur, wenn an diesem Projekt gearbeitet wird.
 - FILTER (nur rein, wenn ALLES zutrifft): (1) dauerhaft, nicht Session-Geplauder ·
   (2) künftig wiederverwendbar · (3) nicht eh im Code/Git auffindbar ·
   (4) KEIN Secret (das in den Vault, nie in Memory) · (5) stabil, oder mit Datum.
@@ -267,6 +270,9 @@ MEMORY (facts about user & projects) — LEARN AS YOU GO (auto-memory)
   types — user · feedback · project · reference. Without a type memory_write
   REFUSES (same house rule as skill_write). For feedback/project add the short
   "why"; give project a review date.
+- BRIEFING: cortex_start names every general working rule (feedback without a
+  project); tags="pinned" puts a rule first, with its text. A rule with a project
+  only shows up when that project is worked on.
 - FILTER (store only if ALL hold): (1) durable, not session chatter · (2) reusable
   in future · (3) not already discoverable in code/git · (4) NOT a secret (vault,
   never memory) · (5) stable, or dated.

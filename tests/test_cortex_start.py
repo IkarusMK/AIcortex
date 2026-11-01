@@ -88,6 +88,61 @@ def test_memory_search_filters_by_project(fresh_server):
     assert "bakery" not in text.lower()
 
 
+RULES = ["Answer in the user's language", "Ask before pushing", "Check generated files",
+         "Collect findings before a release", "Commit messages in English",
+         "Confirm physical actions", "Explain risks, let the user decide",
+         "Keep secrets in the vault", "Measure, don't guess", "No private data in commits",
+         "No unsolicited screenshots", "One stack folder per service", "Optimise, don't delete",
+         "Prefer the NAS web interface", "Quote in context only", "Run the counter-test",
+         "Store pictures in English", "Translations in all languages"]
+
+
+def test_every_general_rule_reaches_the_briefing(fresh_server):
+    # 2.0.0 listed the first four working-style rules (alphabetically) and hid the rest
+    # behind "… 14 more" — a session started from the hook never saw most of them.
+    for t in RULES:
+        _call(fresh_server, "memory_write", {"title": t, "type": "feedback",
+                                             "content": f"{t}: details " + "x" * 120})
+    for text in (_call(fresh_server, "cortex_start"),
+                 _call(fresh_server, "cortex_start", {"project": "birdhouse"})):
+        assert len(text) <= 4000, len(text)
+        missing = [t for t in RULES if t not in text]
+        assert not missing, missing
+
+
+def test_pinned_rules_come_first_with_their_text(fresh_server):
+    for t in RULES:
+        _call(fresh_server, "memory_write", {"title": t, "type": "feedback",
+                                             "content": f"{t}: details " + "x" * 120})
+    _call(fresh_server, "memory_write", {"title": "Zebra crossing rule", "type": "feedback",
+                                         "tags": "pinned", "content": "Always stop at zebra crossings."})
+    _call(fresh_server, "memory_write", {"title": "Yak shaving rule", "type": "feedback",
+                                         "tags": "verbindlich", "content": "Never shave the yak first."})
+    text = _call(fresh_server, "cortex_start")
+    rules = text.split("How they want you to work:")[1]
+    assert "Always stop at zebra crossings." in rules
+    assert "Never shave the yak first." in rules
+    assert rules.index("Yak shaving rule") < rules.index("Answer in the user's language")
+
+
+def test_project_rules_stay_in_their_project(fresh_server):
+    _seed(fresh_server)
+    _call(fresh_server, "memory_write", {"title": "Tag bakery releases only on request",
+                                         "type": "feedback", "project": "Bakery",
+                                         "content": "Collect fixes, ask before tagging."})
+    general = _call(fresh_server, "cortex_start")
+    assert "Tag bakery releases" not in general.split("Known projects")[0]
+    assert "Tag bakery releases" not in _call(fresh_server, "cortex_start", {"project": "birdhouse"})
+    assert "Tag bakery releases" in _call(fresh_server, "cortex_start", {"project": "bakery"})
+    assert "Confirm before printing" in _call(fresh_server, "cortex_start", {"project": "bakery"})
+
+
+def test_general_reference_notes_are_named(fresh_server):
+    _call(fresh_server, "memory_write", {"title": "Home network map", "type": "reference",
+                                         "content": "Router, NAS and printer addresses."})
+    assert "Home network map" in _call(fresh_server, "cortex_start")
+
+
 def test_cortex_start_shows_a_confined_user_only_their_own(monkeypatch, request):
     monkeypatch.setenv("AUTH_ENFORCE", "1")
     server = request.getfixturevalue("fresh_server")

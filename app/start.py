@@ -8,6 +8,10 @@ so starting a conversation costs a few hundred tokens, not tens of thousands.
 
 Only what the caller may see is used: memories come from the caller's own memory
 area (tenancy), skills and integrations are filtered by the caller's grants.
+
+Every general working rule (a feedback note without a project) is named, at least by
+title — pinned ones first and with their text; a rule that belongs to a project only
+shows up when that project is worked on.
 """
 import json
 from datetime import datetime, timezone
@@ -21,6 +25,8 @@ import skills
 import version
 
 MAX_CHARS = 4000
+# A note tagged with one of these is shown first, with its text.
+PINNED_TAGS = frozenset({"pinned", "important", "verbindlich", "wichtig"})
 
 
 def _caller():
@@ -48,6 +54,41 @@ def _clip(lines: list[str], budget: int) -> list[str]:
 
 def _block(title: str, lines: list[str], budget: int) -> str:
     return title + "\n" + "\n".join(_clip(lines, budget)) if lines else ""
+
+
+def _pinned(m: dict) -> bool:
+    return any(str(t).strip().lower() in PINNED_TAGS for t in m.get("tags") or [])
+
+
+def _names(ms: list[dict], budget: int) -> str:
+    """The titles of `ms` on one line, as many as fit in `budget`."""
+    head, kept = "  - also: ", []
+    used = len(head)
+    for i, m in enumerate(ms):
+        if used + len(m["title"]) + 3 > budget:
+            return head + " · ".join(kept) + f" … {len(ms) - i} more"
+        kept.append(m["title"])
+        used += len(m["title"]) + 3
+    return head + " · ".join(kept)
+
+
+def _named_block(title: str, ms: list[dict], line, budget: int) -> str:
+    """Pinned notes first; full lines while the titles of the rest still fit, then
+    the rest by title — so every note is at least named."""
+    if not ms:
+        return ""
+    ms = sorted(ms, key=lambda m: (not _pinned(m), m["title"].lower()))
+    out, used = [], 0
+    for i, m in enumerate(ms):
+        rest = ms[i + 1:]
+        full = line(m)
+        reserve = len(_names(rest, budget)) + 1 if rest else 0
+        if used + len(full) + 1 + reserve > budget:
+            out.append(_names(ms[i:], budget - used))
+            break
+        out.append(full)
+        used += len(full) + 1
+    return title + "\n" + "\n".join(out)
 
 
 def _words(text: str) -> set[str]:
@@ -98,9 +139,15 @@ def build(project: str = "", task: str = "") -> str:
     def line(m):
         return f"  - {m['title']}" + (f": {m['first']}" if m["first"] else "")
 
+    def general(type_):
+        return [m for m in mems if m["type"] == type_ and not memory.project_key(m["project"])]
+
     parts.append(_block("About the user:", [line(m) for m in mems if m["type"] == "user"], 700))
-    parts.append(_block("How they want you to work:",
-                        [line(m) for m in mems if m["type"] == "feedback"], 700))
+    parts.append(_named_block("How they want you to work:", general("feedback"), line, 1400))
+    refs = general("reference")
+    if refs:
+        parts.append("Reference notes (memory_read by name):\n"
+                     + _names(sorted(refs, key=lambda m: m["title"].lower()), 300))
 
     if key:
         pm = [line(m) for m in mems if memory.project_key(m["project"]) == key]
