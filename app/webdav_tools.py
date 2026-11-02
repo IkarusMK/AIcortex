@@ -134,7 +134,7 @@ def register(mcp):
     @mcp.tool
     def webdav_list(endpoint: str, path: str = "") -> str:
         """List a folder on the endpoint (name · size · type). path is relative to
-        base_url, e.g. "Agenten_Projekte"."""
+        base_url, e.g. "Shared/Reports"."""
         cfg = _load(endpoint)
         if not cfg:
             return f"Unknown endpoint '{endpoint}'. Use webdav_list_endpoints / webdav_add."
@@ -170,7 +170,7 @@ def register(mcp):
     @mcp.tool
     def webdav_upload(endpoint: str, source: str, dest: str) -> str:
         """Upload a local file (under /data, e.g. /data/work/scan.pdf) to the
-        endpoint at `dest` (relative to base_url, e.g. "Agenten_Projekte/scan.pdf")."""
+        endpoint at `dest` (relative to base_url, e.g. "Shared/Reports/scan.pdf")."""
         cfg = _load(endpoint)
         if not cfg:
             return f"Unknown endpoint '{endpoint}'."
