@@ -188,7 +188,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Webhooks | `webhook_add` · `webhook_list` · `webhook_delete` · `webhook_send` | Inbound `POST /hooks/<name>` (secret/HMAC) → inbox (event-driven); outbound POST notify |
 | Multi-agent | `agent_register`/`list` · `task_add`/`list`/`claim`/`update` · `task_next` · `task_handoff` · `inbox_*` | Presence-aware team: capability-routed pull & context-preserving handoff |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log; auto-expires |
-| Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` | Cron jobs as data; a NAS runner triggers them |
+| Scheduling | `cron_add` · `cron_list` · `cron_delete` · `cron_due` · `cron_mark_run` · `runner_config` | Cron jobs as data; a NAS runner triggers them with the model set up in the WebUI |
 | Secrets | `secret_set` · `secret_list` · `secret_delete` | Encrypted vault; values never returned |
 | Tenancy (admin) | `tenancy_set` · `tenancy_show` · `tenancy_list` · `tenancy_unset` · `tenancy_status` | Configure per-user data areas — the multi-user control plane, as data |
 | Guide | `guide` | Self-description (also sent as server `instructions` on connect) |
@@ -230,15 +230,27 @@ Sub-agent *spawning* stays client-side; the connector is the shared coordination
 
 ## Autonomy & scheduling
 
-Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt)` from any device; `cron_list` / `cron_delete` manage them. What the connector **can't** do is run the model itself, so the autonomy *engine* is a small **NAS-side runner**:
+Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt)` from any device, or **Scheduled jobs** in the WebUI (presets, a preview of the next runs, on/off). What the connector **can't** do is run a model itself, so a small **runner** on the NAS carries the jobs out:
 
-1. System cron runs a recurring agent invocation (e.g. `claude -p`, or any LLM CLI/SDK).
-2. It calls `cron_due` → executes each due job's prompt **through this connector** → `cron_mark_run`.
+1. Once a minute, on the minute, the runner asks `cron_due` — **without any model**, so an idle minute costs nothing. A minute it missed (slow run, restart) is caught up for five minutes.
+2. Only when a job is due does it start the model, with the due jobs in the prompt. The model runs each job **through this connector**, inside the job owner's area when the job has one (act-as), then `cron_mark_run`.
 3. It reports the result via your configured channel, or posts to the connector **inbox**.
 
-Two ready-to-deploy runners live in [`runner/`](runner/README.md): a **Claude Code backend** (does the connector's OAuth login itself) and a **generic any-LLM backend** ([`runner/generic/`](runner/generic/README.md)) that drives the connector from any model via [LiteLLM](https://github.com/BerriAI/litellm), authenticating with a static `RUNNER_TOKEN` accepted alongside OIDC (FastMCP `MultiAuth`).
+**Set it up in the WebUI** (admin): *Scheduled jobs → Set up the runner*.
 
-> **What the `RUNNER_TOKEN` may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
+1. **Choose the model access** — a Claude subscription (the token from `claude setup-token`), Claude Code with an Anthropic API key, or OpenRouter / Anthropic / OpenAI / Gemini with a model name and key. The key is stored encrypted in the vault and is never shown again; only the runner can fetch it, once per run (`runner_config`).
+2. **Create a runner key** — shown once, together with the two lines for the runner's `.env`:
+   ```
+   CONNECTOR_URL=https://agent.example.com/mcp
+   RUNNER_TOKEN=ak_…
+   ```
+3. **Start the runner** from [`runner/generic/`](runner/generic/README.md) (`docker compose up -d --build`). The page shows when it last checked in.
+
+A runner key works exactly like the static `RUNNER_TOKEN` in the connector's `.env` (still supported) — but it needs no restart and can be revoked in the WebUI. The Claude-only runner in [`runner/`](runner/README.md) remains for setups that prefer it.
+
+> **What the runner may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
+>
+> **Subscription or API key?** Anthropic intends pay-per-use API keys for unattended automation; running scheduled jobs on a consumer subscription is a grey area with tight limits. Because the runner only wakes the model when a job is due, the usage stays small either way.
 
 ## Run it with a local model (Ollama)
 
@@ -354,7 +366,7 @@ language-switchable **DE/EN**:
 |------|-----------------|
 | **Overview** | Version, enforce status, live counts (skills, secrets, services, devices, users) |
 | **Notes** *(everyone)* | Your memories: search, filter by type/project, edit with conflict detection; admins also review auto-captured candidates |
-| **Scheduled jobs** *(everyone)* | Your cron jobs: plain-language schedule, next/last run, on/off, presets with a preview of the next runs |
+| **Scheduled jobs** *(everyone)* | Your cron jobs: plain-language schedule, next/last run, on/off, presets with a preview of the next runs. Admins also set up the runner here: model access and runner keys |
 | **Playbooks** *(everyone)* | Library (adopt the AI-native SDLC template, edit stages) and your runs: progress, artifact versions, approve or reject each stage |
 | **Vault** | See secret **names**, add tokens/API keys/passwords (shared or per-user), delete. Values are **write-only** — they never leave the vault |
 | **Skills** | Browse by category, view, create/edit/delete skills (same house rules as `skill_write`) |

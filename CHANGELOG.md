@@ -5,6 +5,49 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+The runner is set up in the WebUI, wakes the model only when a job is due, and no
+longer misses minutes.
+
+### Added
+- **Runner setup in the WebUI** (*Scheduled jobs → Set up the runner*, admin):
+  choose the model access — a Claude subscription token (`claude setup-token`),
+  Claude Code with an Anthropic API key, or OpenRouter / Anthropic / OpenAI / Gemini
+  with a model name — and create **runner keys**. A runner key connects exactly like
+  `RUNNER_TOKEN` but needs no connector restart and can be revoked in the WebUI.
+- `runner_config`: the runner fetches the model access from the vault. Only the
+  runner gets it — never a person, an admin, an agent key, the REST API or an
+  act-as run — and only once per run; services cannot use it either.
+- **The runner as a ready image:** `ghcr.io/ikarusmk/aicortex-runner` is built with
+  every release, so a NAS can pull it instead of building it.
+- **Services with a user name and password** (HTTP Basic, e.g. AdGuard Home):
+  `service_add(..., auth_scheme="Basic", username="…")` with only the password in
+  the vault secret — the connector builds the header. A pre-built Base64 secret
+  without a username keeps working.
+
+### Changed
+- **The runner wakes the model only when a job is due.** Both runners now ask
+  `cron_due` themselves (no model) and hand the due jobs to the model in the prompt;
+  before, the model was started every minute just to ask. The model working on a job
+  cannot call `cron_due` or `runner_config`.
+- The any-model runner (`runner/generic`) runs the model set up in the WebUI — also
+  Claude via the Claude Code CLI — and falls back to `LLM_MODEL` without a setup. The
+  Claude-only runner signs in with a runner key and `CLAUDE_CODE_OAUTH_TOKEN` /
+  `ANTHROPIC_API_KEY`, without a login inside the container; older setups keep
+  working.
+- The runner prompt passes a job's act-as token to `act_as_begin`, so jobs with an
+  owner run in that person's area.
+
+### Fixed
+- **Scheduled jobs could silently never run.** The runner slept 60 seconds *after*
+  each run, so its checks drifted and whole minutes went unchecked, and `cron_due`
+  only returned jobs due in that exact minute. Checks are now aligned to the clock,
+  and `cron_due` hands out a missed minute for up to five minutes, once — never one
+  from before the job existed.
+
+### Docs
+- README *Autonomy & scheduling*, `runner/README.md` and `runner/generic/README.md`
+  describe the WebUI setup, runner keys and the model choice.
+- WebDAV tool examples use a neutral folder name.
 
 ## [2.0.3] — 2026-11-02
 A review release: playbooks are found by everyday words, starter skills ship with the
