@@ -75,27 +75,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # The scheduled-job runner (runner/generic) as its own image, so a NAS can pull
-      # it instead of building it: ghcr.io/<owner>/aicortex-runner, same tags.
-      - name: Runner image metadata (tags + labels)
-        id: runner_meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}-runner
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=sha,format=short
-
-      - name: Build and push the runner
-        uses: docker/build-push-action@v7
-        with:
-          provenance: false          # see above — keeps the pusher's email out
-          context: runner/generic
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.runner_meta.outputs.tags }}
-          labels: ${{ steps.runner_meta.outputs.labels }}
-          cache-from: type=gha,scope=runner
-          cache-to: type=gha,mode=max,scope=runner

@@ -53,7 +53,8 @@ class AgentTokenVerifier(TokenVerifier):
             return None
         expires = int(rec.get("expires") or 0) or None
         if rec.get("runner"):
-            # A runner key made in the WebUI: the same caller as RUNNER_TOKEN.
+            # A runner key from 2.1.0 (WebUI, for a separate runner): it keeps working
+            # as the same caller as RUNNER_TOKEN; new ones are no longer made.
             return AccessToken(token=token, client_id="runner", scopes=[], expires_at=expires,
                                claims={AGENT_CLAIM: rec.get("name") or f"key-{rec['keyid']}"})
         claims = {

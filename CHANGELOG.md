@@ -7,17 +7,30 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 ## [Unreleased]
 
 ## [2.2.0] — 2026-11-02
-Scheduled jobs run without installing anything.
+Scheduled jobs run inside AICortex — no runner container any more.
 
 ### Added
-- **Built-in runner.** Tick *Built-in runner* under *Scheduled jobs → Set up the
+- **The runner is built in.** Tick *Runner on* under *Scheduled jobs → Set up the
   runner* and AICortex runs due jobs itself — no extra container, no key to copy.
   It checks once a minute without a model. A Claude subscription token (`claude
   setup-token`) or an Anthropic key goes to Anthropic's Messages API (the token as
-  an OAuth bearer, no Claude Code needed); OpenRouter, Anthropic, OpenAI and Gemini
-  keys go to their OpenAI-compatible chat APIs. The model's tool calls go through
-  `/mcp` as the runner (an in-memory token), so roles, act-as and audit apply as for
-  an external runner.
+  an OAuth bearer, no Claude Code needed); OpenRouter, OpenAI and Gemini keys go to
+  their OpenAI-compatible chat APIs. The model's tool calls go through `/mcp` as the
+  runner (an in-memory token), so roles, act-as and audit apply as for any caller.
+
+### Changed
+- An Anthropic API key is one option in the runner setup; a setup saved with the
+  former second option (`anthropic`) is read as that one and runs via the Messages
+  API.
+
+### Removed
+- **The separate runner:** `runner/`, `runner/generic/` and the image
+  `ghcr.io/ikarusmk/aicortex-runner` (no longer built). The built-in runner does
+  their job.
+- Creating **runner keys** and the `runner_config` tool — both existed only for the
+  separate runner. The model key now never leaves AICortex except to the model
+  provider. Runner keys already made and `RUNNER_TOKEN` keep working for an own
+  runner.
 
 ### Fixed
 - **Two runners could run the same job twice.** `cron_due` now hands a job to one

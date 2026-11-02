@@ -1,15 +1,15 @@
-"""The built-in runner: AICortex fires its own due cron jobs with an API model.
+"""The runner: AICortex fires its own due cron jobs with an API model.
 
 Switched on in the WebUI (Scheduled jobs → Set up the runner). A thread in the server
 process checks once a minute, on the minute, for due jobs without any model, and only
 then asks the model:
-- OpenRouter, Anthropic, OpenAI, Gemini: the provider's OpenAI-compatible chat API;
+- OpenRouter, OpenAI, Gemini: the provider's OpenAI-compatible chat API;
 - a Claude subscription token (``claude setup-token``, which Anthropic documents for
   scripts making model requests) or an Anthropic key: Anthropic's Messages API — the
   token as an OAuth bearer, no Claude Code needed.
 The model's tool calls go through this server's own /mcp endpoint as the runner
 (agent_auth.INTERNAL_RUNNER_TOKEN, held in memory only), so they pass the same gates as
-an external runner: roles, act-as, audit.
+any other caller: roles, act-as, audit.
 """
 import asyncio
 import json
@@ -25,7 +25,6 @@ import runner_setup
 
 ENDPOINTS = {
     "openrouter": "https://openrouter.ai/api/v1/chat/completions",
-    "anthropic": "https://api.anthropic.com/v1/chat/completions",
     "openai": "https://api.openai.com/v1/chat/completions",
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     "claude-abo": "https://api.anthropic.com/v1/messages",
@@ -37,7 +36,7 @@ CLAUDE_ALIASES = {"sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5",
                   "haiku": "claude-haiku-5-5"}
 MAX_TOKENS = 8192
 # Runner plumbing the model working on a job must not call.
-BLOCKED = {"runner_config", "cron_due"}
+BLOCKED = {"cron_due"}
 MAX_STEPS = 25
 TICK_OFFSET = 2            # seconds into the new minute, so the clock has turned
 PROVIDER_TIMEOUT = 120

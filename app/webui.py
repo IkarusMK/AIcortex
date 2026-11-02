@@ -864,6 +864,6 @@ def register(mcp):
     import webui_views
     helpers = types.SimpleNamespace(
         json=_json, require_session=_require_session, require_admin=_require_admin,
-        body=_body, gate=_gate_mutation, audit=_audit, base_url=_base_url)
+        body=_body, gate=_gate_mutation, audit=_audit)
     webui_views.register(mcp, helpers)
     webui_runner.register(mcp, helpers)

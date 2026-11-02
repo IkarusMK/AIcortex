@@ -1,14 +1,14 @@
 """The built-in runner: AICortex runs its own due jobs with an API model.
 
 Before: scheduled jobs needed a separate runner container with its own folder, key
-and project. Now an admin switches the built-in runner on in the WebUI (API keys:
-OpenRouter, Anthropic, OpenAI, Gemini). Proves:
+and project. Now an admin switches the runner on in the WebUI. Proves:
 - it reaches the connector as the runner with an in-memory token (no stored key);
 - an idle minute calls no model; a due job goes to the provider's OpenAI-compatible
   chat API with the stored key, and the model's tool calls run through the
-  connector — never cron_due or runner_config;
+  connector — never cron_due, not even through the router;
 - a Claude subscription token (`claude setup-token`) goes straight to Anthropic's
-  Messages API as an OAuth token — no Claude Code needed; an Anthropic key too;
+  Messages API as an OAuth token — no Claude Code needed; an Anthropic key too, also
+  one saved under the former name `anthropic`;
 - it stays off unless switched on;
 - a job is handed to one runner per slot, so two runners never run it twice;
 - the WebUI saves the switch and shows the built-in runner's state.
@@ -16,14 +16,12 @@ OpenRouter, Anthropic, OpenAI, Gemini). Proves:
 import asyncio
 import json
 import sys
-from pathlib import Path
 
 import pytest
 
 from test_cov_webui import Ui, ui  # noqa: F401 - ui is a fixture
 
 KEY = "sk-or-test-0000"
-REPO = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -56,7 +54,7 @@ class Provider:
         self.requests.append({"url": url, "payload": json.loads(json.dumps(payload)),
                               "headers": dict(headers)})
         first = len(self.requests) == 1
-        router = [("c1", {"name": "runner_config"}),
+        router = [("c1", {"name": "cron_due"}),
                   ("c2", {"name": "cron_mark_run", "arguments": {"name": "report", "result": "ok"}})]
         if url.endswith("/v1/messages"):
             if first:
@@ -103,7 +101,7 @@ def test_a_due_job_goes_to_the_provider_and_runs_through_the_connector(connector
     assert first["payload"]["model"] == "anthropic/claude-sonnet-4.5"
     assert '"id": "report"' in first["payload"]["messages"][0]["content"]
     offered = {t["function"]["name"] for t in first["payload"]["tools"]}
-    assert offered and not offered & {"runner_config", "cron_due"}
+    assert offered and "cron_due" not in offered
     replies = [m for m in provider.requests[1]["payload"]["messages"] if m["role"] == "tool"]
     assert replies[0]["content"].startswith("Refused") and KEY not in json.dumps(provider.requests[1]["payload"])
     assert "Marked 'report' run" in replies[1]["content"]
@@ -121,19 +119,31 @@ def test_a_claude_subscription_token_goes_straight_to_the_messages_api(connector
     assert first["headers"]["anthropic-beta"] == "oauth-2025-04-20"
     assert "x-api-key" not in first["headers"] and "user-agent" not in {k.lower() for k in first["headers"]}
     assert first["payload"]["model"] == "claude-sonnet-5-5" and first["payload"]["max_tokens"] > 0
-    assert {t["name"] for t in first["payload"]["tools"]}.isdisjoint({"runner_config", "cron_due"})
+    assert "cron_due" not in {t["name"] for t in first["payload"]["tools"]}
     results = provider.requests[1]["payload"]["messages"][-1]["content"]
     assert results[0]["content"].startswith("Refused") and "Marked 'report' run" in results[1]["content"]
     assert builtin.status()["state"] == "ran"
 
 
-def test_an_anthropic_key_for_claude_code_uses_the_messages_api_with_x_api_key(connector, monkeypatch):
+def test_an_anthropic_key_uses_the_messages_api_with_x_api_key(connector, monkeypatch):
     sys.modules["cron"]._write([_job()])
     _setup(backend="claude-api", model="")
     _, provider, _ = _run(connector, monkeypatch)
     headers = provider.requests[0]["headers"]
     assert headers["x-api-key"] == KEY and "Authorization" not in headers
     assert provider.requests[0]["payload"]["model"] == "claude-sonnet-5-5"
+
+
+def test_a_setup_saved_as_anthropic_runs_via_the_messages_api(connector, monkeypatch):
+    sys.modules["cron"]._write([_job()])
+    _setup(builtin=True)                                 # stores the key
+    rs = sys.modules["runner_setup"]
+    sys.modules["store"].write_json(rs.CONFIG_FILE, {
+        "backend": "anthropic", "model": "anthropic/claude-sonnet-4-5", "builtin": True})
+    _, provider, _ = _run(connector, monkeypatch)
+    first = provider.requests[0]
+    assert first["url"] == "https://api.anthropic.com/v1/messages"
+    assert first["headers"]["x-api-key"] == KEY and first["payload"]["model"] == "claude-sonnet-4-5"
 
 
 def test_it_stays_off_until_switched_on(connector, monkeypatch):
@@ -152,12 +162,6 @@ def test_a_job_is_handed_to_one_runner_per_slot(connector, monkeypatch):
     data[0]["claimed"] = sys.modules["cron"]._latest_slot("* * * * *", sys.modules["cron"].datetime.now())
     sys.modules["cron"]._write(data)
     assert _run(connector, monkeypatch)[0] == 0
-
-
-def test_the_runner_prompt_is_the_same_everywhere():
-    texts = {p: (REPO / p).read_text(encoding="utf-8") for p in (
-        "runner/orchestrator.txt", "runner/generic/orchestrator.txt", "app/runner_orchestrator.txt")}
-    assert len(set(texts.values())) == 1
 
 
 @pytest.mark.oidc

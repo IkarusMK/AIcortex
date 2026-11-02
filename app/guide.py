@@ -153,7 +153,7 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner]) / cron_list / cron_delete.
   owner = act-as: der Job läuft im BEREICH dieses Users (Nicht-Admin darf nur als er selbst planen).
-  Ein NAS-Runner stößt fällige Jobs an: cron_due liefert je Job ein kurzlebiges act-as-Token →
+  Der Runner (in der WebUI eingeschaltet) stößt fällige Jobs an: cron_due liefert je Job ein kurzlebiges act-as-Token →
   act_as_begin/act_as_end umschließen die Ausführung → cron_mark_run meldet das Ergebnis.
 - Webhooks: EINGEHEND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
   webhook_delete — öffentliche Route POST /hooks/<name>, per Secret-Token/HMAC abgesichert,
@@ -339,7 +339,7 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner]) / cron_list / cron_delete.
   owner = act-as: the job runs in that user's AREA (a non-admin may schedule only as themselves).
-  A NAS runner triggers due jobs: cron_due returns a short-lived act-as token per job →
+  The runner (switched on in the WebUI) triggers due jobs: cron_due returns a short-lived act-as token per job →
   act_as_begin/act_as_end wrap the run → cron_mark_run reports the result.
 - Webhooks: INBOUND webhook_add(name, secret_env[, hmac_secret_env, notify]) / webhook_list /
   webhook_delete — public route POST /hooks/<name>, secured by secret token/HMAC, event →

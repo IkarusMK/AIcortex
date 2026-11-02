@@ -3,11 +3,11 @@
    server computes them with the runner's own matcher. Times are server time. */
 
 Object.assign(I18N.de, {
-  nav_cron: "Cron-Jobs", cron_new: "Neuer Job", cron_hint: "Geplante Aufträge an deine KI. Zeiten in Serverzeit; der Runner auf der NAS führt sie aus.",
+  nav_cron: "Cron-Jobs", cron_new: "Neuer Job", cron_hint: "Geplante Aufträge an deine KI. Zeiten in Serverzeit; AICortex führt sie mit dem eingestellten Modell aus.",
   cron_col_name: "Name", cron_col_when: "Wann", cron_col_next: "Nächster Lauf", cron_col_last: "Letzter Lauf",
   cron_col_on: "An", cron_col_owner: "Für", cron_empty: "Noch keine Jobs.",
-  cron_runner_none: "Noch hat sich kein Runner gemeldet — Jobs laufen erst, wenn ein Runner läuft. Am einfachsten unten unter „Runner einrichten“ den eingebauten Runner einschalten.",
-  cron_runner_stale: "Der Runner hat sich seit {0} nicht mehr gemeldet — läuft er noch?",
+  cron_runner_none: "Der Runner ist noch nicht an — Jobs laufen erst, wenn ein Admin ihn unter „Runner einrichten“ einschaltet.",
+  cron_runner_stale: "Der Runner hat seit {0} nicht mehr geprüft — ist er noch an?",
   cron_runner_ok: "Runner aktiv, zuletzt gesehen {0}.",
   cron_new_title: "Neuer Job", cron_edit_title: "Job bearbeiten",
   cron_f_name: "Name", cron_f_when: "Wann", cron_f_time: "Uhrzeit", cron_f_dow: "Wochentag",
@@ -20,11 +20,11 @@ Object.assign(I18N.de, {
   confirm_cron_delete: "Job „{0}“ löschen?", toast_cron_saved: "Job gespeichert.", toast_cron_deleted: "Job gelöscht.",
 });
 Object.assign(I18N.en, {
-  nav_cron: "Scheduled jobs", cron_new: "New job", cron_hint: "Scheduled tasks for your AI. Times are server time; the runner on the NAS carries them out.",
+  nav_cron: "Scheduled jobs", cron_new: "New job", cron_hint: "Scheduled tasks for your AI. Times are server time; AICortex carries them out with the model set up for it.",
   cron_col_name: "Name", cron_col_when: "When", cron_col_next: "Next run", cron_col_last: "Last run",
   cron_col_on: "On", cron_col_owner: "For", cron_empty: "No jobs yet.",
-  cron_runner_none: "No runner has checked in yet — jobs only run once a runner is running. Easiest: switch on the built-in runner under “Set up the runner” below.",
-  cron_runner_stale: "The runner hasn't checked in since {0} — is it still running?",
+  cron_runner_none: "The runner isn't on yet — jobs only run once an admin switches it on under “Set up the runner”.",
+  cron_runner_stale: "The runner hasn't checked since {0} — is it still on?",
   cron_runner_ok: "Runner active, last seen {0}.",
   cron_new_title: "New job", cron_edit_title: "Edit job",
   cron_f_name: "Name", cron_f_when: "When", cron_f_time: "Time", cron_f_dow: "Weekday",
