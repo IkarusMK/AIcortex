@@ -1,24 +1,32 @@
 #!/bin/sh
-# Run the autonomy orchestrator ONCE via the configured LLM backend.
-#
-# The backend is swappable via RUNNER_CMD. It must:
-#   • accept the prompt as its final argument (headless / non-interactive), and
-#   • already have the AICortex MCP connector available (tools callable).
-#
-# Reference backend = Claude Code:
-#   RUNNER_CMD="claude -p --output-format text"
-# Model auth is independent of the connector login:
-#   • API key  → set ANTHROPIC_API_KEY  (the "Mittelweg": pay-per-use runner)
-#   • or subscription → one-time `claude` OAuth login (no API key)
-# Another LLM/agent CLI can be dropped in by overriding RUNNER_CMD.
+# One runner tick. With RUNNER_TOKEN set, ask the connector what is due first
+# (due.mjs, no model) and start the agent only when a job is due — with the jobs
+# already in the prompt. Without RUNNER_TOKEN (older setups that logged the agent
+# into the connector themselves) the agent asks cron_due itself, as before.
 set -eu
-
 DIR="$(dirname "$0")"
 PROMPT="$(cat "$DIR/orchestrator.txt")"
+MCP_CONFIG="${HOME:-/config}/aicortex-mcp.json"
 
-# Default backend: Claude Code, headless. Permissions must be pre-granted for
-# unattended runs — see runner/README.md (allowedTools / permission mode).
+if [ -n "${RUNNER_TOKEN:-}" ]; then
+  DUE="$(node "$DIR/due.mjs")"
+  case "$DUE" in
+    "[]") exit 0 ;;
+    "["*) ;;
+    *) echo "[runner] cron_due: $DUE" >&2; exit 1 ;;
+  esac
+  echo "[runner] $(date -u +%FT%TZ) jobs due — starting the agent"
+  PROMPT="$PROMPT
+
+Due jobs (JSON, already fetched with cron_due — do not call it):
+$DUE"
+  if [ -z "${RUNNER_CMD:-}" ]; then
+    # The prompt right after -p: the tool-list options take several values and
+    # would swallow a trailing prompt.
+    exec claude -p "$PROMPT" --output-format text --strict-mcp-config \
+      --mcp-config "$MCP_CONFIG" --allowedTools mcp__aicortex \
+      --disallowedTools "mcp__aicortex__cron_due,mcp__aicortex__runner_config"
+  fi
+fi
 : "${RUNNER_CMD:=claude -p --output-format text}"
-
-# shellcheck disable=SC2086
 exec $RUNNER_CMD "$PROMPT"

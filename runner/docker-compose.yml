@@ -1,16 +1,25 @@
 services:
   aicortex-runner:
     build: .
+    pull_policy: build
     container_name: aicortex-runner
     restart: unless-stopped
     environment:
       HOME: /config
-      # ── Model auth ──────────────────────────────────────────────────
-      # "Mittelweg": run the model on a pay-per-use API key (cheap for a few
-      # daily jobs), independent of the interactive chat subscription.
-      # Leave empty to use a subscription login instead (one-time `claude` OAuth).
+      # ── Connector ───────────────────────────────────────────────────
+      # A runner key (WebUI → Scheduled jobs → Set up the runner) or the
+      # connector's RUNNER_TOKEN. With it the runner asks for due jobs itself
+      # and starts Claude only when one is due. Leave both empty for the older
+      # setup with a one-time connector login inside the container.
+      CONNECTOR_URL: "${CONNECTOR_URL:-}"
+      RUNNER_TOKEN: "${RUNNER_TOKEN:-}"
+      # ── Model auth (pick one) ───────────────────────────────────────
+      # Claude subscription: the token from `claude setup-token` (run it on any
+      # machine where you are signed in).
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+      # Or a pay-per-use Anthropic API key.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
-      # Tick interval in seconds (cron_due decides what's actually due).
+      # Seconds between checks, aligned to the clock.
       RUNNER_INTERVAL: "${RUNNER_INTERVAL:-60}"
       # Swap the LLM backend here (must accept a prompt arg + have the connector
       # tools available). Default = Claude Code headless.

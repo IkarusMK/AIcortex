@@ -1,61 +1,75 @@
-# Generic autonomy runner (any LLM)
+# AICortex runner (any model)
 
-LLM-agnostic runner: connects to the connector over MCP with the **static
-`RUNNER_TOKEN`**, exposes the connector's tools to **any** model via
-[LiteLLM](https://github.com/BerriAI/litellm) (OpenAI, Anthropic, Google/Gemini,
-Ollama, Azure, …), and runs the same `cron_due → execute → cron_mark_run →
-notify` loop as the Claude backend.
+The runner carries out the scheduled jobs that live on the connector. Once a
+minute, on the minute, it asks `cron_due` — **without any model**, so an idle
+minute costs nothing. Only when a job is due does it fetch the model access you
+set up in the WebUI and start the model with the due jobs:
 
-Use this when your application LLM is **not** Claude, or when you want a single
-provider-agnostic agent. (Claude users can also just use the simpler Claude Code
-backend in [`../`](../README.md), which logs in via OAuth and needs no token.)
+| Model access (WebUI) | How the runner runs it |
+|---|---|
+| Claude subscription (token from `claude setup-token`) | Claude Code CLI, with the connector as its only MCP server |
+| Claude Code with an Anthropic API key | Claude Code CLI, as above |
+| OpenRouter, Anthropic, OpenAI, Gemini (model name + key) | [LiteLLM](https://github.com/BerriAI/litellm) with the connector's tools |
 
-## Prerequisite: enable the runner token on the connector
+The model key stays encrypted in the connector's vault. Only the runner can fetch
+it (`runner_config`), once per run; the model working on a job never sees it.
 
-On the **connector** (not here), set a token and restart:
+## Set it up
 
-```
-# in the connector's .env
-RUNNER_TOKEN=$(openssl rand -hex 32)
-```
+1. **WebUI → Scheduled jobs → Set up the runner** (admin):
+   - choose the model access, enter the model name if asked, paste the key, save;
+   - **Create runner key** — copy the two lines it shows (shown only once):
+     ```
+     CONNECTOR_URL=https://agent.example.com/mcp
+     RUNNER_TOKEN=ak_…
+     ```
+   For a Claude subscription, create the token on any machine where you are
+   signed in to Claude Code: `claude setup-token`.
 
-The connector then accepts this token **alongside** OIDC (MultiAuth) — apps keep
-using OIDC, the runner uses the token.
+2. **Start the runner** in this folder, with those two lines in `.env`:
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f
+   ```
+   On a NAS with a compose UI you can skip the build: use the ready image
+   `ghcr.io/ikarusmk/aicortex-runner` (same version tags as the connector) in
+   place of `build: .`.
 
-## Run it
+3. **Check it.** The *Scheduled jobs* page shows when the runner last checked in.
+   Create a read-only test job, for example every two minutes:
+   ```
+   cron_add  name="runner-selftest"  schedule="*/2 * * * *"
+             prompt="Report the connector's service list (service_list) in one line."
+             notify="user"
+   ```
+   The summary arrives via your notify channel or the connector **inbox**
+   (`inbox_read agent=user`). Delete it with `cron_delete name="runner-selftest"`.
 
-```bash
-cd runner/generic
-# minimal .env
-cat > .env <<EOF
-CONNECTOR_URL=https://agent.example.com/mcp
-RUNNER_TOKEN=<same value as on the connector>
-LLM_MODEL=gpt-4o-mini            # or anthropic/claude-3-5-sonnet-latest, gemini/gemini-1.5-pro, ollama/llama3.1
-OPENAI_API_KEY=sk-...            # the key for YOUR chosen provider
-RUNNER_INTERVAL=60
-EOF
+## How a run works
 
-docker compose up -d --build
-docker compose logs -f
-```
+- The runner aligns its checks to the clock; if a run takes longer, the next
+  check simply waits for the next minute, and the connector hands out a missed
+  minute for up to five minutes, once.
+- A job with an **owner** runs in that person's area: the runner passes the
+  job's short-lived act-as token to `act_as_begin` before the job and ends it
+  afterwards.
+- **Safety:** the runner works unattended and cannot ask anyone. It only performs
+  read/query actions and actions a job's prompt explicitly authorized;
+  physical, irreversible or outbound actions are skipped otherwise.
 
-Create a **read-only** test job from any client on the connector, then watch:
+## Without the WebUI setup
 
-```
-cron_add name="runner-selftest" schedule="*/2 * * * *" \
-  prompt="Report Home Assistant status: call_service home-assistant path=api/ and summarize." \
-  notify="user"
-```
+Older setups keep working: without a model set up in the WebUI the runner uses
+`LLM_MODEL` (any LiteLLM model string, e.g. `gpt-4o-mini`,
+`anthropic/claude-sonnet-4-5`, `openrouter/…`) and that provider's key from the
+`.env`. `RUNNER_TOKEN` may also be the static token set on the connector.
 
-The summary arrives via your notify channel or the connector **inbox**
-(`inbox_read agent=user`). Remove it with `cron_delete name="runner-selftest"`.
+## Notes
 
-## Notes / verify on first run
-
-- **Model choice:** `LLM_MODEL` is a LiteLLM model string; set the matching
-  provider key. Tool-calling quality varies by model — use a capable one.
-- **Safety:** the orchestrator only performs actions a job explicitly authorized;
-  physical/irreversible/outbound actions are skipped (no one can confirm mid-run).
-  Start with read-only jobs.
-- **Token security:** `RUNNER_TOKEN` is a full-access credential to the connector
-  — keep it in `.env` only, rotate if leaked, never commit it.
+- **Runner key vs. RUNNER_TOKEN:** both identify the runner (a least-privilege
+  `user` unless `RUNNER_ROLE` says otherwise). A runner key needs no connector
+  restart and can be revoked in the WebUI.
+- **Subscription or API key:** Anthropic intends API keys for unattended
+  automation; a consumer subscription is a grey area with tight limits. The
+  runner only wakes the model when a job is due, which keeps usage small.
+- **Model choice:** tool-calling quality varies by model — use a capable one.

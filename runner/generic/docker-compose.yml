@@ -1,21 +1,25 @@
 services:
   aicortex-runner-generic:
     build: .
+    pull_policy: build
     container_name: aicortex-runner-generic
     restart: unless-stopped
     environment:
-      # Connector endpoint + the SAME static token you set on the connector.
+      # The connector and a runner key (WebUI → Scheduled jobs → Set up the runner),
+      # or the RUNNER_TOKEN set on the connector.
       CONNECTOR_URL: "${CONNECTOR_URL:-https://agent.example.com/mcp}"
-      RUNNER_TOKEN: "${RUNNER_TOKEN:?set RUNNER_TOKEN (must match the connector)}"
-      # Pick ANY model via LiteLLM, e.g. gpt-4o, anthropic/claude-3-5-sonnet-latest,
-      # gemini/gemini-1.5-pro, ollama/llama3.1
-      LLM_MODEL: "${LLM_MODEL:-gpt-4o-mini}"
+      RUNNER_TOKEN: "${RUNNER_TOKEN:?set RUNNER_TOKEN (a runner key from the WebUI)}"
       RUNNER_INTERVAL: "${RUNNER_INTERVAL:-60}"
       RUNNER_MAX_STEPS: "${RUNNER_MAX_STEPS:-25}"
-      # Provide the API key for YOUR chosen provider (leave the others empty):
+      # The model is chosen in the WebUI. Only without a WebUI setup does the runner
+      # fall back to these (any LiteLLM model string + that provider's key):
+      LLM_MODEL: "${LLM_MODEL:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    volumes:
+      - ./config:/config          # Claude Code's state (Claude backends)
     logging:
       driver: json-file
       options:

@@ -1,16 +1,23 @@
 #!/bin/sh
-# Tick loop: run the orchestrator once per interval. cron_due itself decides
-# which jobs are actually due, so this just needs to tick often enough (default
-# every 60s). Keep RUNNER_INTERVAL >= your finest cron granularity.
+# Runner tick loop: one tick per RUNNER_INTERVAL, aligned to the clock, so a slow
+# run never skips a minute (the connector also catches up a few missed minutes).
 set -u
-
 DIR="$(dirname "$0")"
 INTERVAL="${RUNNER_INTERVAL:-60}"
-echo "[runner] starting — interval=${INTERVAL}s, backend='${RUNNER_CMD:-claude -p}'"
 
+if [ -n "${RUNNER_TOKEN:-}" ]; then
+  # The connector as the agent's only MCP server, with the runner key as bearer.
+  : "${CONNECTOR_URL:?set CONNECTOR_URL (…/mcp) together with RUNNER_TOKEN}"
+  umask 077
+  printf '{"mcpServers":{"aicortex":{"type":"http","url":"%s","headers":{"Authorization":"Bearer %s"}}}}\n' \
+    "$CONNECTOR_URL" "$RUNNER_TOKEN" > "${HOME:-/config}/aicortex-mcp.json"
+fi
+
+echo "[runner] starting — every ${INTERVAL}s at the boundary, backend='${RUNNER_CMD:-claude -p}'"
 while true; do
   if ! "$DIR/run-once.sh"; then
     echo "[runner] $(date -u +%FT%TZ) run failed — continuing"
   fi
-  sleep "$INTERVAL"
+  NOW=$(date +%s)
+  sleep $(( INTERVAL - NOW % INTERVAL + 2 ))
 done

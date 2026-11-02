@@ -8,11 +8,11 @@ RUN apt-get update \
 RUN npm install -g @anthropic-ai/claude-code
 
 WORKDIR /runner
-COPY orchestrator.txt run-once.sh loop.sh ./
+COPY orchestrator.txt run-once.sh loop.sh due.mjs ./
 RUN chmod +x run-once.sh loop.sh
 
-# Claude Code stores auth + MCP config under $HOME — point it at the mounted
-# /config volume so the one-time connector login + API key survive restarts.
+# Claude Code keeps its state under $HOME — point it at the mounted /config
+# volume so it survives restarts.
 ENV HOME=/config
 
 ENTRYPOINT ["./loop.sh"]

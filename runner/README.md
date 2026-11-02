@@ -1,105 +1,91 @@
 # Autonomy runner (reference)
 
 The connector holds the **schedule** (`cron_add` → `/data/cron`); it can't run the
-model itself. This runner is the small NAS-side piece that actually **fires**
-due jobs: a tick loop runs an LLM agent that calls `cron_due`, executes each due
-job through the connector, calls `cron_mark_run`, and reports the result.
+model itself. A runner is the small NAS-side piece that actually **fires** due
+jobs: once a minute it asks `cron_due`, runs each due job through the connector,
+calls `cron_mark_run`, and reports the result.
 
-It is intentionally **decoupled and LLM-agnostic**.
+## Two runners — pick one
 
-## Two backends — pick one
+| Runner | Path | Model | Set up |
+|--------|------|-------|--------|
+| **Any model (recommended)** | [`generic/`](generic/README.md) | chosen in the WebUI: Claude subscription, Anthropic, OpenRouter, OpenAI, Gemini | WebUI → *Scheduled jobs → Set up the runner* |
+| **Claude Code only** | this folder | Claude (subscription token or API key) | `.env` of this folder |
 
-| Backend | Path | Auth to connector | LLM | Best for |
-|---------|------|-------------------|-----|----------|
-| **Claude Code** | this folder | the CLI does the connector **OAuth** itself (no token needed) | Claude (sub or API key) | Claude users; simplest, no connector change |
-| **Generic (any LLM)** | [`generic/`](generic/README.md) | static **`RUNNER_TOKEN`** (MultiAuth on the connector) | **any** via LiteLLM (GPT, Gemini, Ollama, Claude…) | non-Claude LLMs / one provider-agnostic agent |
-
-The rest of this file documents the **Claude Code** backend. For any other LLM,
-use [`generic/`](generic/README.md).
+Both ask `cron_due` without any model and wake the model only when a job is due.
+The rest of this file documents the **Claude Code only** runner.
 
 ```
-system tick (loop, every RUNNER_INTERVAL)
-   └─ run-once.sh → $RUNNER_CMD "<orchestrator.txt>"
-         └─ agent: cron_due → run each job via connector → cron_mark_run → notify
+tick (on the minute, every RUNNER_INTERVAL)
+   └─ run-once.sh → due.mjs: cron_due (no model)
+         └─ only if jobs are due: claude -p "<orchestrator + due jobs>"
+               └─ runs each job via the connector → cron_mark_run → notify
 ```
 
-## Why this is separate from the connector
+## Set it up
 
-The connector is OIDC-protected for interactive apps. A headless runner can't do
-a browser login — so instead of changing the connector's auth, the **reference
-backend (Claude Code) performs the connector's OAuth login once itself** and
-reuses the stored token. The *model* auth is independent: use a pay-per-use API
-key (the "Mittelweg") or a subscription login.
+1. **A runner key:** WebUI → *Scheduled jobs → Set up the runner* → *Create runner
+   key* (or use the `RUNNER_TOKEN` set on the connector).
+2. **Model access**, one of:
+   - Claude subscription: run `claude setup-token` on any machine where you are
+     signed in to Claude Code and copy the token;
+   - a pay-per-use Anthropic API key.
+3. **`.env`** in this folder:
+   ```
+   CONNECTOR_URL=https://agent.example.com/mcp
+   RUNNER_TOKEN=ak_…
+   CLAUDE_CODE_OAUTH_TOKEN=…        # or ANTHROPIC_API_KEY=…
+   ```
+4. **Start it:**
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f          # watch the checks
+   ```
 
-## One-time setup (interactive)
+No login inside the container is needed: the runner key reaches the connector,
+the token or API key reaches the model.
 
-> Run these on the NAS, in the `runner/` folder. The login steps are interactive
-> and only needed once; after that the loop runs unattended.
-
-```bash
-mkdir -p config logs
-# 1. Build the runner image
-docker compose build
-
-# 2. Open a one-off shell in the runner (overrides the loop entrypoint)
-docker compose run --rm -it --entrypoint sh aicortex-runner
-
-#    Inside the container:
-# 2a. Model auth — pick ONE:
-#     • API key (Mittelweg):  already injected if ANTHROPIC_API_KEY is set in .env
-#     • Subscription:         run `claude` once and complete the OAuth login
-# 2b. Add the connector and complete ITS OAuth (Pocket ID) login:
-claude mcp add --transport http aicortex https://agent.example.com/mcp
-claude            # triggers the connector OAuth on first tool use; approve it
-# 2c. Verify the tools are visible, then exit:
-#     ask: "call cron_list"  → should return the connector's response
-exit
-```
-
-## Run it
-
-```bash
-docker compose up -d
-docker compose logs -f          # watch the ticks
-```
-
-Create a test job (from any LLM client on the connector):
+Create a read-only test job from any client on the connector:
 
 ```
 cron_add  name="runner-selftest"
-          schedule="*/2 * * * *"          # every 2 minutes
-          prompt="Report the current Home Assistant status: call_service home-assistant path=api/ and summarize."
+          schedule="*/2 * * * *"
+          prompt="Report the connector's service list (service_list) in one line."
           notify="user"
 ```
 
-Within ~2 min you should see the runner pick it up; the summary lands via your
-notify channel or the connector **inbox** (`inbox_read agent=user`). Delete it
-with `cron_delete name="runner-selftest"` when done.
+The summary lands via your notify channel or the connector **inbox**
+(`inbox_read agent=user`). Delete it with `cron_delete name="runner-selftest"`.
 
-## ⚠️ Verify on first run (honest caveats)
+## Older setups
 
-- **Headless permissions:** unattended `claude -p` must be allowed to call the
-  connector's MCP tools without prompting. Configure allowed tools / permission
-  mode for Claude Code (e.g. an `allowedTools` allow-list in the runner's
-  `/config`, or the appropriate non-interactive permission mode). Start with a
-  **read-only** test job (like the self-test) before allowing actions.
+Without `RUNNER_TOKEN` the runner works as before: once, inside the container,
+`claude mcp add --transport http aicortex https://agent.example.com/mcp` and the
+connector's OAuth login, plus a model login or `ANTHROPIC_API_KEY`. Then the model
+is started every minute and asks `cron_due` itself — switching to a runner key is
+recommended.
+
+## ⚠️ Verify on first run
+
+- **Permissions:** with `RUNNER_TOKEN` the agent may call the connector's tools
+  (`--allowedTools mcp__aicortex`), nothing else, and never the runner plumbing
+  (`cron_due`, `runner_config`). Start with a **read-only** test job.
 - **Safety:** the orchestrator only performs actions a job explicitly authorized
   (see `orchestrator.txt`); physical/irreversible/outbound actions are skipped
-  unless the job pre-authorizes them — because no one can confirm mid-run.
-- **OAuth refresh:** the connector login token may need re-doing occasionally;
-  if ticks start failing with auth errors, repeat step 2b.
+  unless the job pre-authorizes them — no one can confirm mid-run.
 - **Subscription vs API key (ToS):** a consumer subscription is meant for
-  interactive use — unattended automation is a gray area with tight limits. For
-  unattended runs the **API key** path is the sanctioned, stable choice.
+  interactive use — unattended automation is a grey area with tight limits. The
+  API key is the sanctioned, stable choice. The runner only wakes the model when a
+  job is due, which keeps usage small either way.
 
-## Swap the LLM backend
+## Swap the agent
 
-Set `RUNNER_CMD` to any headless agent CLI that (a) takes the prompt as its last
-arg and (b) has the connector tools available. Example for a different agent:
+Set `RUNNER_CMD` to any headless agent CLI that takes the prompt as its last
+argument and has the connector tools available:
 
 ```yaml
 RUNNER_CMD: "my-agent --headless --prompt"
 ```
 
-That agent is responsible for its own connector auth (token/login) and model
-auth. Everything else — the schedule, tools, memory, secrets — stays on the NAS.
+That agent is responsible for its own connector auth and model auth. Everything
+else — the schedule, tools, memory, secrets — stays on the NAS.
