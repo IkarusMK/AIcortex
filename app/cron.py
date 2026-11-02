@@ -373,6 +373,7 @@ def register(mcp):
         return "act-as ended (token invalidated)."
 
     @mcp.tool
+    @_serialized
     def cron_due() -> str:
         """For the NAS runner: return enabled jobs that are due now, or were due in
         the last few minutes (a missed tick), and have not run since, as JSON
@@ -385,7 +386,8 @@ def register(mcp):
         this per-job, time-boxed token. Fail-closed: if a token can't be minted (no
         signing key), the job is WITHHELD rather than run without confinement.
         Runner/admin only, and not during an active act-as run (so a running job
-        can't harvest other jobs' tokens)."""
+        can't harvest other jobs' tokens). A job is handed out once per slot, so two
+        runners never run it twice."""
         ok, reason = _runner_plumbing_ok()
         if not ok:
             return f"Denied: cron_due is {reason} (it mints act-as capability tokens)."
@@ -393,9 +395,11 @@ def register(mcp):
         import actas
         now = datetime.now()
         due = []
-        for j in _read():
+        jobs = _read()
+        for j in jobs:
             slot = _latest_slot(j.get("schedule", ""), now, j.get("created", ""))
-            if not (j.get("enabled") and slot and (j.get("last_run") or "") < slot):
+            if not (j.get("enabled") and slot and (j.get("last_run") or "") < slot
+                    and j.get("claimed") != slot):
                 continue
             owner = j.get("owner", "")
             token = ""
@@ -409,6 +413,9 @@ def register(mcp):
             due.append({"id": j["id"], "prompt": j["prompt"],
                         "notify": j.get("notify", "user"),
                         "owner": owner, "act_as_token": token})
+            j["claimed"] = slot
+        if due:
+            _write(jobs)
         return json.dumps(due, ensure_ascii=False)
 
     @mcp.tool
