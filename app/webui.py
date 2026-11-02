@@ -49,6 +49,7 @@ _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "view-memory.js": "application/javascript; charset=utf-8",
     "view-registry.js": "application/javascript; charset=utf-8",
     "view-cron.js": "application/javascript; charset=utf-8",
+    "view-runner.js": "application/javascript; charset=utf-8",
     "view-playbooks.js": "application/javascript; charset=utf-8",
     "view-playbook-lib.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
@@ -859,7 +860,10 @@ def register(mcp):
     # ── a person's own area + registries (notes, jobs, playbooks) ────────────
     import types
 
+    import webui_runner
     import webui_views
-    webui_views.register(mcp, types.SimpleNamespace(
+    helpers = types.SimpleNamespace(
         json=_json, require_session=_require_session, require_admin=_require_admin,
-        body=_body, gate=_gate_mutation, audit=_audit))
+        body=_body, gate=_gate_mutation, audit=_audit, base_url=_base_url)
+    webui_views.register(mcp, helpers)
+    webui_runner.register(mcp, helpers)

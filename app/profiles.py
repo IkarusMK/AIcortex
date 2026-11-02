@@ -28,6 +28,9 @@ CORE_TOOLS = (
     "bootstrap",   # alias of cortex_start; existing project instructions call it
 )
 _ROUTER = ("integration_search", "integration_call")
+# Never offered or run by the router: the runner fetches its model access directly,
+# and a model working on a job must not be able to fetch it through the router.
+NOT_ROUTABLE = frozenset({"runner_config"})
 _NAMES = {"core": "core", "kern": "core", "full": "full", "voll": "full"}
 
 
@@ -162,7 +165,8 @@ def register(mcp):
         match with its parameters (* = required); run one with integration_call.
         Example: integration_search("print a PDF on the office printer")."""
         terms = _terms(query)
-        tools = [t for t in await _callable_tools(ctx) if t.name not in CORE_TOOLS]
+        tools = [t for t in await _callable_tools(ctx)
+                 if t.name not in CORE_TOOLS and t.name not in NOT_ROUTABLE]
         ranked = sorted(((_score(terms, t), t) for t in tools), key=lambda st: (-st[0], st[1].name))
         hits = [t for s, t in ranked if s > 0][:max(1, min(int(limit or 8), 20))]
         if not hits:
@@ -176,6 +180,8 @@ def register(mcp):
         as an object. The same permissions apply as for calling the tool directly.
         Example: integration_call(name="print_document",
         arguments={"printer": "office", "file": "scan.pdf"})."""
+        if name in NOT_ROUTABLE:
+            raise ToolError(f"'{name}' can't be reached through integration_call.")
         allowed = {t.name for t in await _callable_tools(ctx)}
         if name not in allowed:
             raise ToolError(f"No tool '{name}' that you may call. Find tools with "

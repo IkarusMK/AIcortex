@@ -187,6 +187,7 @@ def _owner_prefix(owner: str) -> str:
 # a non-admin could point one at STORAGE_ENCRYPTION_KEY and receive it as a header.
 _INTERNAL_ENV = frozenset({
     "STORAGE_ENCRYPTION_KEY", "JWT_SIGNING_KEY", "RUNNER_TOKEN", "RUNNER_ROLE",
+    "RUNNER_LLM_KEY",   # the runner's model access (runner_setup) — never a service's
     "BASE_URL", "DATA_ROOT", "INTERNAL_ALLOW_CIDRS", "ALLOW_INSECURE",
     "ALLOW_PLAINTEXT_VAULT", "LEARN_AUTOCAPTURE", "SESSION_RETENTION_DAYS",
     "MAIL_ALLOWED_RECIPIENTS", "SSH_STRICT_HOST_KEYS", "CATALOG_CACHE_FILE",

@@ -29,6 +29,7 @@ import ftp_tools
 import mcp_gateway
 import coordination
 import cron
+import runner_setup
 import webhook_tools
 import sessions
 import print_tools
@@ -251,6 +252,8 @@ coordination.register(mcp)
 
 # Scheduled jobs as data: cron_add / cron_list / cron_delete / cron_due / cron_mark_run
 cron.register(mcp)
+# The runner's model access from the WebUI: runner_config (runner only)
+runner_setup.register(mcp)
 
 # Webhooks: inbound receiver (POST /hooks/<name> → inbox) + outbound webhook_send
 webhook_tools.register(mcp)

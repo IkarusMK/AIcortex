@@ -107,6 +107,8 @@ body {
 .panel.accent { border-color: rgba(139, 92, 246, .3); }
 .panel h3 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
   color: var(--purple-2); margin-bottom: 10px; }
+.panel h4 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--purple-2); margin: 22px 0 8px; }
 
 .app { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
 

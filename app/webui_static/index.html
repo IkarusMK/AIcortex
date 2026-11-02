@@ -369,6 +369,36 @@
             </div>
           </form>
         </div>
+        <div class="panel" id="runner-panel" data-admin>
+          <h3 data-i18n="rn_title"></h3>
+          <p class="dim small" data-i18n="rn_hint"></p>
+          <form id="form-runner" autocomplete="off">
+            <label for="rn-backend" data-i18n="rn_f_backend"></label>
+            <select id="rn-backend" class="inp"></select>
+            <label for="rn-model" data-i18n="rn_f_model"></label>
+            <input id="rn-model" class="inp mono" maxlength="200">
+            <p id="rn-model-hint" class="dim small"></p>
+            <label for="rn-key" data-i18n="rn_f_key"></label>
+            <input id="rn-key" class="inp mono" type="password" autocomplete="new-password">
+            <p id="rn-key-state" class="dim small" aria-live="polite"></p>
+            <div class="btn-row">
+              <button class="btn primary" data-i18n="save"></button>
+            </div>
+          </form>
+          <h4 data-i18n="rn_keys"></h4>
+          <ul id="rn-keys" class="small"></ul>
+          <p id="rn-keys-none" class="dim small hidden" data-i18n="rn_keys_none"></p>
+          <div class="btn-row">
+            <button type="button" id="btn-rn-key" class="btn ghost sm" data-i18n="rn_key_new"></button>
+          </div>
+          <div id="rn-key-result" class="hidden">
+            <p class="small" data-i18n="cl_once"></p>
+            <input id="rn-key-value" class="inp mono" readonly aria-label="RUNNER_TOKEN">
+            <p class="small" data-i18n="rn_snippet"></p>
+            <pre id="rn-snippet" class="inp mono small"></pre>
+            <button type="button" id="btn-rn-copy" class="btn ghost sm" data-i18n="cl_copy"></button>
+          </div>
+        </div>
       </section>
 
       <!-- Playbooks -->
@@ -612,6 +642,7 @@
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
   <script src="/ui/assets/view-cron.js?v={{v}}"></script>
+  <script src="/ui/assets/view-runner.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbooks.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbook-lib.js?v={{v}}"></script>
 </body>

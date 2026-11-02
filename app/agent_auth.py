@@ -43,6 +43,11 @@ class AgentTokenVerifier(TokenVerifier):
         rec = await asyncio.to_thread(apikeys.verify, token)
         if not rec:
             return None
+        expires = int(rec.get("expires") or 0) or None
+        if rec.get("runner"):
+            # A runner key made in the WebUI: the same caller as RUNNER_TOKEN.
+            return AccessToken(token=token, client_id="runner", scopes=[], expires_at=expires,
+                               claims={AGENT_CLAIM: rec.get("name") or f"key-{rec['keyid']}"})
         claims = {
             "sub": rec["sub"],
             AGENT_CLAIM: rec.get("name") or f"key-{rec['keyid']}",
@@ -50,7 +55,6 @@ class AgentTokenVerifier(TokenVerifier):
             SCOPES_CLAIM: list(rec.get("scopes") or []),
             "profile": rec.get("profile") or "",
         }
-        expires = int(rec.get("expires") or 0) or None
         return AccessToken(token=token, client_id=f"agent:{rec['keyid']}", scopes=[],
                            expires_at=expires, claims=claims)
 

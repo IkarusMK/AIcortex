@@ -43,6 +43,7 @@ _SECRET_BYTES = 32       # 256-bit secret → a plain SHA-256 at rest is suffici
 _HARD_DENY_EXACT = {
     "secret_set", "secret_delete",
     "apikey_create", "apikey_list", "apikey_revoke",
+    "runner_config",
 }
 _HARD_DENY_PREFIX = ("tenancy_",)
 
@@ -127,10 +128,14 @@ def _public(rec: dict) -> dict:
 
 
 def create(sub: str, name: str = "", scopes="", ttl_days: int = 0,
-           created_by: str = "", profile: str = "") -> tuple:
+           created_by: str = "", profile: str = "", runner: bool = False) -> tuple:
     """Mint a new API key for identity `sub`. Returns (full_key, public_record).
     The full key is shown ONCE — only its SHA-256 is persisted. Raises ValueError on
-    a missing identity or empty scope (default-deny: a key must be granted something)."""
+    a missing identity or empty scope (default-deny: a key must be granted something).
+    ``runner=True`` makes a runner key: it connects exactly like RUNNER_TOKEN (the
+    scheduled-job runner, identity "runner"), so no connector restart is needed."""
+    if runner:
+        sub, scopes = "runner", scopes or "all"
     sub = (sub or "").strip()
     if not sub:
         raise ValueError("sub (the key's identity) is required")
@@ -150,6 +155,7 @@ def create(sub: str, name: str = "", scopes="", ttl_days: int = 0,
         "expires": expires, "disabled": False,
         "created_by": (created_by or "").strip(),
         "profile": _profile(profile),
+        **({"runner": True} if runner else {}),
     }
     APIKEY_DIR.mkdir(parents=True, exist_ok=True)
     store.write_text_atomic(_keyid_path(keyid), json.dumps(rec, indent=2))
