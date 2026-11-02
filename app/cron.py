@@ -6,7 +6,8 @@ agent invocation — e.g. ``claude -p`` or any LLM CLI/SDK — via system cron,
 every minute) calls ``cron_due`` each tick, runs each due job's prompt through
 this connector, then ``cron_mark_run`` and notifies the user. The connector
 stores the SCHEDULE; the runner provides the actual LLM execution (the model
-can't self-trigger server-side).
+can't self-trigger server-side). A minute the runner missed is caught up for
+``CATCH_UP_MINUTES``.
 
 Schedules are standard 5-field cron expressions in the server's local time:
 ``minute hour day-of-month month day-of-week`` (``*`` , ``,`` lists, ``a-b``
@@ -26,6 +27,9 @@ CRON_FILE = CRON_DIR / "jobs.json"
 # When the runner last asked for due jobs — without a runner nothing ever runs.
 RUNNER_FILE = CRON_DIR / "runner.json"
 RUNNER_STALE_MINUTES = 5
+# How far back cron_due looks for a scheduled minute the runner missed (a slow run,
+# a restart). Only the latest missed minute of a job is handed out, once.
+CATCH_UP_MINUTES = 5
 
 
 def _read():
@@ -94,6 +98,21 @@ def _is_due(expr: str, dt: datetime) -> bool:
             and _field_match(dom, dt.day, 1, 31)
             and _field_match(mon, dt.month, 1, 12)
             and _dow_match(dow, dow_val))
+
+
+def _latest_slot(expr: str, now: datetime, created: str = "") -> str:
+    """The latest minute stamp within the catch-up window (now included) at which
+    ``expr`` was due, never one before the job was created — '' when there is none."""
+    start = now.replace(second=0, microsecond=0)
+    floor = (created or "")[:16]
+    for back in range(CATCH_UP_MINUTES + 1):
+        slot = start - timedelta(minutes=back)
+        stamp = slot.strftime("%Y-%m-%dT%H:%M")
+        if floor and stamp < floor:
+            return ""
+        if _is_due(expr, slot):
+            return stamp
+    return ""
 
 
 def _dow_match(expr: str, dow_val: int) -> bool:
@@ -355,9 +374,10 @@ def register(mcp):
 
     @mcp.tool
     def cron_due() -> str:
-        """For the NAS runner: return enabled jobs due THIS minute that haven't run
-        yet this minute, as JSON [{id, prompt, notify, owner, act_as_token}]. Run
-        each, then call cron_mark_run(id).
+        """For the NAS runner: return enabled jobs that are due now, or were due in
+        the last few minutes (a missed tick), and have not run since, as JSON
+        [{id, prompt, notify, owner, act_as_token}]. Run each, then call
+        cron_mark_run(id).
 
         act-as: when a job has an `owner`, `act_as_token` is a SHORT-LIVED capability
         token the runner must pass back on the execution call so the connector runs
@@ -372,11 +392,10 @@ def register(mcp):
         _note_runner()
         import actas
         now = datetime.now()
-        stamp = now.strftime("%Y-%m-%dT%H:%M")
         due = []
         for j in _read():
-            if not (j.get("enabled") and j.get("last_run") != stamp
-                    and _is_due(j.get("schedule", ""), now)):
+            slot = _latest_slot(j.get("schedule", ""), now, j.get("created", ""))
+            if not (j.get("enabled") and slot and (j.get("last_run") or "") < slot):
                 continue
             owner = j.get("owner", "")
             token = ""
