@@ -16,10 +16,15 @@ proxy first and this verifier second.
 import asyncio
 import hmac
 import os
+import secrets
 
 from fastmcp.server.auth.auth import AccessToken, TokenVerifier
 
 import apikeys
+
+# The built-in runner (runner_builtin.py) calls this server's own /mcp as the runner
+# with this token. It exists only in this process's memory — never stored or shown.
+INTERNAL_RUNNER_TOKEN = "rt_" + secrets.token_urlsafe(32)
 
 # Claim names the rest of the server reads (authz scopes, agent attribution).
 KEY_CLAIM = "aicortex_key"
@@ -36,6 +41,9 @@ class AgentTokenVerifier(TokenVerifier):
         if not token:
             return None
         # Bytes, not str: compare_digest raises on non-ASCII text (→ 500, not 401).
+        if hmac.compare_digest(token.encode(), INTERNAL_RUNNER_TOKEN.encode()):
+            return AccessToken(token=token, client_id="runner", scopes=[],
+                               claims={AGENT_CLAIM: "built-in runner"})
         if self._runner_token and hmac.compare_digest(token.encode(), self._runner_token.encode()):
             return AccessToken(token=token, client_id="runner", scopes=[], claims={})
         if not token.startswith("ak_"):

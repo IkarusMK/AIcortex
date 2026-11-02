@@ -50,8 +50,10 @@ def _stored_key() -> str:
     return str(secrets_store._read_all().get(KEY_SECRET) or "")
 
 
-def save_config(backend: str, model: str = "", key: str = "", by: str = "") -> tuple[bool, str]:
-    """(ok, message). An empty key keeps the stored one."""
+def save_config(backend: str, model: str = "", key: str = "", by: str = "",
+                builtin=None) -> tuple[bool, str]:
+    """(ok, message). An empty key keeps the stored one; builtin=None keeps the
+    built-in runner switch as it is."""
     backend = (backend or "").strip().lower()
     model = (model or "").strip()
     if backend not in BACKENDS:
@@ -68,8 +70,11 @@ def save_config(backend: str, model: str = "", key: str = "", by: str = "") -> t
             return False, msg
     elif not _stored_key():
         return False, "Enter the key once — nothing is stored yet."
+    if builtin is None:
+        builtin = bool(read_config().get("builtin"))
     store.write_json(CONFIG_FILE, {
-        "backend": backend, "model": model, "updated_by": (by or "").strip(),
+        "backend": backend, "model": model, "builtin": bool(builtin),
+        "updated_by": (by or "").strip(),
         "updated": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     return True, "Runner setup saved."
 
@@ -78,10 +83,13 @@ def status() -> dict:
     """What the WebUI shows — never the key itself."""
     import apikeys
     import cron
+    import runner_builtin
     cfg = read_config()
     keys = [k for k in apikeys.list_keys() if k.get("runner")]
     return {"backend": cfg.get("backend", ""), "model": cfg.get("model", ""),
             "updated": cfg.get("updated", ""), "key_set": bool(_stored_key()),
+            "builtin": bool(cfg.get("builtin")), "builtin_state": runner_builtin.status(),
+            "builtin_backends": list(runner_builtin.ENDPOINTS),
             "backends": list(BACKENDS), "runner": cron.runner_status(), "keys": keys}
 
 

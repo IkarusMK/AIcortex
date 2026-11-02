@@ -29,9 +29,10 @@ def register(mcp, h):
         if body is None:
             return h.json({"error": "invalid body"}, 400)
         backend = str(body.get("backend", ""))
+        builtin = bool(body["builtin"]) if "builtin" in body else None
         ok, message = runner_setup.save_config(
             backend, str(body.get("model", "")), str(body.get("key", "")),
-            by=str(sess.get("sub", "")))
+            by=str(sess.get("sub", "")), builtin=builtin)
         key_note = " key replaced" if str(body.get("key", "")).strip() else ""
         h.audit(sess, "runner_config", "allow" if ok else "deny", f"backend={backend}{key_note}")
         return h.json({"ok": ok, "message": message}, 200 if ok else 400)
