@@ -1,5 +1,10 @@
 # AICortex runner (any model)
 
+> **Usually not needed:** switch on the *built-in runner* in the WebUI (*Scheduled
+> jobs → Set up the runner*) — it runs every model access, a Claude subscription
+> token included, without a container. Use this runner if you want the Claude Code
+> CLI itself or the model outside the connector.
+
 The runner carries out the scheduled jobs that live on the connector. Once a
 minute, on the minute, it asks `cron_due` — **without any model**, so an idle
 minute costs nothing. Only when a job is due does it fetch the model access you

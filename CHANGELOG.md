@@ -5,6 +5,21 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+Scheduled jobs run without installing anything.
+
+### Added
+- **Built-in runner.** Tick *Built-in runner* under *Scheduled jobs → Set up the
+  runner* and AICortex runs due jobs itself — no extra container, no key to copy.
+  It checks once a minute without a model. A Claude subscription token (`claude
+  setup-token`) or an Anthropic key goes to Anthropic's Messages API (the token as
+  an OAuth bearer, no Claude Code needed); OpenRouter, Anthropic, OpenAI and Gemini
+  keys go to their OpenAI-compatible chat APIs. The model's tool calls go through
+  `/mcp` as the runner (an in-memory token), so roles, act-as and audit apply as for
+  an external runner.
+
+### Fixed
+- **Two runners could run the same job twice.** `cron_due` now hands a job to one
+  runner per scheduled minute.
 
 ## [2.1.0] — 2026-11-02
 The runner is set up in the WebUI, wakes the model only when a job is due, and no

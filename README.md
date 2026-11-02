@@ -238,15 +238,14 @@ Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt)` fro
 
 **Set it up in the WebUI** (admin): *Scheduled jobs → Set up the runner*.
 
-1. **Choose the model access** — a Claude subscription (the token from `claude setup-token`), Claude Code with an Anthropic API key, or OpenRouter / Anthropic / OpenAI / Gemini with a model name and key. The key is stored encrypted in the vault and is never shown again; only the runner can fetch it, once per run (`runner_config`).
-2. **Create a runner key** — shown once, together with the two lines for the runner's `.env`:
-   ```
-   CONNECTOR_URL=https://agent.example.com/mcp
-   RUNNER_TOKEN=ak_…
-   ```
-3. **Start the runner** from [`runner/generic/`](runner/generic/README.md) (`docker compose up -d --build`). The page shows when it last checked in.
+- **Built-in runner — nothing to install.** Choose the model access — a Claude subscription token (`claude setup-token`), an Anthropic key, OpenRouter, OpenAI or Gemini — enter the key (and a model name where asked), tick *Built-in runner*, save. AICortex itself then checks every minute and runs due jobs with that model; the model's tool calls go through `/mcp` as the runner, with the same rights and act-as rules as an external one. The key is stored encrypted in the vault and never shown again. A subscription token goes to Anthropic's Messages API as an OAuth token — Anthropic documents `claude setup-token` for scripts that make model requests, and its support pages say third-party app usage draws from the plan's limits; Anthropic may restrict this use, so an API key is the safe choice for shared or production setups.
+- **Separate runner — optional.** For setups that want the Claude Code CLI itself or the model outside the connector: [`runner/generic/`](runner/generic/README.md) (image `ghcr.io/ikarusmk/aicortex-runner`). *Create runner key* and put the two lines it shows into the runner's `.env`:
+  ```
+  CONNECTOR_URL=https://agent.example.com/mcp
+  RUNNER_TOKEN=ak_…
+  ```
 
-A runner key works exactly like the static `RUNNER_TOKEN` in the connector's `.env` (still supported) — but it needs no restart and can be revoked in the WebUI. The Claude-only runner in [`runner/`](runner/README.md) remains for setups that prefer it.
+A job is handed to one runner per scheduled minute, so a built-in and a separate runner never run it twice. A runner key works like the static `RUNNER_TOKEN` in the connector's `.env` (still supported) but needs no restart and can be revoked in the WebUI. The Claude-only runner in [`runner/`](runner/README.md) remains for setups that prefer it.
 
 > **What the runner may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
 >
