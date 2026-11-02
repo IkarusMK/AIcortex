@@ -5,6 +5,8 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+
+## [2.1.0] — 2026-11-02
 The runner is set up in the WebUI, wakes the model only when a job is due, and no
 longer misses minutes.
 
