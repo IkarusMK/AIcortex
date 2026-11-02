@@ -8,6 +8,7 @@ environment, are never stored in data, and are never returned to the model.
 
 ``call_service`` only reaches registered services (no arbitrary URLs).
 """
+import base64
 import json
 
 import cfgstore
@@ -63,7 +64,8 @@ def register(mcp):
                     auth_scheme: str = "Bearer", description: str = "",
                     auth_header: str = "Authorization",
                     write_only: bool = False, category: str = "",
-                    tls_insecure: bool = False, ca_bundle: str = "") -> str:
+                    tls_insecure: bool = False, ca_bundle: str = "",
+                    username: str = "") -> str:
         """Register/update a callable service (stored as DATA — no redeploy).
         token_env = the NAME of the secret holding the auth token (store it with
         secret_set). The token itself is never stored here.
@@ -71,6 +73,9 @@ def register(mcp):
         For APIs that use a custom header instead of Bearer auth, set auth_header
         to that header name and auth_scheme="" so the raw token is sent without a
         "Bearer " prefix.
+        For user-name/password APIs (HTTP Basic, e.g. AdGuard Home) set
+        auth_scheme="Basic", username="<user>" and keep only the PASSWORD in the
+        token_env secret — the connector builds the header.
         category (REQUIRED for a new service) = a free-text group for the catalog
         (e.g. "Smart Home", "Dev", "Documents", "Web") — services are listed grouped
         by it, like skills, so they stay easy to find as the list grows. Call
@@ -104,6 +109,7 @@ def register(mcp):
                 "write_only": bool(write_only),
                 "tls_insecure": bool(tls_insecure),
                 "ca_bundle": ca_bundle.strip(),
+                "username": username.strip(),
             }
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
@@ -197,6 +203,9 @@ def register(mcp):
                 return f"Service '{service}' needs secret '{tok_env}'. Store it via the secret_set tool first (do not edit .env)."
             header_name = cfg.get("auth_header") or "Authorization"
             scheme = cfg.get("auth_scheme", "Bearer")
+            if cfg.get("username") and scheme.lower() == "basic":
+                # User name + password secret → the Basic credentials themselves.
+                token = base64.b64encode(f"{cfg['username']}:{token}".encode()).decode()
             # With a scheme (e.g. Bearer) send "<scheme> <token>"; without one
             # (custom-header APIs) send the raw token value.
             headers[header_name] = f"{scheme} {token}".strip() if scheme else token
