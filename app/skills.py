@@ -14,6 +14,12 @@ import store
 import yaml
 
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
+# Starter skills: the image carries them next to the code (Dockerfile), a source
+# checkout reads them from examples/skills.
+_HERE = Path(__file__).resolve().parent
+EXAMPLES_DIR = Path(os.environ.get("SKILL_EXAMPLES_DIR") or next(
+    (p for p in (_HERE / "skill_examples", _HERE.parent / "examples" / "skills") if p.is_dir()),
+    _HERE / "skill_examples"))
 
 
 def _slug(text: str) -> str:
@@ -85,7 +91,7 @@ def _existing_categories() -> list[str]:
     cats = set()
     for sk in SKILLS_DIR.glob("*/SKILL.md"):
         try:
-            meta, _ = _parse(sk.read_text(encoding="utf-8"))
+            meta, _ = _parse(sk.read_text(encoding="utf-8", errors="replace"))
         except Exception:
             continue
         c = _category(meta)
@@ -111,6 +117,38 @@ def _canonical_category(category: str) -> str:
 _INDEX: dict = {}   # SKILL.md path -> (mtime_ns, meta, body); re-read only when changed
 
 
+def examples() -> list[dict]:
+    """The bundled starter skills: name, description, category and whether the
+    library already has a skill of that name."""
+    out = []
+    if not EXAMPLES_DIR.is_dir():
+        return out
+    for folder in sorted(EXAMPLES_DIR.iterdir()):
+        page = folder / "SKILL.md"
+        if not (folder.is_dir() and page.is_file()):
+            continue
+        meta, _ = _parse(page.read_text(encoding="utf-8", errors="replace"))
+        name = _slug(str(meta.get("name") or folder.name))
+        out.append({"name": name, "description": str(meta.get("description", "")),
+                    "category": _category(meta), "source": folder,
+                    "installed": (SKILLS_DIR / name / "SKILL.md").exists()})
+    return out
+
+
+def install_examples() -> tuple[list[str], list[str]]:
+    """Copy every starter skill the library doesn't have yet. A skill of the same
+    name — possibly edited — is never overwritten. Returns (added, skipped)."""
+    import shutil
+    added, skipped = [], []
+    for ex in examples():
+        if ex["installed"]:
+            skipped.append(ex["name"])
+            continue
+        shutil.copytree(ex["source"], SKILLS_DIR / ex["name"])
+        added.append(ex["name"])
+    return added, skipped
+
+
 def _indexed() -> list[tuple]:
     """[(folder name, meta, body)] for every skill, from a cache keyed by mtime —
     searching hundreds of skills no longer re-reads every file on every call."""
@@ -124,7 +162,7 @@ def _indexed() -> list[tuple]:
             continue
         hit = _INDEX.get(key)
         if not hit or hit[0] != mtime:
-            meta, body = _parse(sk.read_text(encoding="utf-8"))
+            meta, body = _parse(sk.read_text(encoding="utf-8", errors="replace"))
             hit = _INDEX[key] = (mtime, meta, body)
         out.append((sk.parent.name, hit[1], hit[2]))
     for gone in set(_INDEX) - seen:
@@ -172,7 +210,7 @@ def _may_change(folder: Path) -> tuple[bool, str]:
         ident, role = authz.effective_identity()
         if role == "admin":
             return True, ""
-        meta, _ = _parse((folder / "SKILL.md").read_text(encoding="utf-8"))
+        meta, _ = _parse((folder / "SKILL.md").read_text(encoding="utf-8", errors="replace"))
         author = str(meta.get("author", ""))
         if author and author.split("/")[0] == ident:
             return True, ""
@@ -207,7 +245,7 @@ def register(mcp):
             counts: dict[str, int] = {}
             total = 0
             for sk in items:
-                meta, _ = _parse(sk.read_text(encoding="utf-8"))
+                meta, _ = _parse(sk.read_text(encoding="utf-8", errors="replace"))
                 c = _category(meta)
                 if not tenancy.caller_skill_allowed(sk.parent.name, c):
                     continue
@@ -223,7 +261,7 @@ def register(mcp):
                     + "\n".join(lines))
         out = []
         for sk in items:
-            meta, _ = _parse(sk.read_text(encoding="utf-8"))
+            meta, _ = _parse(sk.read_text(encoding="utf-8", errors="replace"))
             if _category(meta).lower() == cat and tenancy.caller_skill_allowed(
                     sk.parent.name, _category(meta)):
                 out.append(f"- {sk.parent.name} — {meta.get('description', '')}")
@@ -236,7 +274,7 @@ def register(mcp):
         path = SKILLS_DIR / _slug(name) / "SKILL.md"
         if not path.exists():
             return f"No skill named '{name}'."
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8", errors="replace")
         meta, _ = _parse(text)
         if not tenancy.caller_skill_allowed(path.parent.name, _category(meta)):
             return (f"Denied: skill '{name}' is not in your allowed set. An admin "
@@ -252,7 +290,7 @@ def register(mcp):
         md = folder / "SKILL.md"
         if md.exists():
             try:
-                meta, _ = _parse(md.read_text(encoding="utf-8"))
+                meta, _ = _parse(md.read_text(encoding="utf-8", errors="replace"))
                 cat = _category(meta)
             except Exception:
                 cat = ""
@@ -263,7 +301,7 @@ def register(mcp):
         path = folder / safe
         if not path.exists() or not path.is_file():
             return f"No resource '{filename}' in skill '{name}'."
-        return path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8", errors="replace")
 
     @mcp.tool
     def skill_write(name: str, description: str, instructions: str, tags: str = "",

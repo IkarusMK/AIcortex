@@ -64,7 +64,7 @@ def check_host(host: str):
     if not ips:
         return False, f"no addresses for host '{host}'"
     for ip in ips:
-        if ip.is_global:
+        if _public(ip):
             continue
         if any(ip in net for net in allowed):
             continue
@@ -102,7 +102,7 @@ def tls_verify(cfg: dict):
     ca = cfg.get("ca_bundle")
     if ca:
         return str(ca)
-    return not bool(cfg.get("tls_insecure", False))
+    return not _yes(cfg.get("tls_insecure", False))
 
 
 def ssl_context(cfg: dict):
@@ -119,16 +119,35 @@ def ssl_context(cfg: dict):
     ca = (cfg.get("ca_bundle") or "").strip()
     if ca:
         ctx.load_verify_locations(ca)
-    elif cfg.get("tls_insecure", False):
+    elif _yes(cfg.get("tls_insecure", False)):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
 
+def _public(ip) -> bool:
+    """A public address. is_global is True for some multicast ranges (224.0.0.1,
+    ff02::1), which this guard promises to block — so multicast never counts."""
+    return ip.is_global and not ip.is_multicast
+
+
 def _ip_allowed(ip, nets) -> bool:
     """Egress policy for one IP: public is fine; private/link-local/etc only if
     inside an operator allow-listed CIDR."""
-    return ip.is_global or any(ip in n for n in nets)
+    return _public(ip) or any(ip in n for n in nets)
+
+
+def _yes(value) -> bool:
+    """An explicit yes: True, 1, "1", "true", "yes", "on". Anything else — notably
+    the text "false" in a hand-edited config — is no."""
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return value is True or value == 1
+
+
+def tls_insecure(cfg: dict) -> bool:
+    """Whether a device/endpoint config explicitly switches TLS verification off."""
+    return isinstance(cfg, dict) and _yes(cfg.get("tls_insecure", False))
 
 
 # ── DNS-rebinding guard (close the check→connect TOCTOU) ───────────────────

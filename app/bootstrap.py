@@ -159,7 +159,7 @@ def _catalog() -> str:
 
     # Only the caller's own memory area (never other people's titles). Reading the
     # files is the cost, so it's cached per scope by the directory's stat signature.
-    scope_dir = MEMORY_DIR / scope
+    scope_dir = memory.scope_path(scope)
 
     def _render_mem_scope() -> list[str]:
         if not scope_dir.is_dir():

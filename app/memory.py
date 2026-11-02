@@ -111,10 +111,16 @@ def _significant(text: str) -> set[str]:
     return {w for w in _words(text) if len(w) >= 4 and w not in _STOPWORDS}
 
 
+def scope_path(scope: str) -> Path:
+    """The directory of a scope ("users/<id>" lives in "users_<id>"), guarded
+    against traversal — without creating it. Every reader goes through this."""
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", scope or "shared") or "shared"
+    return MEMORY_DIR / safe
+
+
 def _scope_dir(scope: str) -> Path:
     """Resolve (and create) the directory for a scope, guarding against traversal."""
-    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", scope or "shared") or "shared"
-    d = MEMORY_DIR / safe
+    d = scope_path(scope)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -301,7 +307,7 @@ def entries(scope: str) -> list[dict]:
     """Every note of one scope as a dict (name, title, type, project, tags, review,
     version, author, source, created, updated, first line) — for the briefing, the
     WebUI and other callers that need structure rather than text."""
-    d = MEMORY_DIR / scope
+    d = scope_path(scope)
     if not d.is_dir():
         return []
     return [_entry(p, *read_meta(p)) for p in sorted(d.glob("*.md"))]

@@ -227,14 +227,16 @@ def register(mcp):
             _audit(name, "deny", "unknown hook")
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         raw = await request.body()
-        if len(raw) > _MAX_BODY:
-            _audit(name, "deny", "payload too large")
-            return JSONResponse({"error": "payload too large"}, status_code=413)
         headers = {k.lower(): v for k, v in request.headers.items()}
+        # Authenticate BEFORE the size check: a 413 for an existing hook but a 401
+        # for an unknown one would tell a stranger which hook names exist.
         ok, why = _validate(cfg, headers, raw)
         if not ok:
             _audit(name, "deny", why)
             return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if len(raw) > _MAX_BODY:
+            _audit(name, "deny", "payload too large")
+            return JSONResponse({"error": "payload too large"}, status_code=413)
         import coordination
         ctype = headers.get("content-type", "")
         body_text = raw.decode("utf-8", "replace")[:_MAX_INBOX]

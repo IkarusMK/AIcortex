@@ -86,9 +86,31 @@ def _to_ical(dt: str) -> str:
     return d.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _on_endpoint(base: str, ref: str) -> tuple[str, str]:
+    """(url, "") for `ref` — a relative href or a full URL — on the endpoint's own
+    server, else ("", why). The client carries the endpoint's credentials, so a URL
+    on another host must never be requested with it."""
+    b = urlparse(base)
+    url = ref or base
+    if not urlparse(url).scheme:  # a relative href from list_calendars/list_events
+        url = f"{b.scheme}://{b.netloc}{url}"
+    u = urlparse(url)
+    if (u.scheme, (u.hostname or "").lower(), u.port) != (b.scheme, (b.hostname or "").lower(), b.port):
+        return "", (f"Refused: {u.scheme}://{u.netloc} is not this endpoint's server "
+                    f"({b.scheme}://{b.netloc}); its credentials are only sent there.")
+    return url, ""
+
+
+def _ics_text(value: str) -> str:
+    """An iCalendar TEXT value (RFC 5545 §3.3.11): escaped, and never more than one
+    line — a line break in a title must not start a new property."""
+    v = (value or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+    return re.sub(r"\r\n|\r|\n", "\\\\n", v)
+
+
 def _ics_field(ics: str, name: str) -> str:
     """First value of an iCal property (ignoring any ;params), unfolded."""
-    ics = re.sub(r"\r\n[ \t]", "", ics)  # unfold long lines
+    ics = re.sub(r"\r?\n[ \t]", "", ics)  # unfold long lines (an XML parser hands over LF)
     m = re.search(rf"(?im)^{name}(?:;[^:\r\n]*)?:(.+)$", ics)
     return m.group(1).strip() if m else ""
 
@@ -186,9 +208,9 @@ def register(mcp):
         client, base = _client(cfg)
         if client is None:
             return base
-        url = calendar or base
-        if not urlparse(url).scheme:  # a relative href from list_calendars
-            url = f"{urlparse(base).scheme}://{urlparse(base).netloc}{url}"
+        url, refused = _on_endpoint(base, calendar)
+        if refused:
+            return refused
         try:
             s = _to_ical(start) if start else datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             e = _to_ical(end) if end else (datetime.now(timezone.utc).replace(microsecond=0)
@@ -239,20 +261,20 @@ def register(mcp):
         client, base = _client(cfg)
         if client is None:
             return base
-        cal = calendar or base
-        if not urlparse(cal).scheme:
-            cal = f"{urlparse(base).scheme}://{urlparse(base).netloc}{cal}"
+        cal, refused = _on_endpoint(base, calendar)
+        if refused:
+            return refused
         try:
             dtstart, dtend = _to_ical(start), _to_ical(end)
         except Exception as exc:
             return f"Bad start/end (use ISO-8601): {exc}"
         uid = f"{uuid.uuid4()}@aicortex"
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        desc = (description or "").replace("\n", "\\n").replace(",", "\\,")
+        desc = _ics_text(description)
         ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//AICortex//EN\r\n"
                f"BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:{stamp}\r\n"
                f"DTSTART:{dtstart}\r\nDTEND:{dtend}\r\n"
-               f"SUMMARY:{summary}\r\n" + (f"DESCRIPTION:{desc}\r\n" if desc else "") +
+               f"SUMMARY:{_ics_text(summary)}\r\n" + (f"DESCRIPTION:{desc}\r\n" if desc else "") +
                "END:VEVENT\r\nEND:VCALENDAR\r\n")
         url = cal.rstrip("/") + f"/{uid}.ics"
         try:
@@ -278,10 +300,9 @@ def register(mcp):
         client, base = _client(cfg)
         if client is None:
             return base
-        url = event.strip()
-        if not urlparse(url).scheme:  # a relative href → make it absolute on the endpoint host
-            b = urlparse(base)
-            url = f"{b.scheme}://{b.netloc}{url}"
+        url, refused = _on_endpoint(base, event.strip())
+        if refused:
+            return refused
         try:
             with netguard.guard(urlparse(url).hostname or ""), client:
                 r = client.request("DELETE", url)

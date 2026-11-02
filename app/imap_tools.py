@@ -75,8 +75,8 @@ def _open(cfg):
         pw = secrets_store.get_secret(cfg["password_env"])
         if not pw:
             return None, f"Account needs secret '{cfg['password_env']}'. Use secret_set."
-    ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
     try:
+        ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
         with netguard.guard(host):
             if sec == "starttls":
                 M = imaplib.IMAP4(host, port or 143, timeout=30)
@@ -87,6 +87,18 @@ def _open(cfg):
     except Exception as exc:
         return None, f"IMAP connect/login failed: {exc}"
     return M, None
+
+
+def _free_name(name: str) -> Path:
+    """A file in WORK_DIR for an attachment: never "." / ".." or a hidden name, and
+    never over an existing file (a second "report.pdf" becomes "report-2.pdf")."""
+    name = name.lstrip(".") or "attachment"
+    stem, dot, ext = name.rpartition(".")
+    stem, ext = (stem, "." + ext) if dot and stem else (name, "")
+    candidate, n = WORK_DIR / name, 2
+    while candidate.exists():
+        candidate, n = WORK_DIR / f"{stem}-{n}{ext}", n + 1
+    return candidate
 
 
 def _criteria(query: str):
@@ -236,8 +248,9 @@ def register(mcp):
                     if len(payload) > _MAX_ATTACH:
                         saved.append(f"{fn} (skipped, >{_MAX_ATTACH}B)")
                         continue
-                    (WORK_DIR / fn).write_bytes(payload)
-                    saved.append(f"{fn} ({len(payload)}B)")
+                    target = _free_name(fn)
+                    target.write_bytes(payload)
+                    saved.append(f"{target.name} ({len(payload)}B)")
             more = "" if len(body) <= _MAX_BODY else f"\n…(truncated at {_MAX_BODY}B)"
             att_line = ""
             if atts:

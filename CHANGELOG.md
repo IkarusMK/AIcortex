@@ -6,8 +6,72 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
-## [2.0.3] — 2026-11-01
-Models find playbooks without being told the word.
+## [2.0.3] — 2026-11-02
+A review release: playbooks are found by everyday words, starter skills ship with the
+image, the scheduled-jobs page tells whether a runner is there, a much larger test
+suite — and the defects it turned up are fixed. Update by pulling the new image.
+
+### Security
+- **CalDAV credentials could reach another server.** A calendar or event given as a
+  full URL on a different host was requested with the endpoint's username and app
+  password. Such URLs are now refused; credentials only go to the endpoint's server.
+- **A line break in an event title could inject iCalendar properties** (an extra
+  `ATTENDEE`, for example). Titles and descriptions are now escaped as one-line
+  iCalendar text.
+- **Multicast addresses passed the egress guard** although it is documented to block
+  them (`224.0.0.1`, `ff02::1` count as "global" in Python). They are blocked now.
+- **A task handoff message was readable by every person** under `AUTH_ENFORCE`: it
+  was stored without its owner. It now belongs to the task's person.
+- **The connect-time guard let multicast through as well** (it decides again when a
+  client library resolves the host, against DNS rebinding); it uses the same rule now.
+- **`tls_insecure` set to the text "false"** in a hand-edited config switched
+  certificate checks off. Only an explicit yes (true, 1, "yes", "on") does now.
+- **A line break in an FTP file name, user name or password could add options to
+  curl's configuration** (curl does the FTPS uploads) — for example `output=` or `url=`.
+  Line breaks are escaped now.
+- **An inbound webhook revealed which hook names exist:** an oversized body got `413`
+  for an existing hook but `401` for an unknown one. Authentication now comes first,
+  so a stranger only ever sees `401`.
+- **`secret_list` failed open:** if resolving the caller raised, a non-admin saw every
+  person's private secret *names* (never values). It now falls back to shared names.
+- An FTP endpoint whose vault secret is missing logged in with an empty password; it
+  refuses now, like SSH, mail and IMAP.
+
+### Fixed
+- **A person confined to their own memory area saw none of their own notes** in
+  `cortex_start` and `cortex_catalog` — both looked in `users/<id>` while notes are
+  stored in `users_<id>`.
+- `task_update` accepted any status text; it now refuses anything but open, claimed,
+  blocked or done.
+- Calendar events whose title the server folded over two lines (LF instead of CRLF)
+  were shown cut short.
+- A REST call with missing or wrong arguments answered `500 tool error`; it answers
+  `400 invalid arguments` now, so a client can tell its own mistake from a server fault.
+- `tenancy_status` told models that isolation is switched on with the retired
+  `TENANCY_ISOLATE`; it follows `AUTH_ENFORCE`.
+- The workspace quota counted the wrong way round: appends could outgrow it, and
+  overwriting a file was refused although the new content fit.
+- One `SKILL.md` that isn't valid UTF-8 made `skill_search` and `skill_list` fail for
+  everyone; it is read tolerantly now.
+- The WebUI answered `500` for a sign-in callback with a non-ASCII `state` and when
+  editing a person whose entry in `policy.json` had been hand-edited into something
+  other than an object.
+- WebDAV listed the folder itself when `base_url` was percent-encoded (an e-mail user
+  name such as `alice%40example.com`).
+- Printing: a path without a leading slash (`ipp/print`) built a broken URL, and an
+  HTML error page was read as a bogus IPP status instead of "no IPP response".
+- The MCP gateway left an HTTP client open when the other server refused the
+  handshake.
+- IMAP: an unreadable `ca_bundle` surfaced as a raw error instead of "connect failed";
+  an attachment named `..` made the whole fetch fail, and two attachments with the
+  same name overwrote each other (the second is saved as `name-2.ext` now).
+
+### Added
+- **Starter skills ship with the image.** *Skills → Add starter skills* in the WebUI
+  copies the bundled examples into the library — never over an existing skill.
+- **The scheduled-jobs page shows the runner:** "no runner has checked in yet", "last
+  seen …" or a warning when it has gone quiet. Jobs only run while a runner calls
+  `cron_due`; before, nothing told you when none was there.
 
 ### Changed
 - **`integration_search` finds the playbook tools for everyday words** — workflow,
@@ -18,6 +82,17 @@ Models find playbooks without being told the word.
   and the rest, so a model knows to look there.
 - **`cortex_start` names the playbook library** in every briefing, not only when a run
   is already active.
+- The start hook for Claude Code no longer assumes the MCP server is called
+  "aicortex" (through a Claude account's connector it has another name).
+- The install guides test the connection with `cortex_start` instead of `ping`, which
+  is not among the eleven tools a client sees up front.
+
+### Tests
+- 1,530 tests (2.0.2: 266) and 98 % line coverage (59 %); every module is at
+  83 % or more, 27 of 44 at 100 %. Every defect above has a test that failed before
+  the fix. External systems (IMAP, SMTP, FTP, SSH, MQTT, CalDAV, WebDAV, IPP, other
+  MCP servers) are replaced by fakes; DNS is scripted so the egress guard's real
+  checks run.
 
 ## [2.0.2] — 2026-11-01
 

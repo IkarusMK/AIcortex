@@ -15,7 +15,11 @@ and show how the category-aware router works. Each is a folder with a `SKILL.md`
 | `secret-handling` | Security |
 
 ## Seed them into your library
-Copy the folders into your live skill library (`data/skills`), then they show up
+The image carries them: in the WebUI, **Skills → Add starter skills** copies every
+one your library doesn't have yet (an existing skill of the same name is never
+overwritten).
+
+Without the WebUI, copy the folders into your live skill library (`data/skills`), then they show up
 in `skill_list()` / `skill_search()` and grouped by category in `bootstrap`:
 
 ```bash

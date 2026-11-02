@@ -149,7 +149,7 @@ def register(mcp):
             return f"List failed: {exc}"
         if r.status_code not in (207, 200):
             return f"List returned HTTP {r.status_code}. Check path / credentials."
-        base_path = urlparse(base).path
+        base_path = unquote(urlparse(base).path)  # hrefs are compared decoded, so decode this too
         out = []
         try:
             root = _xml_fromstring(r.content)

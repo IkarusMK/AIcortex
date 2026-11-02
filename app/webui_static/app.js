@@ -74,6 +74,8 @@ const I18N = {
     shared: "geteilt",
     confirm_del_secret: "Secret „{0}“ endgültig löschen?",
     sk_new: "+ Neuer Skill",
+    sk_examples: "Beispiel-Skills übernehmen",
+    toast_examples: "{0} Beispiel-Skills übernommen, {1} schon vorhanden.",
     sk_all: "Alle",
     sk_new_title: "Neuen Skill anlegen",
     sk_edit_title: "Skill bearbeiten",
@@ -166,6 +168,8 @@ const I18N = {
     shared: "shared",
     confirm_del_secret: "Permanently delete secret “{0}”?",
     sk_new: "+ New skill",
+    sk_examples: "Add starter skills",
+    toast_examples: "{0} starter skills added, {1} already there.",
     sk_all: "All",
     sk_new_title: "Create a new skill",
     sk_edit_title: "Edit skill",
@@ -746,6 +750,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* skills */
   $("#btn-skill-new").addEventListener("click", newSkill);
+  $("#btn-skill-examples").addEventListener("click", async () => {
+    try {
+      const r = await api("/ui/api/skills/examples", { method: "POST", body: {} });
+      toast(t("toast_examples", r.added.length, r.skipped.length));
+      await loadSkills();
+    } catch (err) {
+      toast(err.message, false);
+    }
+  });
   $("#btn-skill-close").addEventListener("click", () => {
     CURRENT_SKILL = "";
     $("#sk-editor").classList.add("hidden");

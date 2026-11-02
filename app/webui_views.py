@@ -317,7 +317,7 @@ def register(mcp, h):
         sub, role = who(sess)
         with authz.rest_identity(sub, role):
             rows = cron.job_rows()
-        return h.json({"jobs": rows})
+        return h.json({"jobs": rows, "runner": cron.runner_status()})
 
     @mcp.custom_route("/ui/api/cron/preview", methods=["GET"])
     async def _cron_preview(request):

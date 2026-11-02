@@ -363,8 +363,11 @@ def register(mcp):
                             + (f" session_id={t['session_id']} (session_load it)."
                                if t.get("session_id") else "")
                             + (f" Note: {note}" if note else ""))
+                    # The message belongs to the task's person, like the task itself —
+                    # without it, every person could read the handoff note.
                     inbox.append({"id": _id(), "ts": _now(), "to": to, "from": "board",
-                                  "subject": "task handoff", "body": body, "read": False})
+                                  "subject": "task handoff", "body": body, "read": False,
+                                  "person": t.get("person") or _person()})
                     _write(INBOX_FILE, inbox)
                 return f"Handed task {task_id} to '{to}'." if to else f"Released task {task_id} back to open."
         return f"No task {task_id}."
@@ -372,7 +375,9 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def task_update(task_id: str, status: str = "", note: str = "") -> str:
-        """Update a task's status (open/claimed/done) and/or append a progress note."""
+        """Update a task's status (open/claimed/blocked/done) and/or append a progress note."""
+        if status and status not in _TASK_STATUS:
+            return f"Refused: status must be one of {', '.join(_TASK_STATUS)}."
         items = _read(TASKS_FILE)
         for t in items:
             if t.get("id") == task_id and _sees(t):

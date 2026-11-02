@@ -6,6 +6,9 @@ Object.assign(I18N.de, {
   nav_cron: "Cron-Jobs", cron_new: "Neuer Job", cron_hint: "Geplante Aufträge an deine KI. Zeiten in Serverzeit; der Runner auf der NAS führt sie aus.",
   cron_col_name: "Name", cron_col_when: "Wann", cron_col_next: "Nächster Lauf", cron_col_last: "Letzter Lauf",
   cron_col_on: "An", cron_col_owner: "Für", cron_empty: "Noch keine Jobs.",
+  cron_runner_none: "Noch hat sich kein Runner gemeldet — Jobs laufen erst, wenn der Runner auf der NAS läuft (README → Autonomy & scheduling).",
+  cron_runner_stale: "Der Runner hat sich seit {0} nicht mehr gemeldet — läuft er noch?",
+  cron_runner_ok: "Runner aktiv, zuletzt gesehen {0}.",
   cron_new_title: "Neuer Job", cron_edit_title: "Job bearbeiten",
   cron_f_name: "Name", cron_f_when: "Wann", cron_f_time: "Uhrzeit", cron_f_dow: "Wochentag",
   cron_f_expr: "Zeitplan (Cron-Ausdruck)", cron_f_prompt: "Auftrag an die KI", cron_f_notify: "Ergebnis an (Inbox)",
@@ -20,6 +23,9 @@ Object.assign(I18N.en, {
   nav_cron: "Scheduled jobs", cron_new: "New job", cron_hint: "Scheduled tasks for your AI. Times are server time; the runner on the NAS carries them out.",
   cron_col_name: "Name", cron_col_when: "When", cron_col_next: "Next run", cron_col_last: "Last run",
   cron_col_on: "On", cron_col_owner: "For", cron_empty: "No jobs yet.",
+  cron_runner_none: "No runner has checked in yet — jobs only run once the runner on the NAS is running (README → Autonomy & scheduling).",
+  cron_runner_stale: "The runner hasn't checked in since {0} — is it still running?",
+  cron_runner_ok: "Runner active, last seen {0}.",
   cron_new_title: "New job", cron_edit_title: "Edit job",
   cron_f_name: "Name", cron_f_when: "When", cron_f_time: "Time", cron_f_dow: "Weekday",
   cron_f_expr: "Schedule (cron expression)", cron_f_prompt: "Task for the AI", cron_f_notify: "Send result to (inbox)",
@@ -59,8 +65,20 @@ function cronDescribe(expr) {
   return expr;
 }
 
+function showRunner(runner) {
+  const el = $("#cron-runner");
+  const r = runner || {};
+  el.textContent = !r.last_seen ? t("cron_runner_none")
+    : t(r.ok ? "cron_runner_ok" : "cron_runner_stale", cronStamp(r.last_seen));
+  el.classList.toggle("notice", !r.ok);
+  el.classList.toggle("dim", !!r.ok);
+  el.classList.remove("hidden");
+}
+
 async function loadCron() {
-  CRON.jobs = (await api("/ui/api/cron")).jobs;
+  const d = await api("/ui/api/cron");
+  CRON.jobs = d.jobs;
+  showRunner(d.runner);
   const tbody = $("#cron-table tbody");
   tbody.textContent = "";
   $("#cron-empty").classList.toggle("hidden", CRON.jobs.length > 0);

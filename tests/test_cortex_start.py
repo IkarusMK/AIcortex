@@ -169,6 +169,19 @@ def test_general_reference_notes_are_named(fresh_server):
     assert "Home network map" in _call(fresh_server, "cortex_start")
 
 
+def test_a_confined_person_sees_their_own_notes_in_the_briefing(monkeypatch, request):
+    # memory stores the area "users/<id>" in the folder "users_<id>"; the briefing
+    # looked in "users/<id>" and showed a confined person none of their own notes.
+    monkeypatch.setenv("AUTH_ENFORCE", "1")
+    server = request.getfixturevalue("fresh_server")
+    authz = sys.modules["authz"]
+    monkeypatch.setattr(authz, "_identity",
+                        lambda: ("bob", False, {"aicortex_key": "k1", "key_scopes": ["all"]}))
+    _call(server, "memory_write", {"title": "Bob prefers tea", "type": "user",
+                                   "content": "Tea, not coffee."})
+    assert "Bob prefers tea" in _call(server, "cortex_start")
+
+
 def test_cortex_start_shows_a_confined_user_only_their_own(monkeypatch, request):
     monkeypatch.setenv("AUTH_ENFORCE", "1")
     server = request.getfixturevalue("fresh_server")

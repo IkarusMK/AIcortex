@@ -41,8 +41,9 @@ RULES = """How memory is split here:
   session with memory_write(..., project=...) and look things up with memory_search.
 - Big projects: save a checkpoint with session_save(summary, next_steps, project=...)
   at milestones and before stopping, so the next session or another app continues.
-AICortex is the "aicortex" MCP server (cortex_start, memory_search, memory_write,
-session_save, integration_search, ...)."""
+AICortex is the MCP server whose tools are cortex_start, memory_search, memory_write,
+session_save, integration_search, ... — its name in this client may be "aicortex" or
+the name of a connector."""
 
 
 def _german() -> bool:

@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code
 COPY app/ ./
+# Starter skills an admin can add to the library from the WebUI (Skills page)
+COPY examples/skills/ ./skill_examples/
 
 # Privilege-dropping entrypoint
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

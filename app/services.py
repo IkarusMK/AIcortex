@@ -131,7 +131,7 @@ def register(mcp):
                 if not tenancy.caller_service_allowed(p.stem, cat):
                     continue
                 lock = " — [INGEST-ONLY / write_only]" if c.get("write_only") else ""
-                if c.get("tls_insecure"):
+                if netguard.tls_insecure(c):
                     lock += " — [TLS-INSECURE]"
                 rows.append((cat, f"- {p.stem} — {c.get('base_url', '')} — "
                                   f"{c.get('description', '')}{lock}"))

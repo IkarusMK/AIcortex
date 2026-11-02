@@ -154,9 +154,10 @@ def register(mcp):
         if nbytes > _MAX_WRITE:
             return (f"Refused: content is {_size(nbytes)}, over the {_size(_MAX_WRITE)} "
                     "per-write limit (use the transfer tools for large files).")
-        # Reject before touching disk if it would blow the workspace quota.
-        existing = p.stat().st_size if (append and p.is_file()) else 0
-        if _usage() - existing + nbytes > _WORKSPACE_QUOTA:
+        # Reject before touching disk if it would blow the workspace quota. An
+        # overwrite frees the old content first; an append adds to it.
+        replaced = p.stat().st_size if (not append and p.is_file()) else 0
+        if _usage() - replaced + nbytes > _WORKSPACE_QUOTA:
             return (f"Refused: workspace is {_size(_usage())} of the {_size(_WORKSPACE_QUOTA)} "
                     "quota — this write would exceed it. Tidy /data/work (fs_delete) first.")
         try:

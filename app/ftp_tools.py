@@ -105,6 +105,8 @@ def _connect(cfg):
         password = ""
         if cfg.get("password_env"):
             password = secrets_store.get_secret(cfg["password_env"]) or ""
+            if not password:  # never fall back to an empty-password login
+                raise RuntimeError(f"endpoint needs secret '{cfg['password_env']}'. Use secret_set.")
         ftp.login(username, password)
         if mode in ("implicit", "explicit"):
             ftp.prot_p()  # encrypt the data channel too
@@ -136,8 +138,10 @@ _CURL_MAX_TIME = int(os.environ.get("FTP_CURL_MAX_TIME", "300"))
 
 
 def _curl_quote(value: str) -> str:
-    """Escape a value for a double-quoted curl-config string (\\ and \")."""
-    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+    """Escape a value for a double-quoted curl-config string (\\, \" and line
+    breaks — an unescaped newline would start a new curl option)."""
+    return (str(value).replace("\\", "\\\\").replace('"', '\\"')
+            .replace("\r", "\\r").replace("\n", "\\n"))
 
 
 def _is_ip_literal(host: str) -> bool:
@@ -179,7 +183,7 @@ def _curl_config(cfg: dict, password: str, src: Path, remote_path: str,
     ca = (cfg.get("ca_bundle") or "").strip()
     if ca:
         lines.append(f'cacert = "{_curl_quote(ca)}"')
-    elif cfg.get("tls_insecure", False):
+    elif netguard.tls_insecure(cfg):
         lines.append("insecure")
     if pinned_ip:
         lines.append(f'resolve = "{_curl_quote(host)}:{port}:{pinned_ip}"')

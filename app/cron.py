@@ -16,13 +16,16 @@ import functools
 import json
 import os
 import re
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 import store
 
 CRON_DIR = Path(os.environ.get("CRON_DIR", "/data/cron"))
 CRON_FILE = CRON_DIR / "jobs.json"
+# When the runner last asked for due jobs — without a runner nothing ever runs.
+RUNNER_FILE = CRON_DIR / "runner.json"
+RUNNER_STALE_MINUTES = 5
 
 
 def _read():
@@ -200,6 +203,28 @@ def _runner_or_admin():
     return (is_runner or role == "admin"), ident
 
 
+def _note_runner() -> None:
+    try:
+        store.write_json(RUNNER_FILE, {"last_seen": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    except OSError:
+        pass
+
+
+def runner_status() -> dict:
+    """{last_seen, ok}: when the runner last asked for due jobs, and whether that
+    was within RUNNER_STALE_MINUTES (it asks every minute)."""
+    try:
+        seen = str(store.read_json(RUNNER_FILE, {}).get("last_seen", ""))
+    except Exception:
+        seen = ""
+    try:
+        ok = bool(seen) and (datetime.now(timezone.utc) - datetime.fromisoformat(seen)
+                             <= timedelta(minutes=RUNNER_STALE_MINUTES))
+    except (TypeError, ValueError):
+        ok = False
+    return {"last_seen": seen, "ok": ok}
+
+
 def _runner_plumbing_ok():
     """(ok, reason) for token-minting / act-as-starting tools (cron_due,
     act_as_begin). Requires the runner/admin AND that NO act-as run is currently
@@ -344,6 +369,7 @@ def register(mcp):
         ok, reason = _runner_plumbing_ok()
         if not ok:
             return f"Denied: cron_due is {reason} (it mints act-as capability tokens)."
+        _note_runner()
         import actas
         now = datetime.now()
         stamp = now.strftime("%Y-%m-%dT%H:%M")

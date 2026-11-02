@@ -145,13 +145,16 @@ be sent through the OIDC login once.
 
 Ask the user to tell their assistant:
 
-> "Call the `ping` tool, then call `cortex_start`."
+> "Call `cortex_start`."
 
-- `ping` responds (and reports the running version) → connector, proxy and auth
-  chain work.
-- `cortex_start` returns a short briefing (user, working style, projects) →
-  **installation complete.** On a fresh install the briefing is short because
-  the memory is still empty.
+- The answer starts with `AICortex v<version> — briefing` → connector, proxy and
+  auth chain work, and it shows the running version.
+- It lists who the user is, how they work and their projects → **installation
+  complete.** On a fresh install the briefing is short because the memory is
+  still empty.
+
+(`ping` is not among the eleven tools a client sees up front — the default `core`
+profile — so a model would first have to find it with `integration_search`.)
 
 For clients that don't pass the server instructions to the model, pin the short
 block from `docs/client-project-instructions.md` into the client's custom

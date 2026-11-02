@@ -52,6 +52,14 @@ def _bearer(request) -> str:
     return ""
 
 
+def _bad_arguments(exc: Exception) -> bool:
+    """The tool's arguments failed validation — the caller's mistake (400), not a
+    server error (500)."""
+    from fastmcp.exceptions import ValidationError as ToolArgumentsError
+    from pydantic import ValidationError
+    return isinstance(exc, (ToolArgumentsError, ValidationError))
+
+
 def _wants_stream(request) -> bool:
     q = request.query_params.get("stream", "").strip().lower()
     if q in ("1", "true", "yes", "sse"):
@@ -259,6 +267,8 @@ def register(mcp):
             return _json({"ok": True, "tool": name, "result": _result_payload(result)})
         except Exception as exc:
             _audit(rec, name, "error", str(exc))
+            if _bad_arguments(exc):
+                return _json({"error": "invalid arguments", "detail": str(exc)}, 400)
             return _json({"error": "tool error", "detail": str(exc)}, 500)
 
     def _stream(mcp, rec, sub, role, name, args):
@@ -284,7 +294,8 @@ def register(mcp):
                 yield _sse("result", payload)
             except Exception as exc:
                 _audit(rec, name, "error", str(exc))
-                yield _sse("error", {"error": "tool error", "detail": str(exc)})
+                yield _sse("error", {"error": "invalid arguments" if _bad_arguments(exc)
+                                     else "tool error", "detail": str(exc)})
 
         return StreamingResponse(gen(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache",

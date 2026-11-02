@@ -48,6 +48,16 @@ def test_briefing_for_the_repository_is_loaded_with_the_memory_rules(cortex, tmp
     assert key not in raw and len(ctx) <= 10_000
 
 
+def test_rules_do_not_assume_the_servers_name(cortex, tmp_path):
+    # In Claude Code the connector of a Claude account shows up under its own name,
+    # not "aicortex" — the rules must name the tools, not a server name.
+    base, key = cortex
+    out, _ = _run({"AICORTEX_URL": base, "AICORTEX_KEY": key}, tmp_path)
+    ctx = out["hookSpecificOutput"]["additionalContext"]
+    assert '"aicortex" MCP server' not in ctx
+    assert "cortex_start" in ctx and "memory_write" in ctx
+
+
 def test_project_defaults_to_the_repository_name(cortex, tmp_path):
     base, key = cortex
     repo = tmp_path / "my-app"

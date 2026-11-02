@@ -97,10 +97,18 @@ def _build_print_job(printer_uri: str, job_name: str, doc_format: str, data: byt
 
 
 def _ipp_status(resp: bytes):
-    """The IPP status-code is bytes 2-3 of the response. Success ≤ 0x00FF."""
-    if len(resp) < 8:
+    """The IPP status-code is bytes 2-3 of the response. Success ≤ 0x00FF. A reply
+    that doesn't start with an IPP version (1.x/2.x) — an HTML error page from a
+    wrong path, say — is no IPP response at all."""
+    if len(resp) < 8 or resp[0] not in (1, 2):
         return None
     return struct.unpack(">H", resp[2:4])[0]
+
+
+def _ipp_path(path) -> str:
+    """The printer's IPP path with exactly one leading slash ("ipp/print" would
+    otherwise make http://host:631ipp/print)."""
+    return "/" + str(path or "/ipp/print").lstrip("/")
 
 
 def register(mcp):
@@ -114,7 +122,7 @@ def register(mcp):
         try:
             PRINT_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port),
-                   "path": path or "/ipp/print", "description": description}
+                   "path": _ipp_path(path), "description": description}
             cfgstore.write_merged(_cfg_path(name), cfg)
             return f"Registered printer '{_slug(name)}' ({host}:{port}{cfg['path']})."
         except Exception as exc:
@@ -160,7 +168,7 @@ def register(mcp):
             return f"Unknown printer '{printer}'. Use print_list / print_add."
         host = cfg["host"]
         port = int(cfg.get("port", 631))
-        path = cfg.get("path", "/ipp/print")
+        path = _ipp_path(cfg.get("path"))
 
         ok, reason = netguard.check_host(host)
         if not ok:

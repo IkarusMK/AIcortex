@@ -217,7 +217,7 @@ def register(mcp):
         if not job_url:
             detail = "; ".join(attempts) or "no transports available"
             hint = ""
-            if tls_failed and not cfg.get("tls_insecure") and not cfg.get("ca_bundle"):
+            if tls_failed and not netguard.tls_insecure(cfg) and not cfg.get("ca_bundle"):
                 hint = (" The HTTPS attempt failed certificate verification — this is "
                         "almost always a self-signed scanner: re-register it with "
                         f"scan_add('{scanner}', '{host}', tls_insecure=true) (or point "

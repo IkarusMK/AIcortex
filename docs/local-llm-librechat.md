@@ -163,7 +163,7 @@ dynamic client registration, so the callback URL
 `${DOMAIN_SERVER}/api/mcp/aicortex/oauth/callback` is registered automatically — no manual
 step. A green dot = connected.
 
-Test: ask the model *"call the `ping` tool"* → it should return the AICortex version.
+Test: ask the model *"call `cortex_start`"* → the answer starts with the AICortex version.
 
 ### 5 — Build a Lite-Agent (recommended)
 

@@ -392,7 +392,7 @@ def register(mcp):
             # no confinement, unchanged behaviour.
             confine = tenancy.isolation_enabled() and role != "admin"
         except Exception:
-            own_ns, confine = "", False
+            own_ns, confine = "", True    # fail safe: shared names only
         if confine:  # shared + own only (own unknown → shared only)
             keys = [k for k in keys
                     if not k.startswith("users/")

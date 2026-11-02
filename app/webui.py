@@ -434,8 +434,9 @@ def register(mcp):
         pending = _verify(request.cookies.get(OAUTH_COOKIE, ""))
         state = request.query_params.get("state", "")
         code = request.query_params.get("code", "")
+        # Compare bytes: compare_digest raises on a non-ASCII str (→ 500, not a refusal).
         if not pending or not code or not hmac.compare_digest(
-                state, pending.get("state", "")):
+                state.encode("utf-8"), str(pending.get("state", "")).encode("utf-8")):
             return _fail("state")
         try:
             doc = _discovery()
@@ -670,6 +671,29 @@ def register(mcp):
             return sess
         return _json({"skills": _skill_rows()})
 
+    @mcp.custom_route("/ui/api/skills/examples", methods=["GET"])
+    async def _skill_examples(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        return _json({"examples": [{k: e[k] for k in ("name", "description", "category", "installed")}
+                                   for e in skills.examples()]})
+
+    @mcp.custom_route("/ui/api/skills/examples", methods=["POST"])
+    async def _skill_examples_install(request):
+        # The starter skills fill the shared library for everyone: an admin's job,
+        # and never over an existing (possibly edited) skill of the same name.
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        added, skipped = skills.install_examples()
+        if added:
+            _audit(sess, "skill_examples", "allow", "added=" + ",".join(added))
+        return _json({"ok": True, "added": added, "skipped": skipped})
+
     @mcp.custom_route("/ui/api/skills/get", methods=["GET"])
     async def _skills_get(request):
         sess = _require_admin(request)
@@ -773,7 +797,10 @@ def register(mcp):
             roles.pop(identity, None)
         elif role:
             roles[identity] = role
-        entry = dict(users.get(identity, {}))
+        # A hand-edited policy may hold something else than an object here — start
+        # over instead of failing with a 500.
+        existing = users.get(identity)
+        entry = dict(existing) if isinstance(existing, dict) else {}
         for label in ("memory", "vault"):
             v = str(body.get(label, "")).strip().lower()
             if v:

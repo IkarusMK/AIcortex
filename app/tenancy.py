@@ -393,8 +393,8 @@ def register(mcp):
     @mcp.tool
     def tenancy_status() -> str:
         """Show whether per-user data isolation is active and how many users are
-        configured. Isolation is opt-in via the TENANCY_ISOLATE env var; per-user
-        areas live in data/auth/policy.json under 'users'. (Admin-only.)"""
+        configured. Isolation is on whenever AUTH_ENFORCE is on (the default);
+        per-user areas live in data/auth/policy.json under 'users'. (Admin-only.)"""
         on = isolation_enabled()
         users = _policy().get("users") or {}
         lines = [

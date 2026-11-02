@@ -164,14 +164,19 @@ class _StreamableMCP:
     async def __aenter__(self):
         import httpx
         self._client = httpx.AsyncClient(follow_redirects=True, timeout=self.timeout)
-        init = await self._rpc("initialize", {
-            "protocolVersion": self.proto,
-            "capabilities": {},
-            "clientInfo": {"name": "AICortex", "version": "1.5"},
-        })
-        if isinstance(init, dict) and init.get("protocolVersion"):
-            self.proto = init["protocolVersion"]  # adopt the negotiated version
-        await self._notify("notifications/initialized")
+        try:
+            init = await self._rpc("initialize", {
+                "protocolVersion": self.proto,
+                "capabilities": {},
+                "clientInfo": {"name": "AICortex", "version": "1.5"},
+            })
+            if isinstance(init, dict) and init.get("protocolVersion"):
+                self.proto = init["protocolVersion"]  # adopt the negotiated version
+            await self._notify("notifications/initialized")
+        except BaseException:
+            # __aexit__ never runs when __aenter__ fails — close the client here.
+            await self.__aexit__(None, None, None)
+            raise
         return self
 
     async def __aexit__(self, *exc):

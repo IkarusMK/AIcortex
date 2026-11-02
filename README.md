@@ -116,7 +116,7 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.
 2. Proxy that host to `http://<nas-ip>:8787` over HTTPS — the upstream is **plain HTTP**, so do *not* enable "TLS to upstream". If your proxy geo-blocks, allow your LLM provider's egress region. The published port binds to **`127.0.0.1`** by default (only this host's proxy reaches it, not the LAN); a host-network proxy uses `http://127.0.0.1:8787`, a **bridge-network** proxy needs `BIND_ADDR=0.0.0.0` (or a shared Docker network).
 3. In your MCP client: **add a custom connector / MCP server** → URL `https://agent.example.com/mcp`. Agents and CLIs that can only send a header (Claude Code, Codex, Hermes, OpenClaw, LM Studio, …) use a per-agent key instead — setup for every client: **[docs/clients.md](docs/clients.md)**.
-4. Test: ask the assistant to call the `ping` tool.
+4. Test: ask the assistant to call `cortex_start`. The briefing starts with `AICortex v<version>`; on a fresh install it is short because the memory is still empty. (`ping` works too, but it is not among the eleven tools clients see up front.)
 
 ## Authentication & authorization
 
@@ -201,7 +201,7 @@ This is the heart of the project — making the assistant *itself* portable, not
 
 - **Memory** lives as plain files under `data/memory`; the `memory_*` tools let the LLM recall and update what it knows about you, the same on every device. The catalog groups it by **tier** — 🧭 Core (identity & preferences) → 📂 Projects → 🛠 Working style → 🔗 References, derived from each memory's `type`, with short-term/current state in the sessions layer — so a fresh LLM sees who you are before the ephemera.
 - **Skills** live as folders under `data/skills` (`<skill>/SKILL.md` + resources). The router (`skill_search` / `skill_load` / `skill_resource`) finds the right skill and pulls in **only what it needs** (progressive disclosure).
-- **Categories keep it cheap — and are mandatory.** `skill_write` refuses an uncategorized skill and snaps near-duplicate spellings onto the existing category, so a 300-skill library stays a dozen lines in `cortex_catalog`, not a token dump. Starter skills live in [`examples/skills/`](examples/skills/README.md).
+- **Categories keep it cheap — and are mandatory.** `skill_write` refuses an uncategorized skill and snaps near-duplicate spellings onto the existing category, so a 300-skill library stays a dozen lines in `cortex_catalog`, not a token dump. Starter skills live in [`examples/skills/`](examples/skills/README.md) and ship with the image — **Skills → Add starter skills** in the WebUI adds them.
 - **`cortex_start` first.** The server instructions ask every model to call it at the start of a conversation (with the project name). The briefing names every general working rule (a `feedback` memory without a project) — tag a rule `pinned` to put it first with its text — while rules that belong to a project only come along for that project. For clients that don't pass the instructions on, add a short block to your client's project/system prompt — see [`docs/client-project-instructions.md`](docs/client-project-instructions.md).
 
 ## Auto-memory — a brain that learns by itself
