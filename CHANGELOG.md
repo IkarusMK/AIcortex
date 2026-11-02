@@ -5,6 +5,8 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+
+## [2.2.0] — 2026-11-02
 Scheduled jobs run without installing anything.
 
 ### Added
