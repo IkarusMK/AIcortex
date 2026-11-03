@@ -27,6 +27,7 @@ Roles:
 """
 import contextlib
 import contextvars
+import hashlib
 import json
 import os
 import re
@@ -121,18 +122,32 @@ _ENDPOINT_TOOLS = {
 # process-global cron act-as, a contextvar is per-async-task, so concurrent REST
 # requests never bleed identity into one another. effective_identity() reads it FIRST.
 _REST_IDENTITY: contextvars.ContextVar = contextvars.ContextVar("rest_identity", default=None)
+# How a REST-layer call came in: "key" for an agent key on /api/v1, "" for the WebUI.
+_REST_VIA: contextvars.ContextVar = contextvars.ContextVar("rest_via", default="")
 
 
 @contextlib.contextmanager
-def rest_identity(sub: str, role: str):
+def rest_identity(sub: str, role: str, via: str = ""):
     """Bind (sub, role) as the effective identity for the current async task, so a
     tool invoked from a REST handler self-scopes (memory/vault/services/skills) as the
-    key's owner. Auto-reset on exit; safe under concurrency (contextvar, not global)."""
-    token = _REST_IDENTITY.set((sub, role))
+    key's owner. Auto-reset on exit; safe under concurrency (contextvar, not global).
+    via="key" marks a call made with an agent key (rest_api), not by the person in
+    the WebUI."""
+    token, how = _REST_IDENTITY.set((sub, role)), _REST_VIA.set(via)
     try:
         yield
     finally:
         _REST_IDENTITY.reset(token)
+        _REST_VIA.reset(how)
+
+
+def is_agent_key() -> bool:
+    """Is the current call made with an agent key (on /api/v1 or /mcp) rather than by
+    the person themselves (the WebUI, or an app they signed in to)?"""
+    if _REST_IDENTITY.get():
+        return _REST_VIA.get() == "key"
+    _, _, claims = _identity()
+    return bool(isinstance(claims, dict) and claims.get("aicortex_key"))
 
 
 def enabled() -> bool:
@@ -323,6 +338,23 @@ def real_caller():
     return ident, role_for(ident, is_runner, claims), is_runner
 
 
+def binding_key(ident: str = "") -> str:
+    """What a cron act-as run is bound to: the caller's identity plus a short hash of
+    the credential it called with. The built-in runner and an own runner (RUNNER_TOKEN)
+    are both identity "runner" — keyed by identity alone, one runner's act-as run would
+    confine (or block) the other's calls. A call without a token (REST, in-process)
+    keys on the identity alone."""
+    ident = ident or real_caller()[0]
+    if _REST_IDENTITY.get():
+        return ident
+    try:
+        from fastmcp.server.dependencies import get_access_token
+        raw = str(getattr(get_access_token(), "token", "") or "")
+    except Exception:
+        raw = ""
+    return f"{ident}#{hashlib.sha256(raw.encode()).hexdigest()[:16]}" if raw else ident
+
+
 def effective_identity():
     """(identity, role) for the CURRENT call, honoring (in order) a REST per-task
     identity, then an active cron act-as binding, else the real caller. When the
@@ -342,7 +374,7 @@ def effective_identity():
         return "unknown", "user"
     try:
         import actas
-        owner = actas.current(ident)    # only the caller that started the run
+        owner = actas.current(binding_key(ident))    # only the caller that started the run
         if owner:
             return owner, _actas_role(owner)
     except Exception:

@@ -258,7 +258,7 @@ def register(mcp):
         if _wants_stream(request):
             return _stream(mcp, rec, sub, role, name, args)
         try:
-            with authz.rest_identity(sub, role):
+            with authz.rest_identity(sub, role, via="key"):
                 tool = await mcp.get_tool(name)
                 if tool is None:
                     return _json({"error": "no such tool", "tool": name}, 404)
@@ -277,7 +277,7 @@ def register(mcp):
             yield b": connected\n\n"
 
             async def run():
-                with authz.rest_identity(sub, role):
+                with authz.rest_identity(sub, role, via="key"):
                     tool = await mcp.get_tool(name)
                     if tool is None:
                         raise LookupError(f"no such tool: {name}")

@@ -25,6 +25,20 @@ import apikeys
 # The built-in runner (runner_builtin.py) calls this server's own /mcp as the runner
 # with this token. It exists only in this process's memory — never stored or shown.
 INTERNAL_RUNNER_TOKEN = "rt_" + secrets.token_urlsafe(32)
+# One more in-memory token per built-in runner: each runner's calls then have an act-as
+# binding of their own (authz.binding_key), so runners can work side by side.
+_INTERNAL: dict = {}
+
+
+def internal_token(name: str) -> str:
+    """The in-memory token runner `name` calls /mcp with (made on first use)."""
+    return _INTERNAL.setdefault(name, "rt_" + secrets.token_urlsafe(32))
+
+
+def _internal(token: str) -> bool:
+    raw = token.encode()
+    return any(hmac.compare_digest(raw, t.encode())
+               for t in (INTERNAL_RUNNER_TOKEN, *list(_INTERNAL.values())))
 
 # Claim names the rest of the server reads (authz scopes, agent attribution).
 KEY_CLAIM = "aicortex_key"
@@ -41,7 +55,7 @@ class AgentTokenVerifier(TokenVerifier):
         if not token:
             return None
         # Bytes, not str: compare_digest raises on non-ASCII text (→ 500, not 401).
-        if hmac.compare_digest(token.encode(), INTERNAL_RUNNER_TOKEN.encode()):
+        if _internal(token):
             return AccessToken(token=token, client_id="runner", scopes=[],
                                claims={AGENT_CLAIM: "built-in runner"})
         if self._runner_token and hmac.compare_digest(token.encode(), self._runner_token.encode()):

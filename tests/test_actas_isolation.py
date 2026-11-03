@@ -35,3 +35,21 @@ def test_act_as_binding_does_not_leak_to_other_callers(monkeypatch, request):
     # ... but a different caller hitting the server at the same time stays itself.
     who.update(id="bob", runner=False)
     assert authz.effective_identity()[0] == "bob"
+
+
+def test_an_own_runners_act_as_run_leaves_the_built_in_runner_alone(monkeypatch, request):
+    """The built-in runner and an own runner (RUNNER_TOKEN) are both identity "runner".
+    Keyed by identity alone, the own runner's act-as run blocked the built-in runner's
+    cron_due — and would have confined its calls to the other job's owner."""
+    from test_runner_setup import _call
+    monkeypatch.setenv("STORAGE_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("RUNNER_TOKEN", "runner-secret-123")
+    monkeypatch.setenv("AUTH_ENFORCE", "1")
+    url = request.getfixturevalue("http_server")
+    import actas
+    internal = sys.modules["agent_auth"].INTERNAL_RUNNER_TOKEN
+    token = actas.issue("job1", "alice")
+    assert "Acting as alice" in _call(url, "runner-secret-123", "act_as_begin",
+                                      {"act_as_token": token, "job_id": "job1"})
+    assert _call(url, internal, "cron_due").startswith("[")
+    assert "act-as run is active" in _call(url, "runner-secret-123", "cron_due")

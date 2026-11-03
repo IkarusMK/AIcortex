@@ -30,6 +30,7 @@ RUNNER_STALE_MINUTES = 5
 # How far back cron_due looks for a scheduled minute the runner missed (a slow run,
 # a restart). Only the latest missed minute of a job is handed out, once.
 CATCH_UP_MINUTES = 5
+MAX_PROMPT = 20_000        # characters of a job's prompt
 
 
 def _read():
@@ -192,7 +193,7 @@ def job_rows() -> list[dict]:
     for j in visible_jobs():
         nxt = next_run(j.get("schedule", "")) if j.get("enabled") else None
         row = {k: j.get(k, "") for k in ("id", "name", "schedule", "prompt", "notify", "owner",
-                                         "created", "last_run", "last_result")}
+                                         "runner", "created", "last_run", "last_result")}
         rows.append(dict(row, enabled=bool(j.get("enabled")),
                          next_run=nxt.strftime("%Y-%m-%dT%H:%M") if nxt else ""))
     return rows
@@ -222,6 +223,106 @@ def _runner_or_admin():
     return (is_runner or role == "admin"), ident
 
 
+def _runner_problem(runner: str, owner: str, by: str, role: str) -> str:
+    """"" when a job of `owner`, prompt written by `by`, may go to `runner`
+    ("" = the standard runner, "external" = an own program that fetches its jobs)."""
+    import runners
+    if not runner:
+        return ""
+    if runner == runners.EXTERNAL:
+        return "" if role == "admin" else "Refused: only an admin may hand a job to an external runner."
+    data = runners.load()
+    rec = next((r for r in data["runners"] if r["id"] == runner), None)
+    if rec and runners.may_run(rec, data["standard"], owner, by):
+        return ""
+    usable = [r["id"] for r in data["runners"] if runners.may_run(r, data["standard"], owner, by)]
+    return (f"Refused: this job may not go to runner '{runner}'"
+            + (f" — choose one of {', '.join(usable)} (runner_list)." if usable
+               else " — set up a runner in the WebUI (tab \"Runner\")."))
+
+
+def _author(taken, text: tuple, caller: str, owner: str, role: str) -> str:
+    """Who wrote a job's text (name, prompt, recipient) — a Claude cloud runner runs only
+    its owner's own. An edit that changes none of them keeps the author; a job from
+    before 2.3 (no author) is taken on only by its owner (an admin for ownerless ones)."""
+    if not taken or tuple(taken.get(k, "") for k in ("name", "prompt", "notify")) != text:
+        return caller
+    if taken.get("updated_by"):
+        return taken["updated_by"]
+    return caller if caller == owner or (not owner and role == "admin") else ""
+
+
+def _key_problem(runner: str) -> str:
+    """An agent key can't write a job for a Claude cloud runner: the job would run with
+    the person's full rights and all their claude.ai connectors."""
+    import authz
+    import runners
+    rec = runners.get(runner) if runner else None
+    if rec and rec.get("kind") == runners.CLOUD and authz.is_agent_key():
+        return ("Refused: a job for a Claude runner is written by the person themselves "
+                "(WebUI or their own app), not with an agent key.")
+    return ""
+
+
+def _claim(pick, tokens: bool, rid: str = "") -> list:
+    """Hand out the due jobs `pick` accepts — each once per scheduled minute (its slot).
+    With `tokens`, a job with an owner gets a short-lived act-as token and is withheld
+    when none can be minted. Caller holds the cron lock."""
+    import actas
+    now = datetime.now()
+    due, out = [], []
+    for j in _read():
+        slot = _latest_slot(j.get("schedule", ""), now, j.get("created", ""))
+        ready = (j.get("enabled") and slot and (j.get("last_run") or "") < slot
+                 and j.get("claimed") != slot and pick(j))
+        owner = j.get("owner", "")
+        token = actas.issue(j["id"], owner) if ready and owner and tokens else ""
+        if not ready or (owner and tokens and not token):
+            out.append(j)
+            continue
+        due.append({"id": j["id"], "name": j.get("name") or j["id"], "prompt": j["prompt"],
+                    "notify": j.get("notify", "user"), "owner": owner, "act_as_token": token})
+        out.append(dict(j, claimed=slot, **({"claimed_by": rid} if rid else {})))
+    if due:
+        _write(out)
+    return due
+
+
+@_serialized
+def claim_due(rid: str, tokens: bool = True) -> list:
+    """For the built-in ticker: claim the due jobs of runner `rid` — those assigned to
+    it, or unassigned when it is the standard runner, and that it may still run.
+    A cloud runner passes tokens=False: its Claude session runs as the owner."""
+    import runners
+    data = runners.load()
+    rec = next((r for r in data["runners"] if r["id"] == rid), None)
+    if rec is None:
+        return []
+    return _claim(lambda j: runners.effective(j.get("runner", ""), data) == rid
+                  and runners.may_run(rec, data["standard"], j.get("owner", ""),
+                                      j.get("updated_by", "")), tokens, rid)
+
+
+@_serialized
+def mark_run(name: str, result: str = "") -> bool:
+    """Mark a job run this minute, with an optional short result → False if unknown."""
+    jobs = _read()
+    sid = _slug(name)
+    if not any(j.get("id") == sid for j in jobs):
+        return False
+    stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    extra = {"last_result": result[:500]} if result else {}
+    _write([dict(j, last_run=stamp, **extra) if j.get("id") == sid else j for j in jobs])
+    return True
+
+
+def _own_cloud_job(job: dict, ident: str) -> bool:
+    """Is `job` assigned to a cloud runner of `ident`? (Its Claude session reports back.)"""
+    import runners
+    rec = runners.get(job.get("runner") or "")
+    return bool(ident) and bool(rec) and rec.get("kind") == runners.CLOUD and rec.get("owner") == ident
+
+
 def _note_runner() -> None:
     try:
         store.write_json(RUNNER_FILE, {"last_seen": datetime.now(timezone.utc).isoformat(timespec="seconds")})
@@ -244,6 +345,15 @@ def runner_status() -> dict:
     return {"last_seen": seen, "ok": ok}
 
 
+def _binding(ident: str) -> str:
+    """The key the caller's act-as run is bound to (identity + credential, authz)."""
+    try:
+        import authz
+        return authz.binding_key(ident)
+    except Exception:
+        return ident
+
+
 def _runner_plumbing_ok():
     """(ok, reason) for token-minting / act-as-starting tools (cron_due,
     act_as_begin). Requires the runner/admin AND that NO act-as run is currently
@@ -251,7 +361,7 @@ def _runner_plumbing_ok():
     harvest other jobs' tokens or nest identities. Closes that escalation."""
     try:
         import actas
-        if actas.current(_caller()[0]):
+        if actas.current(_binding(_caller()[0])):
             return False, "not allowed while an act-as run is active"
     except Exception:
         pass
@@ -263,11 +373,14 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def cron_add(name: str, schedule: str, prompt: str, notify: str = "user",
-                 enabled: bool = True, owner: str = "") -> str:
+                 enabled: bool = True, owner: str = "", runner: str | None = None) -> str:
         """Create/update a scheduled job (stored as DATA on the NAS).
         schedule = 5-field cron (e.g. "30 6 * * *" = 06:30 daily, server local
         time). prompt = what the triggered LLM run should do. notify = inbox
-        recipient for the result (default "user"). The NAS runner executes it.
+        recipient for the result (default "user").
+
+        runner = which runner carries it out (an id from runner_list); leave it out to
+        keep the job's runner, "" for the standard runner.
 
         owner (act-as) = run this job in a user's area (their memory / vault /
         services / skills). A NON-ADMIN may schedule ONLY as themselves — their job
@@ -301,15 +414,22 @@ def register(mcp):
         if taken and role != "admin" and taken.get("owner") != caller:
             return (f"Refused: a job named '{sid}' already belongs to someone else — "
                     "pick another name.")
-        jobs = [j for j in jobs if j.get("id") != sid]
         history = taken or {}        # an edit keeps when the job was made and last ran
+        if len(prompt or "") > MAX_PROMPT:
+            return f"Refused: the prompt is too long — at most {MAX_PROMPT:,} characters."
+        by = _author(taken, (name, prompt, notify or "user"), caller, act_as, role)
+        runner = history.get("runner", "") if runner is None else str(runner).strip()
+        problem = _runner_problem(runner, act_as, by, role) or _key_problem(runner)
+        if problem:
+            return problem
+        jobs = [j for j in jobs if j.get("id") != sid]
+        kept = {k: history[k] for k in ("last_result", "claimed", "claimed_by") if history.get(k)}
         jobs.append({"id": sid, "name": name, "schedule": schedule, "prompt": prompt,
                      "notify": notify or "user", "enabled": bool(enabled),
-                     "owner": act_as,
+                     "owner": act_as, "runner": runner, "updated_by": by,
                      "created": history.get("created")
                      or datetime.now().isoformat(timespec="seconds"),
-                     "last_run": history.get("last_run", ""),
-                     **({"last_result": history["last_result"]} if history.get("last_result") else {})})
+                     "last_run": history.get("last_run", ""), **kept})
         _write(jobs)
         as_note = f" as {act_as}" if act_as else ""
         return f"Scheduled job '{sid}' ({schedule}){as_note}.{warn}"
@@ -324,6 +444,7 @@ def register(mcp):
         return "\n".join(
             f"- {j.get('id')} — {j.get('schedule')} — {'on' if j.get('enabled') else 'off'}"
             + (f" — as {j['owner']}" if j.get('owner') else "")
+            + (f" — runner {j['runner']}" if j.get('runner') else "")
             + f" — last {j.get('last_run') or 'never'} — {j.get('name', '')}"
             for j in jobs)
 
@@ -355,7 +476,7 @@ def register(mcp):
         if not ok:
             return f"Denied: act_as_begin is {reason}."
         import actas
-        good, res = actas.begin(act_as_token, job_id or None, caller=_caller()[0])
+        good, res = actas.begin(act_as_token, job_id or None, caller=_binding(_caller()[0]))
         if not good:
             return f"Refused: {res}"
         return f"Acting as {res['sub']} for job {res['job']} (until token expiry)."
@@ -369,7 +490,7 @@ def register(mcp):
         if not ok:
             return "Denied: only the NAS runner or an admin may end an act-as run."
         import actas
-        actas.consume(ident)
+        actas.consume(_binding(ident))
         return "act-as ended (token invalidated)."
 
     @mcp.tool
@@ -392,47 +513,24 @@ def register(mcp):
         if not ok:
             return f"Denied: cron_due is {reason} (it mints act-as capability tokens)."
         _note_runner()
-        import actas
-        now = datetime.now()
-        due = []
-        jobs = _read()
-        for j in jobs:
-            slot = _latest_slot(j.get("schedule", ""), now, j.get("created", ""))
-            if not (j.get("enabled") and slot and (j.get("last_run") or "") < slot
-                    and j.get("claimed") != slot):
-                continue
-            owner = j.get("owner", "")
-            token = ""
-            if owner:
-                token = actas.issue(j["id"], owner)
-                if not token:
-                    # owner set but no way to mint a confined token → do NOT hand the
-                    # runner an unconfined job. Surface it so the operator can fix the
-                    # missing STORAGE_ENCRYPTION_KEY rather than run it wide-open.
-                    continue
-            due.append({"id": j["id"], "prompt": j["prompt"],
-                        "notify": j.get("notify", "user"),
-                        "owner": owner, "act_as_token": token})
-            j["claimed"] = slot
-        if due:
-            _write(jobs)
-        return json.dumps(due, ensure_ascii=False)
+        import runners
+        data = runners.load()
+        # Only the jobs meant for an external runner: those assigned to it, and the
+        # unassigned ones while no standard runner is on (as up to 2.2). A job with an
+        # owner whose act-as token can't be minted is withheld, never run unconfined.
+        due = _claim(lambda j: runners.effective(j.get("runner", ""), data) == runners.EXTERNAL,
+                     tokens=True)
+        return json.dumps([{k: v for k, v in d.items() if k != "name"} for d in due],
+                          ensure_ascii=False)
 
     @mcp.tool
     @_serialized
     def cron_mark_run(name: str, result: str = "") -> str:
-        """For the NAS runner: mark a job as run this minute (prevents double
-        execution); optionally store a short last result. Runner/admin only."""
-        ok, _ = _runner_or_admin()
-        if not ok:
-            return "Denied: cron_mark_run is for the NAS runner."
-        jobs = _read()
+        """For the runner: mark a job as run this minute (prevents double execution);
+        optionally store a short last result. Runner/admin only — and the owner of a
+        Claude cloud runner for that runner's jobs (the Claude session reports back)."""
+        ok, ident = _runner_or_admin()
         sid = _slug(name)
-        for j in jobs:
-            if j.get("id") == sid:
-                j["last_run"] = datetime.now().strftime("%Y-%m-%dT%H:%M")
-                if result:
-                    j["last_result"] = result[:500]
-                _write(jobs)
-                return f"Marked '{sid}' run."
-        return f"No job '{name}'."
+        if not ok and not any(j.get("id") == sid and _own_cloud_job(j, ident) for j in _read()):
+            return "Denied: cron_mark_run is for the NAS runner."
+        return f"Marked '{sid}' run." if mark_run(name, result) else f"No job '{name}'."

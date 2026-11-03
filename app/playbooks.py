@@ -114,7 +114,7 @@ def _interactive_person() -> bool:
         ident, is_runner, claims = authz._identity()
         if is_runner or claims.get("aicortex_key") or ident in ("", "unknown"):
             return False
-        return not actas.current(ident)
+        return not actas.current(authz.binding_key(ident))
     except Exception:
         return False
 

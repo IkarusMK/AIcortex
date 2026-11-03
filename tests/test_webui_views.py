@@ -202,6 +202,20 @@ def test_admin_sees_every_job_with_its_owner(ui):
     assert [(r["name"], r["owner"]) for r in rows] == [("Alice job", "alice")]
 
 
+def test_a_job_saved_in_the_webui_keeps_its_runner(ui, monkeypatch):
+    monkeypatch.setenv("ALLOW_PLAINTEXT_VAULT", "1")
+    ok, msg, rec = sys.modules["runners"].save({"kind": "openrouter", "model": "vendor/m"},
+                                               by="alice", admin=False, key="sk-test")
+    assert ok, msg
+    alice, bob = ui("alice", "user"), ui("bob", "user")
+    assert _job(alice, "Daily", runner=rec["id"]).status_code == 200
+    assert alice.get("/ui/api/cron").json()["jobs"][0]["runner"] == rec["id"]
+    assert _job(alice, "Daily", enabled=False).status_code == 200          # left out: kept
+    assert alice.get("/ui/api/cron").json()["jobs"][0]["runner"] == rec["id"]
+    r = _job(bob, "Bobs", runner=rec["id"])
+    assert r.status_code == 400 and "Refused" in r.json()["message"]
+
+
 def test_schedule_preview_and_refusal(ui):
     alice = ui("alice", "user")
     d = alice.get("/ui/api/cron/preview", params={"schedule": "0 8 * * 1-5"}).json()
