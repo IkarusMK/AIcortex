@@ -84,7 +84,7 @@ READ_ONLY_TOOLS = {
     # cron_list is read-only (filtered to the caller's own jobs in-tool). cron_due
     # is NOT here — it mints act-as capability tokens, so it's runner/admin-only
     # (guarded in-tool), not a safe read for a viewer.
-    "cron_list",
+    "cron_list", "runner_list",
     "agent_list", "inbox_read",
     "task_list", "task_next",
     "secret_list",

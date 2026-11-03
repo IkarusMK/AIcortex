@@ -202,7 +202,8 @@ _INTERNAL_ENV = frozenset({
     # generic process environment
     "PATH", "HOME", "HOSTNAME", "PWD", "USER", "LANG", "TZ", "PUID", "PGID",
 })
-_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_")
+# RUNNER_: the runners' own keys (RUNNER_KEY_<id>, runners.py) — never a service's.
+_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_", "RUNNER_")
 _INTERNAL_SUFFIXES = ("_DIR",)
 
 

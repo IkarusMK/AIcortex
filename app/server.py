@@ -30,6 +30,7 @@ import mcp_gateway
 import coordination
 import cron
 import runner_builtin
+import runners
 import webhook_tools
 import sessions
 import print_tools
@@ -252,6 +253,8 @@ coordination.register(mcp)
 
 # Scheduled jobs as data: cron_add / cron_list / cron_delete / cron_due / cron_mark_run
 cron.register(mcp)
+# Who carries the jobs out: runner_list (runners are set up in the WebUI)
+runners.register(mcp)
 
 # Webhooks: inbound receiver (POST /hooks/<name> → inbox) + outbound webhook_send
 webhook_tools.register(mcp)
