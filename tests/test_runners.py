@@ -65,7 +65,7 @@ def _call(tool, sub, role, **args):
 
 # ── a fresh install and the migration from 2.2 ───────────────────────────────
 def test_a_fresh_install_has_no_runners_and_writes_nothing(reg):
-    assert reg.load() == {"version": 1, "standard": "", "runners": []}
+    assert reg.load() == {"version": 1, "standard": "", "runners": [], "personal": {}}
     assert not reg.RUNNERS_FILE.exists()
 
 
@@ -271,5 +271,5 @@ def test_a_cloud_runner_needs_a_sign_in_of_ones_own(reg):
 def test_the_guide_tells_models_how_to_pick_a_runner(reg):
     guide = sys.modules["guide"] if "guide" in sys.modules else __import__("guide")
     text = guide.GUIDE
-    assert text.count("runner_list") >= 2 and "cron_add(name, schedule, prompt[, owner, runner])" in text
+    assert text.count("runner_list") >= 2 and "cron_add(name, schedule, prompt[, owner, runner, once])" in text
     assert "setup-token" not in text and len(guide.INSTRUCTIONS) <= 2000

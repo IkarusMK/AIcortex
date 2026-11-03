@@ -207,7 +207,7 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .pw-row { display: flex; gap: 8px; }
 .pw-row .inp { flex: 1; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.btn-row { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
 
 .btn {
   border: 1px solid transparent; border-radius: 10px; cursor: pointer;
@@ -359,3 +359,6 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .rn-name .tag { margin-left: 6px; }
 .rn-link { color: var(--cyan); text-decoration: none; white-space: nowrap; }
 .rn-link:hover, .rn-link:focus-visible { text-decoration: underline; }
+
+/* A panel in a grid never grows past its column — its tables scroll inside instead */
+.grid-2 > * { min-width: 0; }

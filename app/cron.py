@@ -194,7 +194,7 @@ def job_rows() -> list[dict]:
         nxt = next_run(j.get("schedule", "")) if j.get("enabled") else None
         row = {k: j.get(k, "") for k in ("id", "name", "schedule", "prompt", "notify", "owner",
                                          "runner", "created", "last_run", "last_result")}
-        rows.append(dict(row, enabled=bool(j.get("enabled")),
+        rows.append(dict(row, enabled=bool(j.get("enabled")), once=bool(j.get("once")),
                          next_run=nxt.strftime("%Y-%m-%dT%H:%M") if nxt else ""))
     return rows
 
@@ -298,7 +298,7 @@ def claim_due(rid: str, tokens: bool = True) -> list:
     rec = next((r for r in data["runners"] if r["id"] == rid), None)
     if rec is None:
         return []
-    return _claim(lambda j: runners.effective(j.get("runner", ""), data) == rid
+    return _claim(lambda j: runners.route(j, data) == rid
                   and runners.may_run(rec, data["standard"], j.get("owner", ""),
                                       j.get("updated_by", "")), tokens, rid)
 
@@ -312,7 +312,8 @@ def mark_run(name: str, result: str = "") -> bool:
         return False
     stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
     extra = {"last_result": result[:500]} if result else {}
-    _write([dict(j, last_run=stamp, **extra) if j.get("id") == sid else j for j in jobs])
+    _write([dict(j, last_run=stamp, **extra, **({"enabled": False} if j.get("once") else {}))
+            if j.get("id") == sid else j for j in jobs])
     return True
 
 
@@ -373,14 +374,18 @@ def register(mcp):
     @mcp.tool
     @_serialized
     def cron_add(name: str, schedule: str, prompt: str, notify: str = "user",
-                 enabled: bool = True, owner: str = "", runner: str | None = None) -> str:
+                 enabled: bool = True, owner: str = "", runner: str | None = None,
+                 once: bool | None = None) -> str:
         """Create/update a scheduled job (stored as DATA on the NAS).
         schedule = 5-field cron (e.g. "30 6 * * *" = 06:30 daily, server local
         time). prompt = what the triggered LLM run should do. notify = inbox
         recipient for the result (default "user").
 
         runner = which runner carries it out (an id from runner_list); leave it out to
-        keep the job's runner, "" for the standard runner.
+        keep the job's runner — a new job then goes to the person's own default runner.
+
+        once = True for a one-off job ("tomorrow at 8"): it switches itself off after
+        its run, so a date schedule like "0 8 4 11 *" doesn't come back next year.
 
         owner (act-as) = run this job in a user's area (their memory / vault /
         services / skills). A NON-ADMIN may schedule ONLY as themselves — their job
@@ -427,6 +432,7 @@ def register(mcp):
         jobs.append({"id": sid, "name": name, "schedule": schedule, "prompt": prompt,
                      "notify": notify or "user", "enabled": bool(enabled),
                      "owner": act_as, "runner": runner, "updated_by": by,
+                     "once": bool(history.get("once")) if once is None else bool(once),
                      "created": history.get("created")
                      or datetime.now().isoformat(timespec="seconds"),
                      "last_run": history.get("last_run", ""), **kept})
@@ -445,6 +451,7 @@ def register(mcp):
             f"- {j.get('id')} — {j.get('schedule')} — {'on' if j.get('enabled') else 'off'}"
             + (f" — as {j['owner']}" if j.get('owner') else "")
             + (f" — runner {j['runner']}" if j.get('runner') else "")
+            + (" — once" if j.get("once") else "")
             + f" — last {j.get('last_run') or 'never'} — {j.get('name', '')}"
             for j in jobs)
 
@@ -518,8 +525,7 @@ def register(mcp):
         # Only the jobs meant for an external runner: those assigned to it, and the
         # unassigned ones while no standard runner is on (as up to 2.2). A job with an
         # owner whose act-as token can't be minted is withheld, never run unconfined.
-        due = _claim(lambda j: runners.effective(j.get("runner", ""), data) == runners.EXTERNAL,
-                     tokens=True)
+        due = _claim(lambda j: runners.route(j, data) == runners.EXTERNAL, tokens=True)
         return json.dumps([{k: v for k, v in d.items() if k != "name"} for d in due],
                           ensure_ascii=False)
 

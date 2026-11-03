@@ -350,6 +350,8 @@ def register(mcp, h):
             args["owner"] = str(body["owner"]).strip()
         if body.get("runner") is not None:
             args["runner"] = str(body["runner"]).strip()
+        if body.get("once") is not None:
+            args["once"] = bool(body["once"])
         problem = cron.schedule_problem(args["schedule"])
         if not args["name"] or problem:
             return h.json({"ok": False, "message": problem or "name is required"}, 400)

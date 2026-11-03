@@ -33,7 +33,8 @@ def _row(rec: dict, data: dict, sub: str, admin: bool) -> dict:
         row = {k: row[k] if k in ("id", "name", "kind", "enabled") else ("" if k != "key" else None)
                for k in row}
         state = {"state": state["state"], "detail": "", "link": "", "at": state["at"]}
-    return dict(row, mine=mine, standard=rec["id"] == data["standard"], state=state)
+    return dict(row, mine=mine, standard=rec["id"] == data["standard"], state=state,
+                personal=mine and rec["id"] == runners.personal_default(data, sub))
 
 
 def register(mcp, h):
@@ -118,6 +119,11 @@ def register(mcp, h):
     async def _runners_standard(request):
         return await _simple(request, "runner_standard", lambda rid, body, sub, admin: runners.set_standard(
             rid, by=sub, admin=admin))
+
+    @mcp.custom_route("/ui/api/runners/personal", methods=["POST"])
+    async def _runners_personal(request):
+        return await _simple(request, "runner_personal", lambda rid, body, sub, admin: runners.set_personal(
+            rid, by=sub))
 
     @mcp.custom_route("/ui/api/runners/delete", methods=["POST"])
     async def _runners_delete(request):

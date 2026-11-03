@@ -151,9 +151,10 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Lesend, markiert NICHT als gelesen (PEEK); Anhänge optional → /data/work.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
-- Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner, runner]) / cron_list / cron_delete.
+- Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: der Job läuft im BEREICH dieses Users (Nicht-Admin darf nur als er selbst planen).
-  runner = wer ihn ausführt (runner_list zeigt deine Runner; leer = Standard-Runner). Runner richtet man in der
+  once=True für einmalige Jobs („morgen um 8“ = "0 8 <Tag> <Monat> *"): danach schaltet er sich aus.
+  runner = wer ihn ausführt (runner_list; ohne Angabe: der eigene Standard-Runner der Person). Runner richtet man in der
   WebUI ein (Reiter „Runner“): Claude-Cloud-Aufgabe (AICortex weckt sie mit dem Job), ChatGPT-Abo, API-Schlüssel
   oder OpenAI-kompatible Adresse (Ollama). Ein Claude-Runner führt nur Jobs aus, die sein Besitzer selbst schrieb.
   Ein eigenes Programm (RUNNER_TOKEN) holt Jobs mit cron_due → act_as_begin/act_as_end → cron_mark_run.
@@ -339,9 +340,10 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Read-only, does NOT mark seen (PEEK); attachments optionally → /data/work.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
-- Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner, runner]) / cron_list / cron_delete.
+- Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: the job runs in that user's AREA (a non-admin may schedule only as themselves).
-  runner = who carries it out (runner_list shows yours; empty = the standard runner). Runners are set up in the
+  once=True for a one-off job ("tomorrow at 8" = "0 8 <day> <month> *"): it then switches itself off.
+  runner = who carries it out (runner_list; none given: the person's own default runner). Runners are set up in the
   WebUI (tab "Runners"): a Claude cloud task (AICortex wakes it with the job), the ChatGPT plan, an API key or an
   OpenAI-compatible address (Ollama). A Claude runner only runs jobs its owner wrote.
   An own program (RUNNER_TOKEN) fetches jobs with cron_due → act_as_begin/act_as_end → cron_mark_run.

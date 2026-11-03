@@ -104,6 +104,7 @@
           <div class="panel">
             <h3 data-i18n="vault_list_title"></h3>
             <p class="dim small" data-i18n="vault_list_hint"></p>
+            <div class="tbl-scroll">
             <table class="tbl" id="vault-table">
               <thead><tr>
                 <th data-i18n="vault_col_name"></th>
@@ -113,10 +114,12 @@
               </tr></thead>
               <tbody></tbody>
             </table>
+            </div>
             <p id="vault-empty" class="dim hidden" data-i18n="vault_empty"></p>
           </div>
           <div class="panel accent">
-            <h3 data-i18n="vault_add_title"></h3>
+            <h3 id="vault-form-title" data-i18n="vault_add_title"></h3>
+            <p id="vault-edit-hint" class="dim small hidden" data-i18n="vault_edit_hint"></p>
             <form id="form-secret" autocomplete="off">
               <label data-i18n="vault_f_name"></label>
               <input id="sec-name" class="inp mono" required
@@ -133,7 +136,12 @@
               <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
               <datalist id="sec-owner-list"></datalist>
               <p class="dim small" data-i18n="vault_writeonly"></p>
-              <button class="btn primary" data-i18n="vault_save"></button>
+              <div class="btn-row">
+                <button class="btn primary" data-i18n="vault_save"></button>
+                <button type="button" id="btn-sec-cancel" class="btn ghost hidden" data-i18n="cancel"></button>
+                <span class="spacer"></span>
+                <button type="button" id="btn-sec-delete" class="btn danger hidden" data-i18n="delete"></button>
+              </div>
             </form>
           </div>
         </div>
@@ -307,6 +315,12 @@
         </header>
         <div class="panel">
           <p class="dim small" data-i18n="cron_hint"></p>
+          <ol class="rn-steps small">
+            <li data-i18n="cron_howto1"></li>
+            <li data-i18n="cron_howto2"></li>
+            <li data-i18n="cron_howto3"></li>
+          </ol>
+          <p class="small"><a class="rn-link" href="https://github.com/IkarusMK/AIcortex/blob/main/docs/scheduling.md" target="_blank" rel="noopener noreferrer" data-i18n="cron_guide"></a></p>
           <p id="cron-runner" class="small hidden" role="status"></p>
           <div class="tbl-scroll">
             <table class="tbl" id="cron-table">
@@ -365,6 +379,7 @@
             <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
             <select id="cron-runner-sel" class="inp"></select>
             <p class="dim small" data-i18n="cron_runner_hint"></p>
+            <label class="check"><input id="cron-once" type="checkbox"> <span data-i18n="cron_f_once"></span></label>
             <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
             <div class="btn-row">
               <button class="btn primary" data-i18n="save"></button>
@@ -384,6 +399,7 @@
         </header>
         <div class="panel">
           <p class="dim small" data-i18n="rn_hint"></p>
+          <p class="small"><a class="rn-link" href="https://github.com/IkarusMK/AIcortex/blob/main/docs/scheduling.md" target="_blank" rel="noopener noreferrer" data-i18n="cron_guide"></a></p>
           <p id="rn-beat" class="small hidden" role="status"></p>
           <div class="tbl-scroll">
             <table class="tbl" id="rn-table">

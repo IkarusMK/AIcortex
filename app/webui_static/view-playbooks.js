@@ -6,6 +6,7 @@ Object.assign(I18N.de, {
   nav_playbooks: "Playbooks", pb_start: "Lauf starten", pb_tab_runs: "Läufe", pb_tab_lib: "Bibliothek",
   pb_project_ph: "Projekt", pb_st_active: "Aktiv", pb_st_done: "Fertig", pb_st_cancelled: "Abgebrochen",
   pb_st_all: "Alle", pb_runs_empty: "Keine Läufe. Starte einen aus der Bibliothek.",
+  pb_runs_empty_lib: "Hier stehen gestartete Läufe — noch keiner. Deine Playbooks ({0}) findest du unter „Bibliothek“.",
   pb_f_playbook: "Playbook", pb_f_project: "Projekt", pb_f_title: "Titel (optional)", pb_go: "Starten",
   pb_next: "Als Nächstes", pb_goal: "Ziel", pb_approver: "Gibt frei", pb_appr_webui: "Freigabe in der WebUI",
   pb_appr_chat: "Freigabe auch im Chat", pb_appr_none: "ohne Freigabe",
@@ -25,6 +26,7 @@ Object.assign(I18N.en, {
   nav_playbooks: "Playbooks", pb_start: "Start a run", pb_tab_runs: "Runs", pb_tab_lib: "Library",
   pb_project_ph: "Project", pb_st_active: "Active", pb_st_done: "Done", pb_st_cancelled: "Cancelled",
   pb_st_all: "All", pb_runs_empty: "No runs. Start one from the library.",
+  pb_runs_empty_lib: "Started runs show here — none yet. Your playbooks ({0}) are in the “Library”.",
   pb_f_playbook: "Playbook", pb_f_project: "Project", pb_f_title: "Title (optional)", pb_go: "Start",
   pb_next: "Next", pb_goal: "Goal", pb_approver: "Approved by", pb_appr_webui: "approval in the WebUI",
   pb_appr_chat: "approval also in chat", pb_appr_none: "no approval",
@@ -41,7 +43,7 @@ Object.assign(I18N.en, {
   pb_ns_rejected: "{0}: rejected — rework and submit again",
 });
 
-let PB = { tab: "runs", runs: [], run: null, library: [], timer: null };
+let PB = { tab: "", runs: [], run: null, library: [], timer: null };
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -87,6 +89,11 @@ function pbSteps(run) {
 }
 
 async function loadPlaybooks() {
+  if (!PB.tab) {               // first visit: the library while no run was ever started
+    PB.library = (await api("/ui/api/playbooks")).playbooks;
+    const any = (await api("/ui/api/playbooks/runs?status=all")).runs;
+    PB.tab = !any.length && PB.library.length ? "lib" : "runs";
+  }
   $("#pb-tab-runs").classList.toggle("active", PB.tab === "runs");
   $("#pb-tab-lib").classList.toggle("active", PB.tab === "lib");
   $("#pb-runs").classList.toggle("hidden", PB.tab !== "runs");
@@ -97,7 +104,9 @@ async function loadPlaybooks() {
   PB.runs = (await api(`/ui/api/playbooks/runs?${p}`)).runs;
   const list = $("#pb-run-list");
   list.textContent = "";
-  if (!PB.runs.length) list.append(el("p", "dim", t("pb_runs_empty")));
+  if (!PB.runs.length) {
+    list.append(el("p", "dim", PB.library.length ? t("pb_runs_empty_lib", PB.library.length) : t("pb_runs_empty")));
+  }
   PB.runs.forEach((r) => {
     const it = el("div", "sk-item" + (PB.run && PB.run.id === r.id ? " active" : ""));
     const head = el("div", "n");

@@ -65,7 +65,7 @@ def _now() -> str:
 
 
 def _empty() -> dict:
-    return {"version": 1, "standard": "", "runners": []}
+    return {"version": 1, "standard": "", "runners": [], "personal": {}}
 
 
 def _new_id(runners: list) -> str:
@@ -99,7 +99,10 @@ def _clean(data) -> dict:
     if not isinstance(data, dict):
         return _empty()
     runners = [r for r in data.get("runners") or [] if isinstance(r, dict) and r.get("id")]
-    return {"version": 1, "standard": str(data.get("standard") or ""), "runners": runners}
+    ids = {r["id"] for r in runners}
+    personal = data.get("personal") if isinstance(data.get("personal"), dict) else {}
+    return {"version": 1, "standard": str(data.get("standard") or ""), "runners": runners,
+            "personal": {str(k): v for k, v in personal.items() if v in ids}}
 
 
 def load() -> dict:
@@ -128,6 +131,30 @@ def effective(job_runner: str, data: dict) -> str:
         return job_runner
     std = next((r for r in data.get("runners", []) if r.get("id") == data.get("standard")), None)
     return std["id"] if std and std.get("enabled") else EXTERNAL
+
+
+def personal_default(data: dict, person: str) -> str:
+    """A person's own default runner: the one they chose, else their only runner."""
+    mine = [r["id"] for r in data.get("runners", []) if person and r.get("owner") == person]
+    chosen = data.get("personal", {}).get(person)
+    if chosen in mine:
+        return chosen
+    return mine[0] if len(mine) == 1 else ""
+
+
+def route(job: dict, data: dict) -> str:
+    """The runner a job goes to: the one it names (switched off: the job waits); else
+    its person's own default runner when that is on and may take it; else the standard
+    runner when on; else an external one (as up to 2.2)."""
+    named = job.get("runner", "")
+    if named == EXTERNAL or any(r.get("id") == named for r in data.get("runners", [])):
+        return effective(named, data)
+    owner, by = job.get("owner", ""), job.get("updated_by", "")
+    rid = personal_default(data, owner or by)
+    rec = next((r for r in data.get("runners", []) if r["id"] == rid), None)
+    if rec and rec.get("enabled") and may_run(rec, data.get("standard", ""), owner, by):
+        return rid
+    return effective("", data)
 
 
 def may_run(rec: dict, standard_id: str, job_owner: str, job_by: str) -> bool:
@@ -363,7 +390,11 @@ def save(fields: dict, *, by: str, admin: bool, key: str = "", cloud_ok: bool = 
         standard = data["standard"]
         if not standard and not current and admin and kind in BUILTIN_KINDS:
             standard = rid
-        store.write_json(RUNNERS_FILE, {"version": 1, "standard": standard, "runners": runners})
+        personal = dict(data["personal"])
+        if not current and owner not in personal:          # the first runner is their default
+            personal[owner] = next(r["id"] for r in runners if r.get("owner") == owner)
+        store.write_json(RUNNERS_FILE, {"version": 1, "standard": standard, "runners": runners,
+                                        "personal": personal})
         old = (current or {}).get("key") or {}
         if old.get("name") == f"RUNNER_KEY_{rid}" and ref != old:     # its own key, now unused
             import secrets_store
@@ -401,11 +432,23 @@ def set_standard(rid: str, *, by: str, admin: bool):
     return _change(rid, by, admin, apply)
 
 
+def set_personal(rid: str, *, by: str):
+    """Make one of a person's own runners their default for jobs that name none."""
+    def apply(data, rec):
+        if rec.get("owner") != by:
+            return False, f"There is no runner '{rid}' you may change."
+        store.write_json(RUNNERS_FILE, dict(data, personal=dict(data["personal"], **{by: rid})))
+        return True, "This is now your default runner."
+    return _change(rid, by, False, apply)
+
+
 def delete(rid: str, *, by: str, admin: bool):
     def apply(data, rec):
         if rid == data["standard"]:
             return False, "The standard runner can't be deleted — make another one the standard first."
-        store.write_json(RUNNERS_FILE, dict(data, runners=[r for r in data["runners"] if r["id"] != rid]))
+        personal = {k: v for k, v in data["personal"].items() if v != rid}
+        store.write_json(RUNNERS_FILE, dict(data, personal=personal,
+                                            runners=[r for r in data["runners"] if r["id"] != rid]))
         ref = rec.get("key") or {}
         if ref.get("name") == f"RUNNER_KEY_{rid}":                 # its own key goes with it
             import secrets_store
@@ -428,14 +471,17 @@ def register(mcp):
     @mcp.tool
     def runner_list() -> str:
         """List the runners you may give a scheduled job to (id — name — kind — on/off).
-        Assign one with cron_add(runner=<id>); without one a job goes to the standard
-        runner. Runners are set up in the WebUI (tab "Runner")."""
+        Assign one with cron_add(runner=<id>); without one a job goes to its person's
+        own default runner (marked "your default"), else to the standard runner.
+        Runners are set up in the WebUI (tab "Runner")."""
         ident, role = _caller()
         admin = role == "admin"
         data = load()
         lines = []
+        mine = personal_default(data, ident)
         for r in visible(data, ident, admin):
             tags = (" — standard" if r["id"] == data["standard"] else "") + (
+                " — your default" if r["id"] == mine else "") + (
                 f" — owner {r.get('owner') or '?'}" if admin else "")
             lines.append(f"- {r['id']} — {r.get('name', '')} — {r.get('kind', '')} — "
                          f"{'on' if r.get('enabled') else 'off'}{tags}")

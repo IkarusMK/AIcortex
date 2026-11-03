@@ -5,7 +5,7 @@
 
 Object.assign(I18N.de, {
   nav_runners: "Runner", rn_new: "Neuer Runner",
-  rn_hint: "Ein Runner führt deine Cron-Jobs aus. AICortex prüft jede Minute ohne Modell, ob ein Job fällig ist — erst dann weckt es Claude oder fragt das Modell des Runners. Jobs ohne eigenen Runner laufen beim Standard-Runner.",
+  rn_hint: "Ein Runner führt deine Cron-Jobs aus. AICortex prüft jede Minute ohne Modell, ob ein Job fällig ist — erst dann weckt es Claude oder fragt das Modell des Runners. Jobs ohne Angabe laufen bei deinem Standard-Runner (dein erster Runner, änderbar mit „Als mein Standard“).",
   rn_col_name: "Name", rn_col_kind: "Art", rn_col_state: "Status", rn_col_on: "An", rn_col_owner: "Gehört",
   rn_empty: "Noch kein Runner — lege einen an, damit deine Jobs laufen.",
   rn_standard: "Standard", rn_beat_none: "Kein Runner an — Jobs laufen erst, wenn einer eingeschaltet ist.",
@@ -35,6 +35,7 @@ Object.assign(I18N.de, {
   rn_s_ran: "{0}: {1}", "rn_s_no-key": "kein brauchbarer Schlüssel/Token gespeichert",
   "rn_s_no-signin": "noch nicht mit ChatGPT angemeldet", rn_s_error: "Fehler ({0}) — {1}",
   rn_session: "Claude-Sitzung öffnen ↗", rn_test: "Testen", rn_make_std: "Als Standard",
+  rn_mine: "Mein Standard", rn_make_mine: "Als mein Standard",
   confirm_rn_test_cloud: "Claude jetzt zum Test wecken? Das startet eine kurze Sitzung in deinem Konto.",
   confirm_rn_delete: "Runner „{0}“ löschen? Seine Jobs laufen danach beim Standard-Runner.",
   toast_rn_saved: "Runner gespeichert.", toast_rn_deleted: "Runner gelöscht.",
@@ -50,7 +51,7 @@ Object.assign(I18N.de, {
 });
 Object.assign(I18N.en, {
   nav_runners: "Runners", rn_new: "New runner",
-  rn_hint: "A runner carries out your scheduled jobs. AICortex checks every minute without any model whether a job is due — only then does it wake Claude or ask the runner's model. Jobs without a runner of their own go to the standard runner.",
+  rn_hint: "A runner carries out your scheduled jobs. AICortex checks every minute without any model whether a job is due — only then does it wake Claude or ask the runner's model. Jobs that name none go to your default runner (your first one; change it with “Make my default”).",
   rn_col_name: "Name", rn_col_kind: "Kind", rn_col_state: "State", rn_col_on: "On", rn_col_owner: "Owner",
   rn_empty: "No runner yet — set one up so your jobs run.",
   rn_standard: "Standard", rn_beat_none: "No runner is on — jobs only run once one is switched on.",
@@ -80,6 +81,7 @@ Object.assign(I18N.en, {
   rn_s_ran: "{0}: {1}", "rn_s_no-key": "no usable key/token stored",
   "rn_s_no-signin": "not signed in with ChatGPT yet", rn_s_error: "error ({0}) — {1}",
   rn_session: "Open the Claude session ↗", rn_test: "Test", rn_make_std: "Make standard",
+  rn_mine: "My default", rn_make_mine: "Make my default",
   confirm_rn_test_cloud: "Wake Claude now for a test? This starts a short session in your account.",
   confirm_rn_delete: "Delete runner “{0}”? Its jobs then go to the standard runner.",
   toast_rn_saved: "Runner saved.", toast_rn_deleted: "Runner deleted.",
@@ -130,11 +132,11 @@ function rnRow(rec) {
   const tr = document.createElement("tr");
   const name = document.createElement("td");
   name.className = "rn-name"; name.textContent = rec.name;
-  if (rec.standard) {
+  [[rec.standard, "rn_standard"], [rec.personal, "rn_mine"]].filter(([on]) => on).forEach(([, key]) => {
     const tag = document.createElement("span");
-    tag.className = "tag ok"; tag.textContent = t("rn_standard");
+    tag.className = "tag ok"; tag.textContent = t(key);
     name.append(tag);
-  }
+  });
   const kind = document.createElement("td");
   kind.className = "small"; kind.textContent = t(`rn_k_${rec.kind}`);
   const on = document.createElement("td");
@@ -154,6 +156,7 @@ function rnRow(rec) {
   const act = document.createElement("td");
   act.className = "actions";
   if (rec.mine) act.append(rnButton("rn_test", "ghost", () => testRunner(rec)), rnButton("sv_edit", "ghost", () => openRunner(rec)));
+  if (rec.mine && !rec.personal) act.append(rnButton("rn_make_mine", "ghost", () => rnPost("/ui/api/runners/personal", { id: rec.id })));
   if (isAdmin() && rec.mine && !rec.standard && rec.kind !== "claude-cloud") {
     act.append(rnButton("rn_make_std", "ghost", () => rnPost("/ui/api/runners/standard", { id: rec.id })));
   }
