@@ -158,6 +158,10 @@ def v1_phase(base, idp):
     key = next((w for w in r[-1].replace("`", " ").split() if w.startswith("ak_")), "")
     assert key, r[-1]
     assert idp.echo_seen and "s3cr3t-echo" in json.dumps(idp.echo_seen[-1]), "v1 echo"
+    # The runner set up in the WebUI as 2.2 kept it (2.3 takes it over as the standard runner).
+    (DATA / "cron_dir").mkdir(parents=True, exist_ok=True)
+    (DATA / "cron_dir" / "runner_config.json").write_text(json.dumps({
+        "backend": "openrouter", "model": "vendor/model-a", "builtin": True, "updated_by": "upgrade-check"}))
     print("v1: data written; REST key and v1 echo ok")
     return client_id, tok, key
 
@@ -184,6 +188,7 @@ def v2_phase(base, idp, client_id, tok, key):
             ("cron_list", {}),
             ("bootstrap", {}),
             ("cortex_start", {}),
+            ("runner_list", {}),
         ]))
         check("old OAuth access token still accepted", True)
     except Exception as exc:
@@ -191,7 +196,7 @@ def v2_phase(base, idp, client_id, tok, key):
         r = None
     if r:
         (tools, read_title, read_name, rewrite, mlist, s_duese, s_printer, skill, s_skill,
-         secrets, echo, tasks, sess, agents, cron, boot, start) = r
+         secrets, echo, tasks, sess, agents, cron, boot, start, runners) = r
         check("tools/list works", len(tools) > 0, str(tools))
         check("bootstrap is offered (old project instructions say 'call bootstrap')",
               "bootstrap" in tools, str(tools))
@@ -218,6 +223,10 @@ def v2_phase(base, idp, client_id, tok, key):
         check("old cron job listed", "daily-check" in cron, cron[:300])
         check("bootstrap still answers", not boot.startswith("ERROR") and len(boot) > 50, boot[:200])
         check("cortex_start works on old data", "Answer style" in start, start[:400])
+        check("the old runner setup is the standard runner", "Standard — openrouter — on — standard"
+              in runners, runners[:300])
+        check("the old cron job stays unassigned (goes to the standard runner)",
+              "daily-check" in cron and "runner r_" not in cron, cron[:300])
 
     # 2. Refresh token from v1 yields a working v2 token.
     rr = httpx.post(meta["token_endpoint"], data={"grant_type": "refresh_token",

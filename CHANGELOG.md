@@ -5,6 +5,62 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+Runners: AICortex wakes your Claude with the due job, or asks your ChatGPT plan, an API
+key or a local Ollama — each person sets up their own, and each job names its runner.
+
+### Added
+- **A Runner tab** in the WebUI, for everyone: a person's own runners (admins see all),
+  their state, the link to the last Claude session, *Test*, on/off. Kinds:
+  - **Claude (cloud task)** — AICortex wakes a Claude Code cloud task of yours through
+    its API trigger and **sends the due job along**; Claude runs it on your own plan and
+    reaches AICortex through your connector. The task needs one fixed sentence as its
+    prompt, once (the WebUI shows it to copy). At most one wake-up every two minutes,
+    `Retry-After` honoured, never retried (no duplicate sessions); a run is recorded with
+    the session link.
+  - **ChatGPT plan**, **Anthropic / OpenAI / OpenRouter / Gemini key**, and
+    **OpenAI-compatible** (admins) — any address such as Ollama in the LAN, checked by
+    the SSRF guard when saved and again for every request.
+- **Keys from the vault**: a runner's key is typed in (stored as its own internal entry
+  `RUNNER_KEY_<id>`) or picked from the vault by name — a person only their own entries,
+  an admin shared ones too, the server's internal names never.
+- **Each job names its runner**: `cron_add(…, runner=…)`, `runner_list`, a Runner column
+  and field under *Scheduled jobs*. A job without one goes to the **standard runner**
+  (one of an admin's); a Claude runner only takes jobs its owner wrote (prompt, name and
+  recipient) — never ones written with an agent key.
+- Limits: 10 runners per person (admins: none), keys up to 1,024 characters, job
+  prompts up to 20,000 characters.
+- *Test* on a runner: one tiny question without tools, or a harmless wake-up of the
+  cloud task.
+
+### Changed
+- **AICortex confines each job itself**: where it asks the model, every job is a
+  conversation of its own, confined to the owner's area (act-as) before the model sees
+  it and released afterwards, even on errors; AICortex records the run. The model no
+  longer sees act-as tokens and can't call `act_as_*`, `cron_due` or `cron_mark_run`
+  (before, a job's prompt could talk the model out of confining itself).
+- Runners tick in one thread and ask their models side by side in a worker (each with
+  its own in-memory token, each job with five minutes), so a slow model holds up
+  nobody else and never a Claude wake-up. Other people see only the name, kind and
+  on/off of the standard runner.
+- `cron_due` (an own runner with `RUNNER_TOKEN`) gets the jobs assigned to `external`,
+  and the unassigned ones while no standard runner is on — as before.
+- An act-as run is bound to the caller's identity **and credential**: the built-in
+  runner and an own runner (both identity `runner`) no longer block each other.
+- Vault names starting with `RUNNER_` are internal now — no service can use them.
+- The 2.2 setup becomes the standard runner on first start; its key stays where it is
+  and `runner_config.json` is left in place.
+
+### Removed
+- **Claude via `claude setup-token`**: Anthropic refuses a subscription token outside
+  Claude Code (HTTP 429 "rate_limit_error: Error"). A 2.2 setup using it becomes a
+  switched-off Claude runner with a note; set up a cloud task instead and delete the old
+  token `RUNNER_LLM_KEY` in the vault.
+- The runner panel under *Scheduled jobs* and its routes `/ui/api/runner` and
+  `/ui/api/runner/config` (now the Runner tab and `/ui/api/runners`).
+
+### Docs
+- README: runners, the Claude cloud task, keys from the vault, Ollama; WebUI table.
+- docs/authorization.md: the rights of a Claude runner; act-as per credential.
 
 ## [2.2.0] — 2026-11-03
 Scheduled jobs run inside AICortex — on a Claude or ChatGPT plan or an API key, with

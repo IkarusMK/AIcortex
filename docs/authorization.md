@@ -25,7 +25,21 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 
 > `cron_add`/`cron_delete` are **not** admin-only: a non-admin may schedule and
 > delete their **own** jobs (owner-scoped), an admin any. `cron_due`/`cron_mark_run`
-> and `act_as_begin`/`act_as_end` are the NAS runner's plumbing (runner/admin only).
+> and `act_as_begin`/`act_as_end` are the NAS runner's plumbing (runner/admin only) —
+> except that the owner of a **Claude cloud runner** may `cron_mark_run` that runner's
+> jobs, since its Claude session reports back as that person.
+>
+> **Runners and rights.** A runner AICortex asks itself (an API key, the ChatGPT plan,
+> an OpenAI-compatible address) works through `/mcp` as the runner, and a job with an
+> owner runs **act-as** in that owner's area — AICortex starts and ends that itself,
+> one job per conversation; the model never sees the token and can't call
+> `act_as_*`, `cron_due` or `cron_mark_run`. A **Claude cloud runner** is different:
+> the cloud task runs in the person's own Claude account and calls AICortex through
+> their connector — with **their interactive role** and all their claude.ai
+> connectors. That is why it only runs jobs whose prompt its owner wrote (`cron_add`
+> records who wrote the prompt and refuses anything else). An act-as run is bound to
+> the caller's identity **and credential**, so the built-in runner and an own runner
+> with `RUNNER_TOKEN` (both identity `runner`) never share one.
 
 ## Defaults (what happens out of the box)
 

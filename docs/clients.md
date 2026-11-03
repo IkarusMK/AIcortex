@@ -69,8 +69,8 @@ apikey_create(identity="<person's id>", name="hermes", scopes="all")
   page or with `apikey_revoke`.
 
 `RUNNER_TOKEN` (from `.env`) is a separate fixed token, only for an own
-scheduled-job runner outside AICortex. The built-in runner (*Scheduled jobs → Set
-up the runner* in the WebUI) does not need it.
+scheduled-job runner outside AICortex. The runners set up in the WebUI (tab
+*Runners*) do not need it.
 
 Keep tokens out of chat logs: put them in the client's secret store or an
 environment variable where the client supports that (shown below).

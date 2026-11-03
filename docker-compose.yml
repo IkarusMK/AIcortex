@@ -33,7 +33,7 @@ services:
       ALLOW_INSECURE: "${ALLOW_INSECURE:-}"
       ALLOW_PLAINTEXT_VAULT: "${ALLOW_PLAINTEXT_VAULT:-}"
       # Optional static token for headless machine clients (an own runner outside
-      # AICortex, any LLM); the built-in runner in the WebUI does not need it.
+      # AICortex, any LLM); the runners set up in the WebUI do not need it.
       # When set, the connector accepts it ALONGSIDE OIDC (MultiAuth).
       # Generate: openssl rand -hex 32
       RUNNER_TOKEN: "${RUNNER_TOKEN:-}"
