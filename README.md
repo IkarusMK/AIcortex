@@ -231,10 +231,12 @@ Sub-agent *spawning* stays client-side; the connector is the shared coordination
 
 ## Autonomy & scheduling
 
-Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt[, runner])` from any device, or **Scheduled jobs** in the WebUI (presets, a preview of the next runs, on/off, the job's runner). **Runners** carry them out — set up in the WebUI, tab **Runners**, by every person for their own jobs; no extra container, nothing to install:
+**New here? → [Scheduled jobs and runners, step by step](docs/scheduling.md).**
+
+Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt[, runner, once])` from any device, or **Scheduled jobs** in the WebUI (presets, a preview of the next runs, on/off, the job's runner). **Runners** carry them out — set up in the WebUI, tab **Runners**, by every person for their own jobs; no extra container, nothing to install:
 
 1. Once a minute, on the minute, AICortex checks for due jobs — **without any model**, so an idle minute costs nothing. A minute it missed (slow run, restart) is caught up for five minutes.
-2. Only when a job is due does it wake or ask the job's runner. A job without a runner of its own goes to the **standard runner** (one of an admin's).
+2. Only when a job is due does it wake or ask the job's runner. A job that names none goes to its person's **own default runner** (their first one, or the one they chose), else to the **standard runner** (one of an admin's). A one-off job (`once`) switches itself off after its run.
 3. The job runs **through this connector** and reports via your configured channel or the connector **inbox**; `cron_mark_run` records the result.
 
 **Kinds of runner:**
