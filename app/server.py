@@ -337,7 +337,7 @@ if __name__ == "__main__":
     if os.environ.get("MCP_ALLOWED_HOSTS"):
         print(f"[AICortex] host guard: strict — only {os.environ['MCP_ALLOWED_HOSTS']} "
               f"(+ BASE_URL host, localhost)")
-    # The built-in runner checks once a minute and stays idle until it is switched on
-    # in the WebUI (Scheduled jobs → Set up the runner).
+    # The runners tick once a minute and stay idle until one is switched on in the
+    # WebUI (tab "Runners").
     runner_builtin.start(PORT)
     mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware())

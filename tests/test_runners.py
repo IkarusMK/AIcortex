@@ -260,3 +260,16 @@ def test_runner_list_shows_each_person_their_runners_and_no_key_names(reg):
     assert "RUNNER_KEY_" not in out and KEY not in out
     everything = _call("runner_list", "boss", "admin")
     assert bobs["id"] in everything and "standard" in everything
+
+
+def test_a_cloud_runner_needs_a_sign_in_of_ones_own(reg):
+    ok, msg, _ = reg.save({"kind": "claude-cloud", "trigger": "trig_0001"}, by="local-operator",
+                          admin=True, key="sk-ant-oat01-t", cloud_ok=False)
+    assert not ok and "OIDC" in msg
+
+
+def test_the_guide_tells_models_how_to_pick_a_runner(reg):
+    guide = sys.modules["guide"] if "guide" in sys.modules else __import__("guide")
+    text = guide.GUIDE
+    assert text.count("runner_list") >= 2 and "cron_add(name, schedule, prompt[, owner, runner])" in text
+    assert "setup-token" not in text and len(guide.INSTRUCTIONS) <= 2000

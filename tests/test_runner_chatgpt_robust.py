@@ -27,7 +27,7 @@ import pytest
 
 from test_cov_webui import _audit_lines, ui  # noqa: F401 - ui is a fixture
 from test_runner_chatgpt import (FakeOpenAI, Responses, _callback, _expire, _job, _params,  # noqa: F401
-                                 _run, _setup, _sign_in, connector, openai)
+                                 _run, _setup, _sign_in, _state, connector, openai)
 
 COMPLETED = b'data: {"type":"response.completed","response":{"output":[]}}\n\n'
 URL = "https://api.openai.com/v1/responses"
@@ -105,7 +105,7 @@ def test_odd_output_items_are_skipped(connector, openai, monkeypatch):
         return {"output": ["junk", {"type": "function_call", "name": "cron_mark_run"},
                            {"type": "message", "content": "not a list"}]}
     count, builtin = _run(connector, monkeypatch, odd)
-    assert count == 1 and builtin.status()["state"] == "ran"
+    assert count == 1 and _state() == "ran"
 
 
 # ── the sign-in ──────────────────────────────────────────────────────────────

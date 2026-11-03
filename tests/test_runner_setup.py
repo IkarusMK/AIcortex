@@ -1,16 +1,13 @@
-"""Runner setup from the WebUI: the model access, kept inside AICortex.
+"""The runner's model access stays inside AICortex; an own runner keeps working.
 
 Before (2.1.0): a separate runner container fetched the model key with the
-`runner_config` tool and connected with a runner key made in the WebUI. Now the
-runner is built in, so neither exists any more. Proves:
+`runner_config` tool and connected with a runner key made in the WebUI. Now runners
+are built in (runners.py), so neither exists any more. Proves:
 - `runner_config` is gone — no tool, no router entry, no WebUI route for runner keys;
 - runner keys made in 2.1.0 and RUNNER_TOKEN still connect as the runner (an own
   runner keeps working), with admin tools refused;
-- the stored key is never shown in the WebUI and cannot be used by a service;
-- an Anthropic key is one option; a setup saved as the former `anthropic` is read as
-  `claude-api`;
-- the WebUI routes are admin-only, CSRF-gated, validate the backend and keep an
-  existing key when the field is left empty.
+- a runner's key — the one 2.2 kept and the ones typed in since — can't be used by a
+  service.
 """
 import asyncio
 import json
@@ -49,8 +46,11 @@ def _call(url, token, tool, args=None):
     return _client_run(url, token, call)
 
 
-def _setup(backend="openrouter", model="anthropic/claude-sonnet-4.5", key=KEY):
-    return sys.modules["runner_setup"].save_config(backend, model, key, by="boss")
+def _setup(kind="openrouter", model="anthropic/claude-sonnet-4.5", key=KEY):
+    ok, msg, rec = sys.modules["runners"].save({"kind": kind, "model": model}, by="boss",
+                                               admin=True, key=key)
+    assert ok, msg
+    return rec
 
 
 def _runner_key_from_2_1():
@@ -83,7 +83,7 @@ def test_runner_keys_are_no_longer_made(connector):
 @pytest.mark.oidc
 def test_the_webui_has_no_runner_key_route(ui):
     assert not [r for r in ui.mcp.routes if r[0].startswith("/ui/api/runner/key")]
-    assert "keys" not in ui.call("/ui/api/runner")[1]
+    assert "keys" not in ui.call("/ui/api/runners")[1]
 
 
 # ── an own runner keeps working ──────────────────────────────────────────────
@@ -109,39 +109,8 @@ def test_a_revoked_runner_key_is_rejected(connector):
 
 # ── the key stays inside ─────────────────────────────────────────────────────
 def test_a_service_cannot_borrow_the_runner_key(connector):
-    _setup()
-    assert sys.modules["secrets_store"].get_secret("RUNNER_LLM_KEY") is None
-
-
-def test_an_anthropic_key_is_one_option_and_the_old_name_is_read_as_it(connector):
-    rs = sys.modules["runner_setup"]
-    assert "anthropic" not in rs.BACKENDS and "claude-api" in rs.BACKENDS
-    ok, _ = rs.save_config("anthropic", "anthropic/claude-sonnet-4-5", "sk-ant-x", by="boss")
-    assert ok and rs.read_config()["backend"] == "claude-api"
-    sys.modules["store"].write_json(rs.CONFIG_FILE, {"backend": "anthropic", "model": "m", "builtin": True})
-    assert rs.read_config()["backend"] == "claude-api" and rs.status()["backend"] == "claude-api"
-
-
-# ── WebUI ────────────────────────────────────────────────────────────────────
-@pytest.mark.oidc
-def test_the_webui_shows_the_setup_but_never_the_key(ui):
-    _setup()
-    status, body = ui.call("/ui/api/runner")
-    assert status == 200 and KEY not in json.dumps(body)
-    assert (body["backend"], body["model"], body["key_set"]) == (
-        "openrouter", "anthropic/claude-sonnet-4.5", True)
-    assert ui.call("/ui/api/runner", role="user")[0] == 403
-
-
-@pytest.mark.oidc
-def test_saving_validates_and_keeps_the_key_when_left_empty(ui):
-    status, body = ui.call("/ui/api/runner/config", "POST",
-                           body={"backend": "claude-abo", "model": "", "key": "sk-ant-oat01-x"})
-    assert status == 200 and body["ok"]
-    status, body = ui.call("/ui/api/runner/config", "POST", body={"backend": "claude-abo", "model": "opus"})
-    assert status == 200
-    assert sys.modules["runner_setup"]._stored_key() == "sk-ant-oat01-x"
-    assert ui.call("/ui/api/runner/config", "POST", body={"backend": "nope"})[0] == 400
-    assert ui.call("/ui/api/runner/config", "POST", body={"backend": "openai", "model": ""})[0] == 400
-    assert ui.call("/ui/api/runner/config", "POST", csrf=None, body={"backend": "openai", "model": "x"})[0] == 403
-    assert "sk-ant-oat01-x" not in json.dumps(_audit_lines())
+    rec = _setup()
+    vault = sys.modules["secrets_store"]
+    vault.vault_set("RUNNER_LLM_KEY", KEY)                         # as 2.2 kept it
+    assert vault.get_secret("RUNNER_LLM_KEY") is None
+    assert vault.get_secret(f"RUNNER_KEY_{rec['id']}") is None

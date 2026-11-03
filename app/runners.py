@@ -49,13 +49,15 @@ LABELS = {CLOUD: "Claude (cloud task)", CHATGPT: "ChatGPT plan", "anthropic": "A
 LEGACY_KINDS = {"claude-abo": CLOUD, "chatgpt-abo": CHATGPT, "claude-api": "anthropic",
                 "anthropic": "anthropic", "openai": "openai", "openrouter": "openrouter",
                 "gemini": "gemini"}
-SETUP_TOKEN_NOTE = (
+SETUP_TOKEN_NOTE = (  # nosec B105 - a message, not a secret
     "Claude via `claude setup-token` no longer works — Anthropic refuses the token outside "
     "Claude Code. Set up a Claude cloud task instead (see the Runner tab), then delete the "
     "old token RUNNER_LLM_KEY in the vault.")
 FIRE_URL = "https://api.anthropic.com/v1/claude_code/routines/{trigger}/fire"
 TRIGGER = re.compile(r"trig_[A-Za-z0-9_-]{4,80}")
 NAME_MAX, MODEL_MAX, URL_MAX = 80, 200, 300
+KEY_MAX = 1024             # characters of a key or token typed in
+MAX_PER_PERSON = 10        # runners a non-admin may have
 
 
 def _now() -> str:
@@ -87,7 +89,8 @@ def _migrated(cfg: dict) -> dict:
            "key": None if kind == CHATGPT else {"name": LEGACY_KEY, "shared": True},
            "created": now, "updated": now, "updated_by": owner}
     if kind == CLOUD:
-        rec = dict(rec, enabled=False, model="", key=None, note=SETUP_TOKEN_NOTE)
+        rec = dict(rec, name="Claude (setup-token)", enabled=False, model="", key=None,
+                   note=SETUP_TOKEN_NOTE)
         return {"version": 1, "standard": "", "runners": [rec]}
     return {"version": 1, "standard": rec["id"], "runners": [rec]}
 
@@ -157,6 +160,20 @@ def public(rec: dict) -> dict:
                 key={"name": ref["name"], "shared": bool(ref.get("shared"))} if ref else None)
 
 
+def external_available() -> bool:
+    """Can an own program fetch jobs — RUNNER_TOKEN set, or a runner key from 2.1?"""
+    if os.environ.get("RUNNER_TOKEN"):
+        return True
+    try:
+        import json
+
+        import apikeys
+        return any(json.loads(p.read_text(encoding="utf-8")).get("runner")
+                   for p in apikeys.APIKEY_DIR.glob("*.json"))
+    except Exception:
+        return False
+
+
 def fire_url(rec: dict) -> str:
     return FIRE_URL.format(trigger=rec["trigger"]) if TRIGGER.fullmatch(rec.get("trigger") or "") else ""
 
@@ -195,10 +212,13 @@ def key_path(rec: dict) -> str:
 
 
 def resolve_key(rec: dict) -> str:
-    """The runner's key, read server-side from exactly the entry it names."""
+    """The runner's key, read server-side from exactly the entry it names — trimmed; ""
+    when it is missing or holds spaces or control characters (it would break the
+    request header and could end up in an error message)."""
     import secrets_store
     path = key_path(rec)
-    return str(secrets_store._read_all().get(path) or "") if path else ""
+    key = str(secrets_store._read_all().get(path) or "").strip() if path else ""
+    return key if key.isprintable() and not any(c.isspace() for c in key) else ""
 
 
 def _picked_key(ref, owner: str, admin: bool, current):
@@ -213,8 +233,11 @@ def _picked_key(ref, owner: str, admin: bool, current):
         return None, f"'{ref['name']}' belongs to AICortex itself and can't be a runner's key."
     if ref["shared"] and not admin:
         return None, "Only an admin may use a shared vault entry — pick one of your own."
-    if not resolve_key({"key": ref, "owner": owner}):
+    probe = {"key": ref, "owner": owner}
+    if key_path(probe) not in secrets_store._read_all():
         return None, f"There is no vault entry '{ref['name']}' you may use."
+    if not resolve_key(probe):
+        return None, f"The vault entry '{ref['name']}' holds spaces or line breaks — fix it in the vault first."
     return ref, ""
 
 
@@ -276,14 +299,19 @@ def _fields(fields: dict, current, kind: str, cloud_ok: bool):
 
 
 def _rights(data: dict, current, kind: str, by: str, admin: bool) -> str:
-    if current and current.get("owner") != by:
-        return "Only the runner's owner can change it — an admin may switch it off or delete it."
+    if current and current.get("owner") != by and not (admin and not current.get("owner")):
+        return ("Only the runner's owner can change it — an admin may switch it off or delete it."
+                if admin else f"There is no runner '{current['id']}' you may change.")
     if kind not in KINDS:
         return f"Unknown kind '{kind}' — choose one of {', '.join(KINDS)}."
     if current and kind != current.get("kind"):
         return "A runner's kind can't change — make a new runner instead."
     if kind == CHATGPT and not admin:
         return "Only an admin can set up the ChatGPT runner."
+    if kind == "compatible" and not admin:
+        return "Only an admin can point a runner at an own address."
+    if not current and not admin and sum(r.get("owner") == by for r in data["runners"]) >= MAX_PER_PERSON:
+        return f"You have {MAX_PER_PERSON} runners already — delete one first."
     if kind == CHATGPT and not current and any(r.get("kind") == CHATGPT for r in data["runners"]):
         return "There is one ChatGPT runner at most — AICortex signs in with one ChatGPT account."
     return ""
@@ -298,15 +326,17 @@ def save(fields: dict, *, by: str, admin: bool, key: str = "", cloud_ok: bool = 
         data = load()
         current = next((r for r in data["runners"] if r["id"] == rid), None)
         if rid and current is None:
-            return False, f"There is no runner '{rid}'.", None
+            return False, f"There is no runner '{rid}' you may change.", None
         kind = str(fields.get("kind") or (current or {}).get("kind") or "").strip()
         problem = _rights(data, current, kind, by, admin)
         values, problem = (None, problem) if problem else _fields(fields, current, kind, cloud_ok)
         if problem:
             return False, problem, None
-        owner = current["owner"] if current else by
+        owner = (current or {}).get("owner") or by            # an admin takes on an ownerless one
         rid = rid or _new_id(data["runners"])
         typed = (key or "").strip()
+        if len(typed) > KEY_MAX:
+            return False, "The key is too long.", None
         ref = (current or {}).get("key")
         if typed:
             ref = {"name": f"RUNNER_KEY_{rid}", "shared": not owner}
@@ -316,6 +346,8 @@ def save(fields: dict, *, by: str, admin: bool, key: str = "", cloud_ok: bool = 
                 return False, problem, None
         if kind in KEY_REQUIRED and not ref:
             return False, "Enter the key once or pick one from the vault — nothing is stored yet.", None
+        if ref and ref.get("shared") and not admin:
+            return False, "Only an admin may use a shared vault entry — pick one of your own.", None
         if typed:
             import secrets_store
             msg = secrets_store.vault_set(ref["name"], typed, owner=owner,
@@ -332,6 +364,10 @@ def save(fields: dict, *, by: str, admin: bool, key: str = "", cloud_ok: bool = 
         if not standard and not current and admin and kind in BUILTIN_KINDS:
             standard = rid
         store.write_json(RUNNERS_FILE, {"version": 1, "standard": standard, "runners": runners})
+        old = (current or {}).get("key") or {}
+        if old.get("name") == f"RUNNER_KEY_{rid}" and ref != old:     # its own key, now unused
+            import secrets_store
+            secrets_store.vault_delete(old["name"], owner="" if old.get("shared") else owner)
         return True, "Runner saved.", rec
 
 
@@ -339,15 +375,15 @@ def _change(rid: str, by: str, admin: bool, fn):
     with store.locked(RUNNERS_FILE):
         data = load()
         rec = next((r for r in data["runners"] if r["id"] == rid), None)
-        if rec is None:
-            return False, f"There is no runner '{rid}'."
-        if not (admin or rec.get("owner") == by):
-            return False, "Only the runner's owner or an admin can do that."
+        if rec is None or not (admin or rec.get("owner") == by):
+            return False, f"There is no runner '{rid}' you may change."
         return fn(data, rec)
 
 
 def set_enabled(rid: str, enabled: bool, *, by: str, admin: bool):
     def apply(data, rec):
+        if enabled and rec.get("owner") not in ("", by):
+            return False, "Only the runner's owner can switch it on — an admin may switch it off."
         runners = [dict(r, enabled=bool(enabled), updated=_now(), updated_by=by)
                    if r["id"] == rid else r for r in data["runners"]]
         store.write_json(RUNNERS_FILE, dict(data, runners=runners))
@@ -403,4 +439,6 @@ def register(mcp):
                 f" — owner {r.get('owner') or '?'}" if admin else "")
             lines.append(f"- {r['id']} — {r.get('name', '')} — {r.get('kind', '')} — "
                          f"{'on' if r.get('enabled') else 'off'}{tags}")
+        if admin and external_available():
+            lines.append(f"- {EXTERNAL} — an own program that fetches its jobs (RUNNER_TOKEN)")
         return "\n".join(lines) if lines else "No runners yet — set one up in the WebUI (tab \"Runner\")."

@@ -354,7 +354,7 @@ def access_token(force_refresh: bool = False) -> str:
     with _lock:
         sess = _session()
         if not sess.get("refresh_token"):
-            raise SignInNeeded("Not signed in with ChatGPT — sign in under Scheduled jobs → Set up the runner.")
+            raise SignInNeeded("Not signed in with ChatGPT — sign in on the ChatGPT runner in the Runners tab.")
         if PLAN_SCOPE not in sess.get("scopes", []):
             raise SignInNeeded("Using the ChatGPT plan was not allowed — sign in again and allow it.")
         if force_refresh or time.time() >= float(sess.get("expires_at") or 0) - EARLY_REFRESH_SECONDS:

@@ -1,25 +1,22 @@
 """The built-in runner: AICortex runs its own due jobs with an API model.
 
 Before: scheduled jobs needed a separate runner container with its own folder, key
-and project. Now an admin switches the runner on in the WebUI. Proves:
+and project. Now runners are set up in the WebUI (runners.py). Proves:
 - it reaches the connector as the runner with an in-memory token (no stored key);
 - an idle minute calls no model; a due job goes to the provider's OpenAI-compatible
-  chat API with the stored key, and the model's tool calls run through the
-  connector — never cron_due, not even through the router;
-- a Claude subscription token (`claude setup-token`) goes straight to Anthropic's
-  Messages API as an OAuth token — no Claude Code needed; an Anthropic key too, also
-  one saved under the former name `anthropic`;
+  chat API with the runner's key, and the model's tool calls run through the
+  connector — never the runner plumbing (cron_due, cron_mark_run), not even through
+  the router; AICortex records the run with the model's last words;
+- an Anthropic key uses Anthropic's Messages API, also a 2.2 setup saved under the
+  former name `anthropic`;
 - it stays off unless switched on;
-- a job is handed to one runner per slot, so two runners never run it twice;
-- the WebUI saves the switch and shows the built-in runner's state.
+- a job is handed to one runner per slot, so two runners never run it twice.
 """
 import asyncio
 import json
 import sys
 
 import pytest
-
-from test_cov_webui import Ui, ui  # noqa: F401 - ui is a fixture
 
 KEY = "sk-or-test-0000"
 
@@ -38,9 +35,17 @@ def _job(job_id="report"):
             "last_run": ""}
 
 
-def _setup(backend="openrouter", model="openrouter/anthropic/claude-sonnet-4.5", builtin=True):
-    ok, msg = sys.modules["runner_setup"].save_config(backend, model, KEY, by="boss", builtin=builtin)
+def _setup(kind="openrouter", model="openrouter/anthropic/claude-sonnet-4.5", enabled=True):
+    ok, msg, rec = sys.modules["runners"].save({"kind": kind, "model": model, "enabled": enabled},
+                                               by="boss", admin=True, key=KEY)
     assert ok, msg
+    return rec
+
+
+def _state() -> str:
+    data = sys.modules["runners"].load()
+    rec = next(r for r in data["runners"] if r["id"] == data["standard"])
+    return sys.modules["runner_state"].get(rec["id"], rec["enabled"])["state"]
 
 
 class Provider:
@@ -50,7 +55,7 @@ class Provider:
     def __init__(self):
         self.requests = []
 
-    async def __call__(self, url, payload, headers):
+    async def __call__(self, url, payload, headers, host=""):
         self.requests.append({"url": url, "payload": json.loads(json.dumps(payload)),
                               "headers": dict(headers)})
         first = len(self.requests) == 1
@@ -88,7 +93,7 @@ def test_the_internal_token_reaches_the_connector_as_the_runner(connector, monke
 def test_an_idle_minute_calls_no_model(connector, monkeypatch):
     _setup()
     count, provider, builtin = _run(connector, monkeypatch)
-    assert count == 0 and provider.requests == [] and builtin.status()["state"] == "idle"
+    assert count == 0 and provider.requests == [] and _state() == "idle"
 
 
 def test_a_due_job_goes_to_the_provider_and_runs_through_the_connector(connector, monkeypatch):
@@ -104,30 +109,15 @@ def test_a_due_job_goes_to_the_provider_and_runs_through_the_connector(connector
     assert offered and "cron_due" not in offered
     replies = [m for m in provider.requests[1]["payload"]["messages"] if m["role"] == "tool"]
     assert replies[0]["content"].startswith("Refused") and KEY not in json.dumps(provider.requests[1]["payload"])
-    assert "Marked 'report' run" in replies[1]["content"]
-    assert sys.modules["cron"]._read()[0]["last_run"]
-    assert builtin.status()["state"] == "ran"
-
-
-def test_a_claude_subscription_token_goes_straight_to_the_messages_api(connector, monkeypatch):
-    sys.modules["cron"]._write([_job()])
-    _setup(backend="claude-abo", model="sonnet")
-    count, provider, builtin = _run(connector, monkeypatch)
-    first = provider.requests[0]
-    assert count == 1 and first["url"] == "https://api.anthropic.com/v1/messages"
-    assert first["headers"]["Authorization"] == f"Bearer {KEY}"
-    assert first["headers"]["anthropic-beta"] == "oauth-2025-04-20"
-    assert "x-api-key" not in first["headers"] and "user-agent" not in {k.lower() for k in first["headers"]}
-    assert first["payload"]["model"] == "claude-sonnet-5-5" and first["payload"]["max_tokens"] > 0
-    assert "cron_due" not in {t["name"] for t in first["payload"]["tools"]}
-    results = provider.requests[1]["payload"]["messages"][-1]["content"]
-    assert results[0]["content"].startswith("Refused") and "Marked 'report' run" in results[1]["content"]
-    assert builtin.status()["state"] == "ran"
+    assert replies[1]["content"].startswith("Refused")       # AICortex records the run itself
+    job = sys.modules["cron"]._read()[0]
+    assert job["last_run"] and job["last_result"] == "done"
+    assert _state() == "ran"
 
 
 def test_an_anthropic_key_uses_the_messages_api_with_x_api_key(connector, monkeypatch):
     sys.modules["cron"]._write([_job()])
-    _setup(backend="claude-api", model="")
+    _setup(kind="anthropic", model="")
     _, provider, _ = _run(connector, monkeypatch)
     headers = provider.requests[0]["headers"]
     assert headers["x-api-key"] == KEY and "Authorization" not in headers
@@ -136,9 +126,8 @@ def test_an_anthropic_key_uses_the_messages_api_with_x_api_key(connector, monkey
 
 def test_a_setup_saved_as_anthropic_runs_via_the_messages_api(connector, monkeypatch):
     sys.modules["cron"]._write([_job()])
-    _setup(builtin=True)                                 # stores the key
-    rs = sys.modules["runner_setup"]
-    sys.modules["store"].write_json(rs.CONFIG_FILE, {
+    sys.modules["secrets_store"].vault_set("RUNNER_LLM_KEY", KEY)          # as 2.2 kept it
+    sys.modules["store"].write_json(sys.modules["runners"].LEGACY_FILE, {
         "backend": "anthropic", "model": "anthropic/claude-sonnet-4-5", "builtin": True})
     _, provider, _ = _run(connector, monkeypatch)
     first = provider.requests[0]
@@ -148,9 +137,9 @@ def test_a_setup_saved_as_anthropic_runs_via_the_messages_api(connector, monkeyp
 
 def test_it_stays_off_until_switched_on(connector, monkeypatch):
     sys.modules["cron"]._write([_job()])
-    _setup(builtin=False)
+    _setup(enabled=False)
     count, provider, builtin = _run(connector, monkeypatch)
-    assert count == 0 and provider.requests == [] and builtin.status()["state"] == "off"
+    assert count == 0 and provider.requests == [] and _state() == "off"
 
 
 def test_a_job_is_handed_to_one_runner_per_slot(connector, monkeypatch):
@@ -162,16 +151,3 @@ def test_a_job_is_handed_to_one_runner_per_slot(connector, monkeypatch):
     data[0]["claimed"] = sys.modules["cron"]._latest_slot("* * * * *", sys.modules["cron"].datetime.now())
     sys.modules["cron"]._write(data)
     assert _run(connector, monkeypatch)[0] == 0
-
-
-@pytest.mark.oidc
-def test_the_webui_switches_it_on_and_shows_its_state(ui):
-    status, body = ui.call("/ui/api/runner/config", "POST",
-                           body={"backend": "openai", "model": "gpt-x", "key": "sk-x", "builtin": True})
-    assert status == 200 and body["ok"]
-    got = ui.call("/ui/api/runner")[1]
-    assert got["builtin"] is True and got["builtin_state"]["state"] in ("off", "idle", "waiting")
-    ui.call("/ui/api/runner/config", "POST", body={"backend": "openai", "model": "gpt-x"})
-    assert ui.call("/ui/api/runner")[1]["builtin"] is True            # left out = unchanged
-    ui.call("/ui/api/runner/config", "POST", body={"backend": "openai", "model": "gpt-x", "builtin": False})
-    assert ui.call("/ui/api/runner")[1]["builtin"] is False

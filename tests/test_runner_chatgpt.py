@@ -350,8 +350,14 @@ class Responses:
 
 
 def _setup(model="gpt-6-astra"):
-    ok, msg = sys.modules["runner_setup"].save_config("chatgpt-abo", model, "", by="boss", builtin=True)
+    ok, msg, rec = sys.modules["runners"].save({"kind": "chatgpt", "model": model}, by="boss", admin=True)
     assert ok, msg
+    return rec
+
+
+def _state() -> str:
+    rec = next(r for r in sys.modules["runners"].load()["runners"] if r["kind"] == "chatgpt")
+    return sys.modules["runner_state"].get(rec["id"], True)["state"]
 
 
 def _run(connector, monkeypatch, responses):
@@ -384,8 +390,8 @@ def test_a_due_job_runs_on_the_chatgpt_plan_via_the_responses_api(connector, ope
     assert [c["call_id"] for c in calls] == ["call_1", "call_2"] and all("id" not in c for c in calls)
     assert not [i for i in second if i.get("type") == "reasoning"]
     assert outputs[0]["call_id"] == "call_1" and outputs[0]["output"].startswith("Refused")
-    assert "Marked 'report' run" in outputs[1]["output"]
-    assert sys.modules["cron"]._read()[0]["last_run"] and builtin.status()["state"] == "ran"
+    assert outputs[1]["output"].startswith("Refused")             # AICortex records the run
+    assert sys.modules["cron"]._read()[0]["last_run"] and _state() == "ran"
 
 
 def test_an_empty_model_takes_the_first_listed_one(connector, openai, monkeypatch):
@@ -410,9 +416,9 @@ def test_a_usage_limit_stops_the_run_and_says_so(connector, openai, monkeypatch)
         builtin._parse_sse(lines)
     assert "usage limit" in str(exc.value) and "chatgpt.com/settings/usage" in str(exc.value)
     responses = Responses(fail=[exc.value])
-    with pytest.raises(RuntimeError):
-        _run(connector, monkeypatch, responses)
+    assert _run(connector, monkeypatch, responses)[0] == 0
     assert not sys.modules["cron"]._read()[0]["last_run"]
+    assert _state() == "error"
 
 
 def test_a_rejected_token_is_refreshed_and_retried_once(connector, openai, monkeypatch):
@@ -431,7 +437,7 @@ def test_without_a_sign_in_the_runner_waits(connector, openai, monkeypatch):
     sys.modules["cron"]._write([_job()])
     responses = Responses()
     count, builtin = _run(connector, monkeypatch, responses)
-    assert count == 0 and responses.requests == [] and builtin.status()["state"] == "no-signin"
+    assert count == 0 and responses.requests == [] and _state() == "no-signin"
 
 
 def test_the_stream_is_read_to_response_completed(connector):
@@ -448,10 +454,8 @@ def test_the_stream_is_read_to_response_completed(connector):
 
 # ── setup and WebUI ──────────────────────────────────────────────────────────
 def test_the_chatgpt_plan_needs_no_key_and_no_model(connector):
-    rs = sys.modules["runner_setup"]
-    ok, msg = rs.save_config("chatgpt-abo", "", "", by="boss")
-    assert ok, msg
-    assert rs._stored_key() == "" and rs.read_config()["backend"] == "chatgpt-abo"
+    rec = _setup(model="")
+    assert rec["key"] is None and rec["model"] == "" and rec["kind"] == "chatgpt"
 
 
 @pytest.mark.oidc
@@ -468,11 +472,11 @@ def test_the_webui_signs_in_and_out(ui, monkeypatch):
     assert ui.call("/ui/api/runner/chatgpt/finish", "POST", csrf=None, body={"url": _callback(params)})[0] == 403
     status, body = ui.call("/ui/api/runner/chatgpt/finish", "POST", body={"url": _callback(params)})
     assert status == 200 and body["ok"], body
-    got = ui.call("/ui/api/runner")[1]
+    got = ui.call("/ui/api/runners")[1]
     assert got["chatgpt"]["signed_in"] and "at-1" not in json.dumps(got) and "rt-1" not in json.dumps(got)
     status, body = ui.call("/ui/api/runner/chatgpt/models")
     assert status == 200 and [m["slug"] for m in body["models"]] == ["gpt-6-astra", "gpt-6.1-sol"]
     assert ui.call("/ui/api/runner/chatgpt/models", role="user")[0] == 403
     status, body = ui.call("/ui/api/runner/chatgpt/signout", "POST", body={})
-    assert status == 200 and body["ok"] and not ui.call("/ui/api/runner")[1]["chatgpt"]["signed_in"]
+    assert status == 200 and body["ok"] and not ui.call("/ui/api/runners")[1]["chatgpt"]["signed_in"]
     assert "the-code" not in json.dumps(_audit_lines()) and "rt-1" not in json.dumps(_audit_lines())
