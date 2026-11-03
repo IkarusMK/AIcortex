@@ -299,6 +299,44 @@ def vault_set(name: str, value: str, owner: str = "", description: str = "",
     return f"Stored '{name}' {where} (encrypted on the NAS). It will not be shown again."
 
 
+def _existing_key(d: dict, name: str, owner: str) -> str:
+    """The stored key of an existing entry: shared, in `owner`'s area by identity, or by
+    the namespace segment the listings show."""
+    if not owner:
+        return name if name in d else ""
+    return next((k for k in (f"{_owner_prefix(owner)}/{name}", f"users/{owner}/{name}") if k in d), "")
+
+
+@_serialized
+def vault_update(name: str, owner: str = "", value: str = "", description=None, by: str = "") -> str:
+    """Change an existing secret in place: a new value (never echoed) and/or its
+    description; an empty value keeps the stored one."""
+    name = (name or "").strip()
+    if value and _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
+        return "Refusing to store: STORAGE_ENCRYPTION_KEY is not set."
+    try:
+        d = _read_all(strict=True)
+    except VaultUnreadable as exc:
+        return ("Refusing to modify: the vault could not be decrypted/parsed "
+                f"({exc}) — changing it now would destroy the other secrets.")
+    key = _existing_key(d, name, (owner or "").strip())
+    if not key:
+        return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
+    if value:
+        d[key] = value
+        _write_all(d)
+    from datetime import datetime, timezone
+    meta = _meta()
+    old = meta.get(key, {})
+    meta[key] = {"description": str(description).strip()[:300] if description is not None
+                 else old.get("description", ""),
+                 "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 "updated_by": (by or "").strip()}
+    store.write_json(VAULT_META, meta)
+    return (f"Updated '{name}': " + ("new value stored, encrypted. It will not be shown." if value
+                                      else "the value stays as it is."))
+
+
 @_serialized
 def vault_delete(name: str, owner: str = "") -> str:
     """Delete a secret by name (shared, or from `owner`'s private namespace)."""

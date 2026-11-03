@@ -20,7 +20,7 @@ pytestmark = pytest.mark.oidc       # sign-in mode: sessions come from the signe
 GET, POST = "GET", "POST"
 ROUTES = [
     (GET, "/ui/api/overview"), (GET, "/ui/api/secrets"), (POST, "/ui/api/secrets"),
-    (POST, "/ui/api/secrets/delete"), (POST, "/ui/api/secrets/rekey"),
+    (POST, "/ui/api/secrets/delete"), (POST, "/ui/api/secrets/update"), (POST, "/ui/api/secrets/rekey"),
     (GET, "/ui/api/agentkeys"), (POST, "/ui/api/agentkeys"), (POST, "/ui/api/agentkeys/revoke"),
     (GET, "/ui/api/identities"), (GET, "/ui/api/services"), (GET, "/ui/api/audit"),
     (GET, "/ui/api/skills"), (GET, "/ui/api/skills/examples"), (POST, "/ui/api/skills/examples"),

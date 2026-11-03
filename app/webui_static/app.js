@@ -36,7 +36,9 @@ const I18N = {
     vault_list_hint: "Nur Namen — Werte verlassen den Vault nie.",
     vault_col_name: "Name", vault_col_owner: "Bereich",
     vault_empty: "Noch keine Secrets gespeichert.",
-    vault_add_title: "Secret anlegen",
+    vault_add_title: "Secret anlegen", vault_edit: "Bearbeiten", vault_edit_title: "Secret bearbeiten: {0}",
+    vault_keep_value: "Neuer Wert — leer lassen, um den gespeicherten zu behalten",
+    vault_edit_hint: "Den gespeicherten Wert siehst du nie. Trag nur einen neuen ein, wenn du ihn ersetzen willst — oder lösch den Eintrag ganz.",
     vault_f_name: "Name", vault_ph_name: "z. B. GITHUB_TOKEN",
     vault_f_value: "Wert", vault_ph_value: "Token / API-Key / Passwort",
     vault_f_owner: "Besitzer (optional)", vault_ph_owner: "leer = geteiltes Secret",
@@ -130,7 +132,9 @@ const I18N = {
     vault_list_hint: "Names only — values never leave the vault.",
     vault_col_name: "Name", vault_col_owner: "Scope",
     vault_empty: "No secrets stored yet.",
-    vault_add_title: "Add a secret",
+    vault_add_title: "Add a secret", vault_edit: "Edit", vault_edit_title: "Edit secret: {0}",
+    vault_keep_value: "New value — leave empty to keep the stored one",
+    vault_edit_hint: "You never see the stored value. Enter a new one only to replace it — or delete the entry altogether.",
     vault_f_name: "Name", vault_ph_name: "e.g. GITHUB_TOKEN",
     vault_f_value: "Value", vault_ph_value: "token / API key / password",
     vault_f_owner: "Owner (optional)", vault_ph_owner: "empty = shared secret",
@@ -335,6 +339,34 @@ async function loadOwnerPicker() {
   } catch (e) { /* picker is a convenience; free text still works */ }
 }
 
+let VAULT_EDIT = null;   // the entry being edited, or null when adding
+
+async function deleteSecret(s) {
+  if (!(await confirmModal(t("confirm_del_secret", s.name)))) return;
+  const r = await api("/ui/api/secrets/delete", { method: "POST", body: { name: s.name, owner: s.owner } });
+  toast(r.message, r.ok);
+  if (r.ok && VAULT_EDIT && VAULT_EDIT.name === s.name) editSecret(null);
+  loadVault();
+}
+
+function editSecret(s) {
+  VAULT_EDIT = s || null;
+  const form = $("#form-secret");
+  form.reset();
+  const editing = !!VAULT_EDIT;
+  $("#vault-form-title").textContent = editing ? t("vault_edit_title", s.name) : t("vault_add_title");
+  $("#sec-name").value = editing ? s.name : "";
+  $("#sec-owner").value = editing ? (s.owner || "") : "";
+  $("#sec-desc").value = editing ? (s.description || "") : "";
+  $("#sec-name").readOnly = $("#sec-owner").readOnly = editing;
+  $("#sec-value").required = !editing;
+  $("#sec-value").placeholder = editing ? t("vault_keep_value") : t("vault_ph_value");
+  $("#vault-edit-hint").classList.toggle("hidden", !editing);
+  $("#btn-sec-cancel").classList.toggle("hidden", !editing);
+  $("#btn-sec-delete").classList.toggle("hidden", !editing);
+  if (editing) { form.scrollIntoView({ behavior: "smooth", block: "nearest" }); $("#sec-value").focus(); }
+}
+
 async function loadVault() {
   const d = await api("/ui/api/secrets");
   SECRETS = d.secrets;
@@ -346,7 +378,10 @@ async function loadVault() {
   d.secrets.forEach((s) => {
     const tr = document.createElement("tr");
     const n = document.createElement("td");
-    const nm = document.createElement("div"); nm.className = "mono"; nm.textContent = s.name;
+    const nm = document.createElement("button");
+    nm.type = "button"; nm.className = "linkish mono"; nm.textContent = s.name;
+    nm.title = t("vault_edit");
+    nm.addEventListener("click", () => editSecret(s));
     n.append(nm);
     if (s.description) {
       const ds = document.createElement("div"); ds.className = "dim small"; ds.textContent = s.description;
@@ -368,14 +403,14 @@ async function loadVault() {
     const upd = document.createElement("td"); upd.className = "dim small";
     upd.textContent = [(s.updated || "").slice(0, 10), s.updated_by].filter(Boolean).join(" · ");
     const del = document.createElement("td");
+    del.className = "actions";
+    const edit = document.createElement("button");
+    edit.className = "btn ghost sm"; edit.textContent = t("vault_edit");
+    edit.addEventListener("click", () => editSecret(s));
+    del.append(edit);
     const btn = document.createElement("button");
     btn.className = "btn danger sm"; btn.textContent = t("delete");
-    btn.addEventListener("click", async () => {
-      if (!(await confirmModal(t("confirm_del_secret", s.name)))) return;
-      const r = await api("/ui/api/secrets/delete",
-        { method: "POST", body: { name: s.name, owner: s.owner } });
-      toast(r.message, r.ok); loadVault();
-    });
+    btn.addEventListener("click", () => deleteSecret(s));
     del.append(btn);
     tr.append(n, o, used, upd, del);
     tbody.append(tr);
@@ -727,8 +762,21 @@ document.addEventListener("DOMContentLoaded", () => {
       toast(r.message, r.ok); loadVault();
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
+  $("#btn-sec-cancel").addEventListener("click", () => editSecret(null));
+  $("#btn-sec-delete").addEventListener("click", () => { if (VAULT_EDIT) deleteSecret(VAULT_EDIT); });
   $("#form-secret").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (VAULT_EDIT) {
+      try {
+        const r = await api("/ui/api/secrets/update", { method: "POST", body: {
+          name: VAULT_EDIT.name, owner: VAULT_EDIT.owner || "", value: $("#sec-value").value,
+          description: $("#sec-desc").value.trim(),
+        }});
+        toast(r.message, r.ok);
+        if (r.ok) { editSecret(null); loadVault(); }
+      } catch (err2) { toast(t("toast_error", err2.message), false); }
+      return;
+    }
     const name = $("#sec-name").value.trim();
     const owner = $("#sec-owner").value.trim();
     const existing = SECRETS.find((s) => s.name === name

@@ -547,6 +547,29 @@ def register(mcp):
                f"name={name} owner={owner or 'shared'}")  # NEVER the value
         return _json({"ok": ok, "message": msg}, 200 if ok else 409)
 
+    @mcp.custom_route("/ui/api/secrets/update", methods=["POST"])
+    async def _secrets_update(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        body = await _body(request)
+        if body is None:
+            return _json({"error": "invalid body"}, 400)
+        name = str(body.get("name", "")).strip()
+        owner = str(body.get("owner", "")).strip()
+        value = str(body.get("value", ""))
+        description = body.get("description")
+        msg = secrets_store.vault_update(name, owner, value,
+                                         None if description is None else str(description),
+                                         by=str(sess.get("sub", "")))
+        ok = msg.startswith("Updated")
+        _audit(sess, "secret_update", "allow" if ok else "deny",
+               f"name={name} owner={owner or 'shared'}{' value replaced' if value and ok else ''}")
+        return _json({"ok": ok, "message": msg}, 200 if ok else 404 if msg.startswith("No secret") else 409)
+
     @mcp.custom_route("/ui/api/secrets/delete", methods=["POST"])
     async def _secrets_delete(request):
         sess = _require_admin(request)
