@@ -6,6 +6,37 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-11-03
+Scheduled jobs, easy to hand out: say "tomorrow at 8, do X" and it just runs.
+
+### Added
+- **One-off jobs**: `cron_add(…, once=True)` and *Only once* in the WebUI — the job
+  switches itself off after its run, so a date like `0 8 4 11 *` doesn't come back a
+  year later.
+- **Your own default runner**: a job that names no runner goes to its person's default
+  runner — their first runner, or the one they chose with *Make my default* — else to
+  the standard runner. A job the default may not take (e.g. an admin's prompt for
+  someone's Claude) falls back to the standard runner instead of waiting.
+- **A step-by-step guide** to scheduled jobs and runners
+  ([docs/scheduling.md](docs/scheduling.md)), a short *how it works* under Scheduled
+  jobs and a link to the guide in both tabs.
+- **Edit a vault entry**: click its name (or *Edit*) to give it a new value — never
+  shown, old or new — or a new description; an empty value keeps the stored one.
+  *Delete* is right there too. A person's own entry is changed in place (adding it
+  again under the same name used to create a second one).
+
+### Changed
+- The playbook page opens on the **Library** while no run was ever started, and an
+  empty run list points there — the playbooks no longer look gone.
+- The vault list scrolls inside its panel on narrow screens, so *Delete* no longer slips
+  out of view; button rows wrap.
+- The upgrade check now also proves that playbooks and playbook runs survive an update
+  (it never had a playbook folder), and checks 1.x note names only on 1.x data.
+
+### Docs
+- README: the default runner, one-off jobs, a link to the guide; the model guide
+  explains `once` and the default runner.
+
 ## [2.3.0] — 2026-11-03
 Runners: AICortex wakes your Claude with the due job, or asks your ChatGPT plan, an API
 key or a local Ollama — each person sets up their own, and each job names its runner.
