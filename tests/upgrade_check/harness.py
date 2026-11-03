@@ -30,13 +30,15 @@ CB = "http://127.0.0.1:9/callback"
 DATA_ENV = ("APIKEY_DIR", "AUTH_STORE_DIR", "CALDAV_DIR", "COORD_DIR", "CRON_DIR", "FTP_DIR",
             "IMAP_DIR", "MAIL_DIR", "MCP_DIR", "MEMORY_DIR", "MQTT_DIR", "PRINT_DIR",
             "SCAN_DIR", "SERVICES_DIR", "SESSIONS_DIR", "SKILLS_DIR", "SSH_DIR", "VAULT_DIR",
-            "WEBDAV_DIR", "WEBHOOK_DIR", "WORK_DIR")
+            "WEBDAV_DIR", "WEBHOOK_DIR", "WORK_DIR", "PLAYBOOKS_DIR")
 RUNNER = secrets.token_urlsafe(32)
 VAULT_KEY = Fernet.generate_key().decode()
 JWT_KEY = secrets.token_hex(32)
 LOGS = DATA / "logs"
 
 results = []
+PLAYBOOKS = {"old": False}      # did the old release write a playbook and a run?
+LEGACY = {"names": False}       # did the old release (1.x) name note files by the ASCII slug?
 
 
 def check(name, ok, detail=""):
@@ -158,6 +160,19 @@ def v1_phase(base, idp):
     key = next((w for w in r[-1].replace("`", " ").split() if w.startswith("ak_")), "")
     assert key, r[-1]
     assert idp.echo_seen and "s3cr3t-echo" in json.dumps(idp.echo_seen[-1]), "v1 echo"
+    LEGACY["names"] = (DATA / "memory_dir" / "shared" / "gr-e-der-d-se.md").exists()
+    # A playbook and a started run (releases since 2.0 have them) must survive the update.
+    try:
+        pb = asyncio.run(mcp(base, tok["access_token"], [
+            ("playbook_write", {"name": "upgrade-check", "title": "Upgrade check",
+                                "description": "kept across updates", "stages": [
+                                    {"id": "one", "name": "One", "goal": "a goal", "artifact": "one.md",
+                                     "approval": "webui"}]}),
+            ("playbook_start", {"playbook": "upgrade-check", "project": "UpgradeCheck",
+                                "title": "Upgrade check run"})]))
+        PLAYBOOKS["old"] = not any(line.startswith("ERROR") for line in pb)
+    except Exception:
+        PLAYBOOKS["old"] = False
     # The runner set up in the WebUI as 2.2 kept it (2.3 takes it over as the standard runner).
     (DATA / "cron_dir").mkdir(parents=True, exist_ok=True)
     (DATA / "cron_dir" / "runner_config.json").write_text(json.dumps({
@@ -189,6 +204,8 @@ def v2_phase(base, idp, client_id, tok, key):
             ("bootstrap", {}),
             ("cortex_start", {}),
             ("runner_list", {}),
+            ("playbook_list", {}),
+            ("playbook_runs", {"status": "all"}),
         ]))
         check("old OAuth access token still accepted", True)
     except Exception as exc:
@@ -196,12 +213,13 @@ def v2_phase(base, idp, client_id, tok, key):
         r = None
     if r:
         (tools, read_title, read_name, rewrite, mlist, s_duese, s_printer, skill, s_skill,
-         secrets, echo, tasks, sess, agents, cron, boot, start, runners) = r
+         secrets, echo, tasks, sess, agents, cron, boot, start, runners, pbs, pb_runs) = r
         check("tools/list works", len(tools) > 0, str(tools))
         check("bootstrap is offered (old project instructions say 'call bootstrap')",
               "bootstrap" in tools, str(tools))
         check("memory_read by old umlaut title", "0.4 mm" in read_title, read_title[:200])
-        check("memory_read by old file name", "0.4 mm" in read_name, read_name[:200])
+        if LEGACY["names"]:
+            check("memory_read by old file name", "0.4 mm" in read_name, read_name[:200])
         dupes = sorted(p.name for p in (DATA / "memory_dir" / "shared").glob("*.md")
                        if "Größe der Düse" in p.read_text(encoding="utf-8"))
         check("rewriting the umlaut title updates the old note (no duplicate)",
@@ -227,6 +245,9 @@ def v2_phase(base, idp, client_id, tok, key):
               in runners, runners[:300])
         check("the old cron job stays unassigned (goes to the standard runner)",
               "daily-check" in cron and "runner r_" not in cron, cron[:300])
+        if PLAYBOOKS["old"]:
+            check("the old playbook is still in the library", "upgrade-check" in pbs, pbs[:300])
+            check("the old playbook run is still there", "Upgrade check run" in pb_runs, pb_runs[:300])
 
     # 2. Refresh token from v1 yields a working v2 token.
     rr = httpx.post(meta["token_endpoint"], data={"grant_type": "refresh_token",
