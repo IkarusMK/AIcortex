@@ -30,3 +30,17 @@ def test_log_record_and_summary_carry_no_build_metadata():
     assert env.get("BUILDX_METADATA_PROVENANCE") == "disabled"
     assert env.get("DOCKER_BUILD_RECORD_UPLOAD") == "false"
     assert env.get("DOCKER_BUILD_SUMMARY") == "false"
+
+
+def test_an_image_is_built_once_per_release_and_latest_is_a_release():
+    """A push to main used to build an image too: every release was built twice, and
+    any commit between releases moved `latest` to unreleased code. Now only a version
+    tag builds, and that one build is both `vX.Y.Z` and `latest`."""
+    data = _workflow()
+    on = data.get("on", data.get(True))                # YAML reads a bare `on` as True
+    assert on["push"] == {"tags": ["v*"]}
+    meta = next(s for s in data["jobs"]["build"]["steps"] if "metadata-action" in str(s.get("uses", "")))
+    rules = [r.strip() for r in meta["with"]["tags"].splitlines() if r.strip()]
+    assert "type=ref,event=tag" in rules
+    latest = next(r for r in rules if "value=latest" in r)
+    assert "refs/tags/v" in latest and "is_default_branch" not in latest

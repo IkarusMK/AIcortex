@@ -6,6 +6,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Changed
+- **One image build per release**: only a version tag builds the image, tagged both
+  `vX.Y.Z` and `latest` — `latest` is always a release, and a release is no longer
+  built twice. Commits between releases build no image; the tests still run on every
+  push.
+
 ## [2.3.1] — 2026-11-03
 Scheduled jobs, easy to hand out: say "tomorrow at 8, do X" and it just runs.
 
