@@ -52,6 +52,7 @@
         <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
         <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
         <a href="#cron"     data-nav="cron"><span class="ico">⏱</span><span data-i18n="nav_cron"></span></a>
+        <a href="#runners"  data-nav="runners"><span class="ico">▶</span><span data-i18n="nav_runners"></span></a>
         <a href="#playbooks" data-nav="playbooks"><span class="ico">☰</span><span data-i18n="nav_playbooks"></span></a>
         <a href="#vault"    data-nav="vault" data-admin><span class="ico">🗝</span><span data-i18n="nav_vault"></span></a>
         <a href="#clients"  data-nav="clients" data-admin><span class="ico">⚡</span><span data-i18n="nav_clients"></span></a>
@@ -314,6 +315,7 @@
                 <th data-i18n="cron_col_when"></th>
                 <th data-i18n="cron_col_next"></th>
                 <th data-i18n="cron_col_last"></th>
+                <th data-i18n="cron_col_runner"></th>
                 <th data-i18n="cron_col_on"></th>
                 <th data-admin data-i18n="cron_col_owner"></th>
                 <th></th>
@@ -360,6 +362,9 @@
                 <input id="cron-owner" class="inp mono">
               </div>
             </div>
+            <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
+            <select id="cron-runner-sel" class="inp"></select>
+            <p class="dim small" data-i18n="cron_runner_hint"></p>
             <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
             <div class="btn-row">
               <button class="btn primary" data-i18n="save"></button>
@@ -369,19 +374,67 @@
             </div>
           </form>
         </div>
-        <div class="panel" id="runner-panel" data-admin>
-          <h3 data-i18n="rn_title"></h3>
+      </section>
+
+      <!-- Runners -->
+      <section id="view-runners" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_runners"></h1>
+          <button id="btn-rn-new" class="btn primary sm" data-i18n="rn_new"></button>
+        </header>
+        <div class="panel">
           <p class="dim small" data-i18n="rn_hint"></p>
+          <p id="rn-beat" class="small hidden" role="status"></p>
+          <div class="tbl-scroll">
+            <table class="tbl" id="rn-table">
+              <thead><tr>
+                <th data-i18n="rn_col_name"></th>
+                <th data-i18n="rn_col_kind"></th>
+                <th data-i18n="rn_col_state"></th>
+                <th data-i18n="rn_col_on"></th>
+                <th data-admin data-i18n="rn_col_owner"></th>
+                <th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p id="rn-empty" class="dim hidden" data-i18n="rn_empty"></p>
+        </div>
+        <div class="panel accent hidden" id="rn-editor">
+          <h3 id="rn-editor-title"></h3>
           <form id="form-runner" autocomplete="off">
-            <label for="rn-backend" data-i18n="rn_f_backend"></label>
-            <select id="rn-backend" class="inp"></select>
-            <label for="rn-model" data-i18n="rn_f_model"></label>
-            <input id="rn-model" class="inp mono" maxlength="200" list="rn-models">
-            <datalist id="rn-models"></datalist>
-            <p id="rn-model-hint" class="dim small"></p>
+            <label for="rn-kind" data-i18n="rn_f_kind"></label>
+            <select id="rn-kind" class="inp"></select>
+            <p id="rn-kind-hint" class="dim small"></p>
+            <label for="rn-name" data-i18n="rn_f_name"></label>
+            <input id="rn-name" class="inp" maxlength="80">
+            <div id="rn-cloud-box" class="hidden">
+              <ol class="rn-steps small">
+                <li data-i18n="rn_cl_step1"></li>
+                <li><span data-i18n="rn_cl_step2"></span>
+                  <span class="copy-row"><code id="rn-cl-sentence" class="mono"></code>
+                  <button type="button" id="btn-rn-cl-copy" class="btn ghost sm" data-i18n="cl_copy"></button></span></li>
+                <li data-i18n="rn_cl_step3"></li>
+              </ol>
+              <label for="rn-trigger" data-i18n="rn_f_trigger"></label>
+              <input id="rn-trigger" class="inp mono" maxlength="300" spellcheck="false">
+              <p class="notice small" data-i18n="rn_cl_rights"></p>
+            </div>
+            <div id="rn-url-box" class="hidden">
+              <label for="rn-url" data-i18n="rn_f_url"></label>
+              <input id="rn-url" class="inp mono" maxlength="300" spellcheck="false" placeholder="http://192.168.1.20:11434/v1">
+              <p class="dim small" data-i18n="rn_url_hint"></p>
+            </div>
+            <div id="rn-model-box">
+              <label for="rn-model" data-i18n="rn_f_model"></label>
+              <input id="rn-model" class="inp mono" maxlength="200" list="rn-models">
+              <datalist id="rn-models"></datalist>
+              <p id="rn-model-hint" class="dim small"></p>
+            </div>
             <div id="rn-key-box">
-              <label for="rn-key" data-i18n="rn_f_key"></label>
-              <input id="rn-key" class="inp mono" type="password" autocomplete="new-password">
+              <label for="rn-key-src" id="rn-key-label"></label>
+              <select id="rn-key-src" class="inp"></select>
+              <input id="rn-key" class="inp mono" type="password" autocomplete="new-password" aria-labelledby="rn-key-label">
               <p id="rn-key-state" class="dim small" aria-live="polite"></p>
             </div>
             <div id="rn-chatgpt" class="hidden">
@@ -401,11 +454,10 @@
                 </div>
               </div>
             </div>
-            <label class="check"><input id="rn-builtin" type="checkbox"> <span data-i18n="rn_f_builtin"></span></label>
-            <p class="dim small" data-i18n="rn_builtin_hint"></p>
-            <p id="rn-builtin-state" class="small" role="status"></p>
+            <label class="check"><input id="rn-enabled" type="checkbox" checked> <span data-i18n="rn_f_enabled"></span></label>
             <div class="btn-row">
               <button class="btn primary" data-i18n="save"></button>
+              <button type="button" id="btn-rn-close" class="btn ghost" data-i18n="cancel"></button>
             </div>
           </form>
         </div>

@@ -3,16 +3,20 @@
    server computes them with the runner's own matcher. Times are server time. */
 
 Object.assign(I18N.de, {
-  nav_cron: "Cron-Jobs", cron_new: "Neuer Job", cron_hint: "Geplante Aufträge an deine KI. Zeiten in Serverzeit; AICortex führt sie mit dem eingestellten Modell aus.",
+  nav_cron: "Cron-Jobs", cron_new: "Neuer Job", cron_hint: "Geplante Aufträge an deine KI. Zeiten in Serverzeit; ausgeführt werden sie vom Runner des Jobs (Reiter „Runner“).",
   cron_col_name: "Name", cron_col_when: "Wann", cron_col_next: "Nächster Lauf", cron_col_last: "Letzter Lauf",
   cron_col_on: "An", cron_col_owner: "Für", cron_empty: "Noch keine Jobs.",
-  cron_runner_none: "Der Runner ist noch nicht an — Jobs laufen erst, wenn ein Admin ihn unter „Runner einrichten“ einschaltet.",
+  cron_runner_none: "Noch kein Runner an — Jobs laufen erst, wenn einer im Reiter „Runner“ eingeschaltet ist.",
   cron_runner_stale: "Der Runner hat seit {0} nicht mehr geprüft — ist er noch an?",
   cron_runner_ok: "Runner aktiv, zuletzt gesehen {0}.",
   cron_new_title: "Neuer Job", cron_edit_title: "Job bearbeiten",
   cron_f_name: "Name", cron_f_when: "Wann", cron_f_time: "Uhrzeit", cron_f_dow: "Wochentag",
   cron_f_expr: "Zeitplan (Cron-Ausdruck)", cron_f_prompt: "Auftrag an die KI", cron_f_notify: "Ergebnis an (Inbox)",
   cron_f_owner: "Läuft als (leer = Runner)", cron_f_enabled: "Eingeschaltet",
+  cron_col_runner: "Runner", cron_f_runner: "Runner",
+  cron_runner_hint: "Wer den Job ausführt. Ein Claude-Runner führt nur Jobs aus, die du selbst geschrieben hast.",
+  cron_runner_std: "Standard-Runner ({0})", cron_runner_std_none: "Standard-Runner (noch keiner)",
+  cron_runner_std_short: "Standard", cron_runner_ext: "Eigener Runner (holt seine Jobs ab)", cron_runner_ext_short: "extern",
   cron_p_daily: "Täglich", cron_p_weekdays: "Werktags", cron_p_weekly: "Wöchentlich", cron_p_hourly: "Stündlich",
   cron_next: "Nächste Läufe: {0}", cron_never: "–", cron_off: "aus",
   cron_d_daily: "täglich {0}", cron_d_weekdays: "werktags {0}", cron_d_weekly: "{1} {0}", cron_d_hourly: "stündlich zur Minute {0}",
@@ -20,16 +24,20 @@ Object.assign(I18N.de, {
   confirm_cron_delete: "Job „{0}“ löschen?", toast_cron_saved: "Job gespeichert.", toast_cron_deleted: "Job gelöscht.",
 });
 Object.assign(I18N.en, {
-  nav_cron: "Scheduled jobs", cron_new: "New job", cron_hint: "Scheduled tasks for your AI. Times are server time; AICortex carries them out with the model set up for it.",
+  nav_cron: "Scheduled jobs", cron_new: "New job", cron_hint: "Scheduled tasks for your AI. Times are server time; the job's runner carries them out (tab “Runners”).",
   cron_col_name: "Name", cron_col_when: "When", cron_col_next: "Next run", cron_col_last: "Last run",
   cron_col_on: "On", cron_col_owner: "For", cron_empty: "No jobs yet.",
-  cron_runner_none: "The runner isn't on yet — jobs only run once an admin switches it on under “Set up the runner”.",
+  cron_runner_none: "No runner is on yet — jobs only run once one is switched on in the “Runners” tab.",
   cron_runner_stale: "The runner hasn't checked since {0} — is it still on?",
   cron_runner_ok: "Runner active, last seen {0}.",
   cron_new_title: "New job", cron_edit_title: "Edit job",
   cron_f_name: "Name", cron_f_when: "When", cron_f_time: "Time", cron_f_dow: "Weekday",
   cron_f_expr: "Schedule (cron expression)", cron_f_prompt: "Task for the AI", cron_f_notify: "Send result to (inbox)",
   cron_f_owner: "Runs as (empty = runner)", cron_f_enabled: "Switched on",
+  cron_col_runner: "Runner", cron_f_runner: "Runner",
+  cron_runner_hint: "Who carries the job out. A Claude runner only runs jobs you wrote yourself.",
+  cron_runner_std: "Standard runner ({0})", cron_runner_std_none: "Standard runner (none yet)",
+  cron_runner_std_short: "Standard", cron_runner_ext: "Own runner (fetches its jobs)", cron_runner_ext_short: "external",
   cron_p_daily: "Daily", cron_p_weekdays: "Weekdays", cron_p_weekly: "Weekly", cron_p_hourly: "Hourly",
   cron_next: "Next runs: {0}", cron_never: "–", cron_off: "off",
   cron_d_daily: "daily {0}", cron_d_weekdays: "weekdays {0}", cron_d_weekly: "{1} {0}", cron_d_hourly: "hourly at minute {0}",
@@ -37,7 +45,7 @@ Object.assign(I18N.en, {
   confirm_cron_delete: "Delete job “{0}”?", toast_cron_saved: "Job saved.", toast_cron_deleted: "Job deleted.",
 });
 
-let CRON = { jobs: [], editing: null, preset: "daily", timer: null };
+let CRON = { jobs: [], editing: null, preset: "daily", timer: null, runners: { runners: [] } };
 const CRON_DAYS = [1, 2, 3, 4, 5, 6, 0];   // Monday first; cron counts Sunday as 0
 
 function cronDayName(d) {
@@ -65,6 +73,29 @@ function cronDescribe(expr) {
   return expr;
 }
 
+function cronRunnerName(id) {
+  if (id === "external") return t("cron_runner_ext_short");
+  const rec = (CRON.runners.runners || []).find((r) => r.id === id);
+  return id && rec ? rec.name : t("cron_runner_std_short");
+}
+
+function fillCronRunners(current) {
+  const sel = $("#cron-runner-sel");
+  sel.textContent = "";
+  const add = (value, label) => { const o = document.createElement("option"); o.value = value; o.textContent = label; sel.append(o); };
+  const d = CRON.runners, list = d.runners || [];
+  const std = list.find((r) => r.id === d.standard);
+  add("", std ? t("cron_runner_std", std.name) : t("cron_runner_std_none"));
+  list.filter((r) => r.id !== d.standard && (r.mine || (isAdmin() && r.kind !== "claude-cloud")))
+    .forEach((r) => add(r.id, isAdmin() && !r.mine ? `${r.name} · ${r.owner}` : r.name));
+  if (isAdmin() && d.external) add("external", t("cron_runner_ext"));
+  if (current && ![...sel.options].some((o) => o.value === current)) {
+    const rec = list.find((r) => r.id === current);
+    add(current, rec ? `${rec.name} · ${rec.owner}` : current);
+  }
+  sel.value = current || "";
+}
+
 function showRunner(runner) {
   const el = $("#cron-runner");
   const r = runner || {};
@@ -76,8 +107,9 @@ function showRunner(runner) {
 }
 
 async function loadCron() {
-  const d = await api("/ui/api/cron");
+  const [d, runners] = await Promise.all([api("/ui/api/cron"), api("/ui/api/runners")]);
   CRON.jobs = d.jobs;
+  CRON.runners = runners;
   showRunner(d.runner);
   const tbody = $("#cron-table tbody");
   tbody.textContent = "";
@@ -92,9 +124,11 @@ async function loadCron() {
     const on = document.createElement("td");
     const box = document.createElement("input"); box.type = "checkbox"; box.checked = j.enabled;
     box.setAttribute("aria-label", `${t("cron_col_on")}: ${j.name}`);
-    box.addEventListener("change", () => saveCronJob({ ...j, enabled: box.checked }).catch((x) => toast(x.message, false)));
+    box.addEventListener("change", () => saveCronJob({ ...j, enabled: box.checked, runner: undefined })
+      .catch((x) => toast(x.message, false)));
     on.append(box);
-    tr.append(cell(j.name), when, cell(j.enabled ? cronStamp(j.next_run) : t("cron_off"), "small"), last, on);
+    tr.append(cell(j.name), when, cell(j.enabled ? cronStamp(j.next_run) : t("cron_off"), "small"), last,
+              cell(cronRunnerName(j.runner), "small"), on);
     if (isAdmin()) tr.append(cell(j.owner || "runner", "mono small"));
     const act = document.createElement("td"); act.className = "actions";
     [["sv_edit", "ghost", () => openCron(j)], ["delete", "danger", () => deleteCron(j)]].forEach(([key, cls, fn]) => {
@@ -142,6 +176,7 @@ function openCron(job) {
   $("#cron-notify").value = job ? job.notify || "user" : "user";
   $("#cron-owner").value = job ? job.owner || "" : "";
   $("#cron-enabled").checked = job ? job.enabled : true;
+  fillCronRunners(job ? job.runner || "" : "");
   $("#btn-cron-delete").classList.toggle("hidden", !job);
   $("#cron-editor").classList.remove("hidden");
   if (job) {
@@ -160,6 +195,7 @@ async function saveCronJob(job) {
   const body = { name: job.name, schedule: job.schedule, prompt: job.prompt,
                  notify: job.notify || "user", enabled: job.enabled };
   if (job.owner) body.owner = job.owner;
+  if (job.runner !== undefined) body.runner = job.runner;
   const d = await api("/ui/api/cron", { method: "POST", body });
   toast(d.ok ? t("toast_cron_saved") : d.message, !!d.ok);
   await loadCron();
@@ -197,7 +233,8 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const job = { name: $("#cron-name").value.trim(), schedule: $("#cron-expr").value.trim(),
                   prompt: $("#cron-prompt").value, notify: $("#cron-notify").value.trim(),
-                  enabled: $("#cron-enabled").checked, owner: isAdmin() ? $("#cron-owner").value.trim() : "" };
+                  enabled: $("#cron-enabled").checked, owner: isAdmin() ? $("#cron-owner").value.trim() : "",
+                  runner: $("#cron-runner-sel").value };
     saveCronJob(job).then((ok) => { if (ok) $("#cron-editor").classList.add("hidden"); }).catch(fail);
   });
 });
