@@ -188,6 +188,7 @@ def _owner_prefix(owner: str) -> str:
 _INTERNAL_ENV = frozenset({
     "STORAGE_ENCRYPTION_KEY", "JWT_SIGNING_KEY", "RUNNER_TOKEN", "RUNNER_ROLE",
     "RUNNER_LLM_KEY",   # the runner's model access (runner_setup) — never a service's
+    "RUNNER_CHATGPT_SESSION",   # the runner's ChatGPT sign-in (chatgpt_signin)
     "BASE_URL", "DATA_ROOT", "INTERNAL_ALLOW_CIDRS", "ALLOW_INSECURE",
     "ALLOW_PLAINTEXT_VAULT", "LEARN_AUTOCAPTURE", "SESSION_RETENTION_DAYS",
     "MAIL_ALLOWED_RECIPIENTS", "SSH_STRICT_HOST_KEYS", "CATALOG_CACHE_FILE",

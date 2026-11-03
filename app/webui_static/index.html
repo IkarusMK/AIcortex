@@ -376,11 +376,31 @@
             <label for="rn-backend" data-i18n="rn_f_backend"></label>
             <select id="rn-backend" class="inp"></select>
             <label for="rn-model" data-i18n="rn_f_model"></label>
-            <input id="rn-model" class="inp mono" maxlength="200">
+            <input id="rn-model" class="inp mono" maxlength="200" list="rn-models">
+            <datalist id="rn-models"></datalist>
             <p id="rn-model-hint" class="dim small"></p>
-            <label for="rn-key" data-i18n="rn_f_key"></label>
-            <input id="rn-key" class="inp mono" type="password" autocomplete="new-password">
-            <p id="rn-key-state" class="dim small" aria-live="polite"></p>
+            <div id="rn-key-box">
+              <label for="rn-key" data-i18n="rn_f_key"></label>
+              <input id="rn-key" class="inp mono" type="password" autocomplete="new-password">
+              <p id="rn-key-state" class="dim small" aria-live="polite"></p>
+            </div>
+            <div id="rn-chatgpt" class="hidden">
+              <p id="rn-cg-state" class="small" role="status"></p>
+              <div class="btn-row">
+                <button type="button" id="btn-rn-cg-start" class="btn ghost sm" data-i18n="rn_cg_start"></button>
+                <button type="button" id="btn-rn-cg-signout" class="btn ghost sm hidden" data-i18n="rn_cg_signout"></button>
+              </div>
+              <div id="rn-cg-finish" class="hidden">
+                <p class="small" data-i18n="rn_cg_step1"></p>
+                <p class="small"><a id="rn-cg-link" target="_blank" rel="noopener noreferrer" data-i18n="rn_cg_open"></a></p>
+                <p class="small" data-i18n="rn_cg_step2"></p>
+                <label for="rn-cg-url" data-i18n="rn_cg_url"></label>
+                <input id="rn-cg-url" class="inp mono" autocomplete="off" spellcheck="false" maxlength="4096">
+                <div class="btn-row">
+                  <button type="button" id="btn-rn-cg-finish" class="btn primary sm" data-i18n="rn_cg_finish"></button>
+                </div>
+              </div>
+            </div>
             <label class="check"><input id="rn-builtin" type="checkbox"> <span data-i18n="rn_f_builtin"></span></label>
             <p class="dim small" data-i18n="rn_builtin_hint"></p>
             <p id="rn-builtin-state" class="small" role="status"></p>
