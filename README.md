@@ -46,6 +46,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - A **presence-aware multi-agent board**: live presence, capability-routed task *pull*, context-preserving handoff
 - **Cross-LLM session handoff** — resume exactly where another model or device left off
 - **Cron-as-data scheduling** with per-user **act-as**: a scheduled job runs confined to *its owner's* area, via a short-lived per-job token — never a standing god-token
+- A **built-in runner** carries the jobs out on your **Claude or ChatGPT plan** or an API key — switched on in the WebUI, no extra container; it wakes the model only when a job is due ([how](#autonomy--scheduling))
 
 **🔒 Secure & multi-tenant**
 - Your own **OIDC** login and **roles** (admin / user / viewer) — one switch, `AUTH_ENFORCE`
@@ -236,13 +237,15 @@ Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt)` fro
 2. Only when a job is due does it ask the model, with the due jobs in the prompt. The model runs each job **through this connector**, inside the job owner's area when the job has one (act-as), then `cron_mark_run`.
 3. It reports the result via your configured channel, or posts to the connector **inbox**.
 
-**Set it up in the WebUI** (admin): *Scheduled jobs → Set up the runner*. Choose the model access — a Claude subscription token (`claude setup-token`), an Anthropic API key, OpenRouter, OpenAI or Gemini — enter the key (and a model name where asked), tick *Runner on*, save. The key is stored encrypted in the vault, never shown again and never leaves AICortex except to the model provider. The model's tool calls go through `/mcp` as the runner (an in-memory token), so roles, act-as and audit apply as for any caller. A subscription token goes to Anthropic's Messages API as an OAuth token — Anthropic documents `claude setup-token` for scripts that make model requests, and its support pages say third-party app usage draws from the plan's limits; Anthropic may restrict this use, so an API key is the safe choice for shared or production setups.
+**Set it up in the WebUI** (admin): *Scheduled jobs → Set up the runner*. Choose the model access — a Claude subscription token (`claude setup-token`), a ChatGPT plan (*Sign in with ChatGPT*), an Anthropic API key, OpenRouter, OpenAI or Gemini — enter the key (for a ChatGPT plan, sign in instead, see below) and a model name where asked, tick *Runner on*, save. The key is stored encrypted in the vault, never shown again and never leaves AICortex except to the model provider. The model's tool calls go through `/mcp` as the runner (an in-memory token), so roles, act-as and audit apply as for any caller. A subscription token goes to Anthropic's Messages API as an OAuth token — Anthropic documents `claude setup-token` for scripts that make model requests, and its support pages say third-party app usage draws from the plan's limits; Anthropic may restrict this use, so an API key is the safe choice for shared or production setups.
+
+**A ChatGPT plan** (Plus or Pro) uses OpenAI's [*Sign in with ChatGPT*](https://developers.openai.com/siwc/token-sharing-open-source) for open-source apps: choose *ChatGPT plan*, click *Sign in with ChatGPT*, open the sign-in and allow AICortex to use the plan. OpenAI then sends the browser to `http://127.0.0.1:1455/…` — the computer you sit at, not the NAS — so the page shows an error; paste that whole address into the field below and finish. AICortex checks the ID token, keeps the tokens encrypted in the vault, refreshes them itself (the sign-in stays valid as long as AICortex renews it within 30 days, which it does on its own) and runs jobs through OpenAI's Responses API. Leave the model empty for your account's first model, or pick one of the suggestions. On Plus, all apps share the plan's five-hour limit; *Sign out* revokes the sign-in at OpenAI.
 
 An own runner outside AICortex that calls `cron_due` with the static `RUNNER_TOKEN` from the connector's `.env` keeps working; a job is handed to one runner per scheduled minute, so two runners never run it twice.
 
 > **What the runner may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
 >
-> **Subscription or API key?** Anthropic intends pay-per-use API keys for unattended automation; running scheduled jobs on a consumer subscription is a grey area with tight limits. Because the runner only wakes the model when a job is due, the usage stays small either way.
+> **Subscription or API key?** Anthropic intends pay-per-use API keys for unattended automation; running scheduled jobs on a consumer subscription is a grey area with tight limits. A ChatGPT plan is used through OpenAI's own sign-in for apps and counts against the plan's limits. Because the runner only wakes the model when a job is due, the usage stays small either way.
 
 ## Run it with a local model (Ollama)
 
@@ -415,6 +418,7 @@ AICortex/
 │   ├── webdav_tools.py · fs_tools.py · ssh_tools.py · mail_tools.py
 │   ├── print_tools.py · scan_tools.py · mcp_gateway.py · coordination.py
 │   ├── cron.py · sessions.py · secrets_store.py · bootstrap.py · guide.py
+│   ├── runner_builtin.py · runner_setup.py · chatgpt_signin.py   #   runner for scheduled jobs
 │   ├── authz.py · tenancy.py · pocketid_proxy.py · netguard.py · learn.py
 │   ├── webui.py            #   admin WebUI (/ui) — OIDC+PKCE browser login
 │   ├── webui_static/       #   its self-contained frontend (no build step)

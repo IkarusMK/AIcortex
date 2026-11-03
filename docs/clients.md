@@ -68,8 +68,9 @@ apikey_create(identity="<person's id>", name="hermes", scopes="all")
 - The key is shown once; only its hash is stored. Revoke it on the *Connect clients*
   page or with `apikey_revoke`.
 
-`RUNNER_TOKEN` (from `.env`) is a separate fixed token for the scheduled-job
-runner only.
+`RUNNER_TOKEN` (from `.env`) is a separate fixed token, only for an own
+scheduled-job runner outside AICortex. The built-in runner (*Scheduled jobs → Set
+up the runner* in the WebUI) does not need it.
 
 Keep tokens out of chat logs: put them in the client's secret store or an
 environment variable where the client supports that (shown below).

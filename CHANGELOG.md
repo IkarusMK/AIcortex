@@ -6,8 +6,9 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
-## [2.2.0] — 2026-11-02
-Scheduled jobs run inside AICortex — no runner container any more.
+## [2.2.0] — 2026-11-03
+Scheduled jobs run inside AICortex — on a Claude or ChatGPT plan or an API key, with
+no runner container any more.
 
 ### Added
 - **The runner is built in.** Tick *Runner on* under *Scheduled jobs → Set up the
@@ -17,6 +18,17 @@ Scheduled jobs run inside AICortex — no runner container any more.
   an OAuth bearer, no Claude Code needed); OpenRouter, OpenAI and Gemini keys go to
   their OpenAI-compatible chat APIs. The model's tool calls go through `/mcp` as the
   runner (an in-memory token), so roles, act-as and audit apply as for any caller.
+  Every model answer has a size limit and a five-minute deadline, so a provider
+  that never finishes can't hold up later jobs.
+- **A ChatGPT plan as the runner's model access.** *Sign in with ChatGPT* in the
+  runner setup uses OpenAI's sign-in for open-source apps: authorization code with
+  PKCE, the ID token checked against OpenAI's keys, the tokens encrypted in the
+  vault and refreshed by AICortex (an idle sign-in is renewed before its 30 days
+  run out). Jobs run through OpenAI's Responses API; the model can be left empty
+  for the account's first model, and the field suggests the account's models. A
+  usage limit stops the run with a link to the plan's usage page; *Sign out*
+  revokes the sign-in at OpenAI. A sign-in the vault can't store is revoked again
+  right away, and the audit log names the ChatGPT account that was attached.
 
 ### Changed
 - An Anthropic API key is one option in the runner setup; a setup saved with the
@@ -35,6 +47,11 @@ Scheduled jobs run inside AICortex — no runner container any more.
 ### Fixed
 - **Two runners could run the same job twice.** `cron_due` now hands a job to one
   runner per scheduled minute.
+
+### Docs
+- README *Highlights* and *Autonomy & scheduling* describe the built-in runner and
+  the ChatGPT plan; `docs/clients.md`, `docker-compose.yml` and `.env.example` say
+  that `RUNNER_TOKEN` is only for an own runner outside AICortex.
 
 ## [2.1.0] — 2026-11-02
 The runner is set up in the WebUI, wakes the model only when a job is due, and no
