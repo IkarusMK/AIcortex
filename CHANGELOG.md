@@ -5,6 +5,8 @@ All notable changes to AICortex are documented here. The format is based on
 the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
+
+## [2.3.0] — 2026-11-03
 Runners: AICortex wakes your Claude with the due job, or asks your ChatGPT plan, an API
 key or a local Ollama — each person sets up their own, and each job names its runner.
 
