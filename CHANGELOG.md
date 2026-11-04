@@ -6,6 +6,16 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Changed
+- **The tools explain themselves**: the eleven tools a client sees up front now
+  describe every parameter that isn't self-explanatory (27 of 37 — e.g. `scope`,
+  `owner`, `expected_version`), `bootstrap` says what it does instead of "Same as
+  cortex_start", and `memory_read` points to `memory_search` instead of
+  `memory_list`, which a client with the core profile doesn't see; a tool outside
+  the core set is only named together with `integration_call`. Glama had rated the
+  definitions B (3.8/5). The listing grows from 9,807 to 11,443 characters (about
+  410 tokens per conversation); a test keeps it under 12,000.
+
 ## [2.3.3] — 2026-11-04
 Listed in the official MCP Registry, and ready for Glama.
 

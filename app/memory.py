@@ -40,6 +40,10 @@ CANDIDATES_SCOPE = "candidates"
 
 # The four canonical memory types (mirrors the user's own MEMORY.md taxonomy).
 CANON_TYPES = ("user", "feedback", "project", "reference")
+# What the tools tell a model about `scope` (a confined person is kept to their own
+# area by tenancy.confine_memory_scope, whatever they pass).
+_SCOPE = Field(description='Memory area: "shared" (default) or "users/<id>"; '
+                           "a person limited to their own area stays there anyway")
 _TYPE_SYNONYMS = {
     # → user
     "preference": "user", "prefs": "user", "pref": "user", "identity": "user",
@@ -368,23 +372,27 @@ def register(mcp):
     @mcp.tool
     def memory_write(title: str, content: str,
                      type: Annotated[str, Field(json_schema_extra={"enum": list(CANON_TYPES)})],
-                     scope: str = "shared", tags: str = "",
-                     source: str = "", review: str = "", project: str = "",
-                     expected_version: int = 0) -> str:
+                     scope: Annotated[str, _SCOPE] = "shared",
+                     tags: Annotated[str, Field(description='Comma-separated, e.g. "garden, mqtt"')] = "",
+                     source: Annotated[str, Field(description='Where the fact comes from, e.g. a URL; '
+                                                              'default "session"')] = "",
+                     review: Annotated[str, Field(description="YYYY-MM-DD: from then on cortex_start "
+                                                              "lists it as due for review")] = "",
+                     project: Annotated[str, Field(description='Project this fact belongs to, e.g. '
+                                                               '"Birdhouse"; empty = general')] = "",
+                     expected_version: Annotated[int, Field(description="The version you read with "
+                                                            "memory_read; refused if it changed since. "
+                                                            "0 = don't check")] = 0) -> str:
         """Save a durable, TYPED memory and write it back to the brain.
         type (REQUIRED) = one of: user (who the user is / preferences) ·
         feedback (how you should work — corrections & confirmed approaches) ·
         project (ongoing work, goals, status — give it a `review` date) ·
         reference (pointers to resources/URLs/IDs). An untyped memory is REFUSED
-        (house rule, like skill_write needs a category) so the brain stays sorted.
-        Only store DURABLE facts (not session chatter), nothing already in
-        code/git, and NEVER secrets (those go to the vault via secret_set).
-        project = the project this fact belongs to (e.g. "Birdhouse"); cortex_start
-        and memory_search(project=…) bring it along when that project is worked on.
-        Writing the same title again REPLACES that memory (read it first and fold
-        the old content in); the dedup hint flags related titles to merge.
-        expected_version = the version you read (memory_read shows it); if someone
-        changed the memory since, the write is refused instead of overwriting."""
+        so the brain stays sorted. Only store DURABLE facts (not session chatter),
+        nothing already in code/git, and NEVER secrets (those go to the vault:
+        secret_set via integration_call). Writing the same title again REPLACES that
+        memory (read it first and fold the old content in); the dedup hint flags
+        related titles to merge."""
         t = canon_type(type)
         if not t:
             return ("Refused: a memory MUST be typed (house rule, so the brain "
@@ -446,19 +454,26 @@ def register(mcp):
         return "\n".join(lines)
 
     @mcp.tool
-    def memory_read(name: str, scope: str = "shared") -> str:
-        """Read a memory's full content by its name (as shown by memory_list)."""
+    def memory_read(name: Annotated[str, Field(description="The name memory_search returned "
+                                                           "(before the ' — ')")],
+                    scope: Annotated[str, _SCOPE] = "shared") -> str:
+        """Read a memory's full content and version by its name — find the name with
+        memory_search."""
         path = _note_path(_scope_dir(scope), name)
         if not path.exists():
             return f"No memory named '{name}' in scope '{scope}'."
         return path.read_text(encoding="utf-8")
 
     @mcp.tool
-    def memory_search(query: str, scope: str = "shared", project: str = "",
-                      type: str = "", tag: str = "", limit: int = 20) -> str:
+    def memory_search(query: str, scope: Annotated[str, _SCOPE] = "shared",
+                      project: Annotated[str, Field(description="Only this project's memories")] = "",
+                      type: Annotated[str, Field(description="Only this type: user, feedback, "
+                                                             "project or reference")] = "",
+                      tag: Annotated[str, Field(description="Only memories with this tag")] = "",
+                      limit: int = 20) -> str:
         """Find memories by words (any order); best matches first — a hit in the
-        title counts most, then tags/project, then the text. Filters: project, type
-        (user/feedback/project/reference), tag. Returns name, title and a snippet."""
+        title counts most, then tags/project, then the text. Returns name, title and
+        a snippet; memory_read gives the full text."""
         found = search_entries(scope, query, project=project, type_=type, tag=tag,
                                limit=max(1, min(int(limit or 20), 100)))
         if not found:

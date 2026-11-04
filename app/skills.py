@@ -8,10 +8,12 @@ needs (progressive disclosure). ``skill_write`` lets skills be authored remotely
 import os
 import re
 from pathlib import Path
+from typing import Annotated
 
 import store
 
 import yaml
+from pydantic import Field
 
 SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/data/skills"))
 # Starter skills: the image carries them next to the code (Dockerfile), a source
@@ -222,10 +224,11 @@ def _may_change(folder: Path) -> tuple[bool, str]:
 
 def register(mcp):
     @mcp.tool
-    def skill_search(query: str, category: str = "") -> str:
+    def skill_search(query: str,
+                     category: Annotated[str, Field(description="Only skills in this category; "
+                                                                "empty = all")] = "") -> str:
         """Find skills relevant to a task (ranked name — description). Call this
-        before specialized work, then skill_load the best match. Optionally narrow
-        to one category (see skill_list for the categories)."""
+        before specialized work, then skill_load the best match."""
         results = search(query, category)
         if not results:
             return f"No skills matched '{query}'. (Use skill_write to add one.)"
@@ -268,8 +271,9 @@ def register(mcp):
         return "\n".join(out) if out else f"No skills in category '{category}'."
 
     @mcp.tool
-    def skill_load(name: str) -> str:
-        """Load a skill's full instructions by its name (from skill_search/list)."""
+    def skill_load(name: Annotated[str, Field(description="The name skill_search returned "
+                                                          "(before the ' — ')")]) -> str:
+        """Load a skill's full instructions by its name — find the name with skill_search."""
         import tenancy
         path = SKILLS_DIR / _slug(name) / "SKILL.md"
         if not path.exists():

@@ -17,9 +17,11 @@ Profile per caller, first match wins: the agent key's ``profile`` → the policy
 """
 import os
 import re
+from typing import Annotated
 
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
+from pydantic import Field
 
 CORE_TOOLS = (
     "cortex_start", "memory_search", "memory_read", "memory_write",
@@ -171,10 +173,14 @@ def register(mcp):
         return "\n".join(f"- {_signature(t)} — {_summary(t)}" for t in hits)
 
     @mcp.tool
-    async def integration_call(name: str, arguments: dict | None = None, ctx: Context = None):
-        """Run a tool found with integration_search. `arguments` holds its parameters
-        as an object. The same permissions apply as for calling the tool directly.
-        Example: integration_call(name="print_document",
+    async def integration_call(
+            name: Annotated[str, Field(description="Tool name exactly as integration_search "
+                                                   "returned it")],
+            arguments: Annotated[dict | None, Field(description="That tool's parameters as an "
+                                                                "object")] = None,
+            ctx: Context = None):
+        """Run a tool found with integration_search. The same permissions apply as for
+        calling the tool directly. Example: integration_call(name="print_document",
         arguments={"printer": "office", "file": "scan.pdf"})."""
         allowed = {t.name for t in await _callable_tools(ctx)}
         if name not in allowed:

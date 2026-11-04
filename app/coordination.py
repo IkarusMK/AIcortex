@@ -14,6 +14,9 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 
 import store
 
@@ -254,8 +257,12 @@ def register(mcp):
         return f"Added task {t['id']}: {title}{suffix}"
 
     @mcp.tool
-    def task_list(status: str = "", owner: str = "") -> str:
-        """List tasks, optionally filtered by status (open/claimed/blocked/done) or owner."""
+    def task_list(status: Annotated[str, Field(description="open, claimed, blocked or done; "
+                                                           "empty = all")] = "",
+                  owner: Annotated[str, Field(description="Agent holding the task, as after "
+                                                          "owner= in the list; empty = any")] = "") -> str:
+        """List the tasks on the shared agent board (id, status, owner, title),
+        optionally filtered."""
         items = _mine(_read(TASKS_FILE))
         sel = [t for t in items
                if (not status or t.get("status") == status)

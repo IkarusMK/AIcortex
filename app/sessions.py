@@ -20,6 +20,9 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 
 import store
 
@@ -178,15 +181,21 @@ def render(s: dict) -> str:
 def register(mcp):
     @mcp.tool
     @_serialized
-    def session_save(summary: str, title: str = "", session_id: str = "",
-                     next_steps: str = "", status: str = "open",
-                     model: str = "", project: str = "") -> str:
+    def session_save(summary: str, title: str = "",
+                     session_id: Annotated[str, Field(description="Id from an earlier session_save "
+                                                                  "to continue it; empty = new session")] = "",
+                     next_steps: Annotated[str, Field(description="What to do next, for whoever "
+                                                                  "resumes")] = "",
+                     status: Annotated[str, Field(description='e.g. "open" (default), "blocked" '
+                                                              'or "done"')] = "open",
+                     model: Annotated[str, Field(description='Which LLM you are, e.g. "claude" '
+                                                             'or "chatgpt"')] = "",
+                     project: Annotated[str, Field(description="Project this work belongs to; "
+                                                               "cortex_start shows its latest "
+                                                               "session")] = "") -> str:
         """Append a checkpoint to a work session so another LLM/device can resume it.
-        Keep `summary` short (what happened, current state); `next_steps` = what to do
-        next. `model` = which LLM you are (e.g. "claude", "chatgpt"). Omit `session_id`
-        to start a new session (returns its id); pass it to continue an existing one.
-        project = the project this work belongs to — cortex_start shows the project's
-        latest session. Old sessions auto-expire after SESSION_RETENTION_DAYS."""
+        Keep `summary` short (what happened, current state). Returns the session id.
+        Old sessions auto-expire after SESSION_RETENTION_DAYS."""
         if not (summary or "").strip():
             return "Nothing to save: 'summary' is required."
         now = _now()

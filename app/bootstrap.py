@@ -10,6 +10,9 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 
 import sessions
 import store
@@ -260,21 +263,31 @@ def _cron_lines() -> list[str]:
             for j in jobs if isinstance(j, dict)]
 
 
+_PROJECT = Field(description='Project the conversation is about, e.g. "Birdhouse"; '
+                                'empty = list the known projects')
+_TASK = Field(description="What you are about to do, in a few words; finds matching "
+                          "skills and integrations")
+
+
 def register(mcp):
     import start
 
     @mcp.tool
-    def cortex_start(project: str = "", task: str = "") -> str:
+    def cortex_start(project: Annotated[str, _PROJECT] = "",
+                     task: Annotated[str, _TASK] = "") -> str:
         """Briefing for the start of a conversation: who the user is, how they want
         you to work and, for `project`, its notes, open tasks and last session —
-        plus skills and integrations matching `task`. Short (≤ 4,000 characters);
-        without `project` it lists the known projects. Example:
-        cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
+        plus skills and integrations matching `task`. Short (≤ 4,000 characters).
+        Example: cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
         return start.build(project, task)
 
     @mcp.tool
-    def bootstrap(project: str = "", task: str = "") -> str:
-        """Same as cortex_start (kept for existing client setups)."""
+    def bootstrap(project: Annotated[str, _PROJECT] = "",
+                  task: Annotated[str, _TASK] = "") -> str:
+        """Start-of-conversation briefing, identical to cortex_start: who the user is,
+        how they want you to work and the project's notes, tasks and last session.
+        Kept so project instructions that say "call bootstrap" keep working; new
+        setups call cortex_start."""
         return start.build(project, task)
 
     @mcp.tool
