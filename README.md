@@ -13,6 +13,28 @@
 
 <p align="center"><b>A private, self-hosted brain for your LLM — on your own NAS.</b></p>
 
+**In 30 seconds:** AICortex is one container on your own hardware that every AI you use
+connects to.
+
+- **It remembers** who you are, how you work and what you're building — and hands that
+  to Claude, ChatGPT or a local model at the start of every chat, on desktop and phone.
+- **It reaches your stuff** — services, devices, mail, calendars, files — with the
+  secrets in an encrypted vault the model never sees.
+- **It keeps your schedule:** tell your AI *"tomorrow at 8: summarise yesterday's
+  notes"*. AICortex stores the job and at 8 wakes your Claude (or asks ChatGPT, an API
+  key or a local Ollama) to do it.
+
+<p align="center">
+  <img src="assets/screenshots/webui-cron.webp" alt="Scheduled jobs in the AICortex WebUI: a morning briefing on Claude, a weekly review on an OpenRouter free model, a one-off backup check and an evening job on a local Ollama, each with its next and last run" width="100%">
+</p>
+
+<p align="center">
+  <b><a href="#try-it-in-5-minutes">Try it in 5 minutes</a></b> ·
+  <a href="#quick-start">Run it on your NAS</a> ·
+  <a href="#admin-webui">More screenshots</a> ·
+  <a href="docs/clients.md">Connect your AI</a>
+</p>
+
 AICortex is a self-hosted [MCP](https://modelcontextprotocol.io) server that turns your NAS into a **personal LLM connector**: a persistent "brain" your assistant loads at the start of every session. Any MCP-capable LLM — Claude, ChatGPT, or a fully local model — gains a durable identity and real reach into your own services and devices, while running inside **your** network. Non-MCP tools (n8n, LangChain, your own scripts) reach the *same* brain through a **native REST API** with scoped per-user keys — and humans get a built-in **admin WebUI** at `/ui` for the vault, skills, users and audit log.
 
 The model stays in its provider's cloud (or runs locally). **Your memory, skills and secrets stay on your NAS.** The assistant talks to AICortex over an HTTPS connector; the server uses your local credentials internally and never hands them to the model. New capabilities are added as **data** — a skill, a service config, a secret — with no redeploy.
@@ -79,6 +101,36 @@ The "LLM brain" space has some great projects — AICortex deliberately sits in 
 - **AICortex** is a single, lightweight *MCP connector*: one container that gives any client a persistent brain — memory **and** skills, devices, sessions, secrets and scheduling — where new integrations are added as **data, no redeploy**. And unlike most brain projects it isn't MCP-only: the same tools are exposed over a **native REST API** with an auto-generated OpenAPI spec, so non-MCP clients (n8n, LangChain, a script) plug in too. No database, no graph, no marketplace; you bring your own client.
 
 Rule of thumb: want a dedicated memory/graph engine → GBrain; want a batteries-included agent OS → CortexPrism; want a minimal self-hosted connector that plugs your existing LLM app into your own stuff → AICortex.
+
+## Try it in 5 minutes
+
+Just want to look around? Run it on your own computer — no NAS, domain or login
+needed, only Docker:
+
+```bash
+echo "STORAGE_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" > aicortex.env
+docker run -d --name aicortex -p 127.0.0.1:8787:8787 --env-file aicortex.env \
+  -e ALLOW_INSECURE=1 -v aicortex-data:/data ghcr.io/ikarusmk/aicortex:latest
+```
+
+1. Open **http://localhost:8787/ui** — the WebUI, already signed in as admin.
+2. Connect an AI that runs on the same computer. Claude Code:
+   `claude mcp add --transport http aicortex http://localhost:8787/mcp`, then ask it to
+   call `cortex_start`. Other local clients: [docs/clients.md](docs/clients.md). The
+   Claude and ChatGPT apps connect from their provider's cloud, so they need the
+   [real setup](#quick-start).
+3. Tell it something about you, or *"tomorrow at 8: summarise yesterday's notes"* — it
+   shows up under **Notes** and **Scheduled jobs**. A job runs once you add a runner
+   with an API key (OpenRouter's free models work); waking Claude needs your own login,
+   so that, too, is the real setup.
+
+> ⚠️ **No login in this mode.** `ALLOW_INSECURE=1` switches authentication off: whoever
+> reaches the port is admin. Keep the port on `127.0.0.1` as above, keep real secrets
+> out, and never run it like this on a server. For everyday use, follow the
+> [Quick start](#quick-start) with your own login.
+
+Done looking? `docker rm -f aicortex && docker volume rm aicortex-data && rm aicortex.env`
+removes it with all its data.
 
 ## Requirements
 
@@ -351,16 +403,16 @@ language-switchable **DE/EN**:
 
 <table>
   <tr>
-    <td width="50%"><img src="assets/screenshots/webui-memory.webp" alt="Notes: a person's typed memories with filters and the note editor"></td>
-    <td width="50%"><img src="assets/screenshots/webui-cron.webp" alt="Scheduled jobs: plain-language schedules with the next run"></td>
+    <td width="50%"><img src="assets/screenshots/webui-memory.webp" alt="Notes: a person's typed memories with search and filters"></td>
+    <td width="50%"><img src="assets/screenshots/webui-runners.webp" alt="Runners: a Claude cloud task as the person's default, an OpenRouter free model as the standard runner and a local Ollama, each with its state and a link to the last Claude session"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Notes</b> — your memories, typed and searchable</sub></td>
-    <td align="center"><sub><b>Scheduled jobs</b> — plain-language schedules and the next run</sub></td>
+    <td align="center"><sub><b>Runners</b> — who carries out your jobs: Claude, an API key, a local model</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="assets/screenshots/webui-services.webp" alt="Services and devices: every registry in one list, secrets referenced by name"></td>
-    <td width="50%"><img src="assets/screenshots/webui-vault.webp" alt="Vault: secret names, scope and where each one is used; values are write-only"></td>
+    <td width="50%"><img src="assets/screenshots/webui-vault.webp" alt="Vault: secret names, scope and where each one is used; editing an entry never shows its value"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Services &amp; devices</b> — every registry, secrets by name</sub></td>
@@ -377,7 +429,7 @@ language-switchable **DE/EN**:
 | **Scheduled jobs** *(everyone)* | Your cron jobs: plain-language schedule, next/last run, on/off, the job's runner, presets with a preview of the next runs |
 | **Runners** *(everyone)* | Your runners: a Claude cloud task, an API key (typed or picked from the vault), an OpenAI-compatible address; state, link to the last Claude session, *Test*. Admins see all, choose the standard runner and sign in with ChatGPT |
 | **Playbooks** *(everyone)* | Library (adopt the AI-native SDLC template, edit stages) and your runs: progress, artifact versions, approve or reject each stage |
-| **Vault** | See secret **names**, add tokens/API keys/passwords (shared or per-user), delete. Values are **write-only** — they never leave the vault |
+| **Vault** | See secret **names**; add, edit and delete tokens/API keys/passwords (shared or per-user). Values are **write-only** — editing sets a new one without showing the old, and none ever leaves the vault |
 | **Skills** | Browse by category, view, create/edit/delete skills (same house rules as `skill_write`) |
 | **Users** | Roles (`admin`/`user`/`viewer`) + per-user areas (memory, vault, services, skills, device grants) in `policy.json` |
 | **Connect clients** | One key per agent or CLI (Claude Code, Codex, Hermes, LM Studio, …): person, tools profile, allowed tools, expiry; the key is shown once, with the setup snippet for the chosen client |

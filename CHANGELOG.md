@@ -11,6 +11,15 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   `vX.Y.Z` and `latest` — `latest` is always a release, and a release is no longer
   built twice. Commits between releases build no image; the tests still run on every
   push.
+- **README**: what AICortex does in 30 seconds, a 5-minute try-out on your own
+  computer (Docker, no login, port on loopback only) and new screenshots, including
+  the Runners tab.
+
+### Fixed
+- **Table buttons stay in view**: on a laptop screen the vault's *Delete* buttons — and
+  at 1024 px the runner, job and service actions — slid behind the table's sideways
+  scroll. Row actions now wrap below each other where a table gets tight, and the vault
+  puts its form below the table under 1400 px.
 
 ## [2.3.1] — 2026-11-03
 Scheduled jobs, easy to hand out: say "tomorrow at 8, do X" and it just runs.
