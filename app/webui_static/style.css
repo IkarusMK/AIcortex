@@ -321,8 +321,12 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 /* schema-built forms: label above field; checkboxes stay small */
 .form-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 0; }
 .form-fields input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; margin: 4px 0 10px; }
+/* Row actions sit side by side; where a table gets tight they wrap below each other
+   instead of slipping out of view. A single button never breaks inside. */
 .tbl td.actions { white-space: nowrap; text-align: right; }
-.tbl td.actions .btn + .btn { margin-left: 6px; }
+.tbl td.actions .btn { white-space: nowrap; margin: 2px 0 2px 6px; }
+#vault-table td.actions, #rn-table td.actions { white-space: normal; }
+@media (max-width: 1279px) { .tbl td.actions { white-space: normal; } }
 /* wide tables scroll inside their panel instead of widening the page */
 .tbl-scroll { overflow-x: auto; max-width: 100%; }
 .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; text-transform: none;
@@ -362,3 +366,8 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 
 /* A panel in a grid never grows past its column — its tables scroll inside instead */
 .grid-2 > * { min-width: 0; }
+/* Runner rows can have up to five actions: keep two per line rather than a tall stack */
+#rn-table td.actions { min-width: 200px; }
+@media (max-width: 1100px) { #rn-table td.actions { min-width: 170px; } }
+/* The vault table needs more room than half a laptop screen: put the form below it */
+@media (max-width: 1400px) { #view-vault .grid-2 { grid-template-columns: minmax(0, 1fr); } }
