@@ -1,0 +1,66 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.IkarusMK/aicortex",
+  "title": "AICortex",
+  "description": "Self-hosted brain for any LLM: memory, skills, encrypted vault, devices and scheduled jobs.",
+  "repository": {
+    "url": "https://github.com/IkarusMK/AIcortex",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/IkarusMK/AIcortex#readme",
+  "version": "2.3.3",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/ikarusmk/aicortex:v2.3.3",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:8787/mcp"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-p",
+          "value": "127.0.0.1:8787:8787",
+          "description": "Publish the MCP port on this computer only"
+        },
+        {
+          "type": "named",
+          "name": "-v",
+          "value": "aicortex-data:/data",
+          "description": "Keeps memory, skills, vault and jobs across restarts"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "STORAGE_ENCRYPTION_KEY",
+          "description": "Fernet key that encrypts the vault and the sign-in store (openssl rand -base64 32 | tr '+/' '-_')",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "OIDC_CONFIG_URL",
+          "description": "Discovery URL of your own identity provider (sign-in for cloud LLM apps)"
+        },
+        {
+          "name": "OIDC_CLIENT_ID",
+          "description": "Client ID registered at your identity provider"
+        },
+        {
+          "name": "OIDC_CLIENT_SECRET",
+          "description": "Client secret registered at your identity provider",
+          "isSecret": true
+        },
+        {
+          "name": "BASE_URL",
+          "description": "Public HTTPS URL of this server, e.g. https://agent.example.com"
+        },
+        {
+          "name": "JWT_SIGNING_KEY",
+          "description": "Signs the server's own tokens (openssl rand -hex 32)",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

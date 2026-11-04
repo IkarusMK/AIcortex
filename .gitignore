@@ -21,6 +21,7 @@ data/mail/*
 data/auth/*
 logs/*
 secrets/*
+.glama-data/
 !**/.gitkeep
 
 # Python

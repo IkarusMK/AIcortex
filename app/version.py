@@ -8,6 +8,9 @@ a release — never in a commit-only change — otherwise ping/logs would advert
 version that has no matching release (which is misleading). Between releases, `main`
 keeps the last released number and new notes go under `## [Unreleased]` in
 CHANGELOG.md; the next release then adopts them under its number.
+
+A release also sets "version" and the image tag in server.json (the MCP Registry
+listing) to this number; tests/test_mcp_registry.py fails until it does.
 """
 
-__version__ = "2.3.2"
+__version__ = "2.3.3"

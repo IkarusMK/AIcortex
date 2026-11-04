@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+# The official MCP Registry checks this label to verify that the image belongs to the
+# server it lists (must equal "name" in server.json).
+LABEL io.modelcontextprotocol.server.name="io.github.IkarusMK/aicortex"
+
 # gosu lets the entrypoint drop privileges to PUID:PGID at runtime.
 # curl is the FTPS upload engine for ftp_tools: it does TLS session reuse on the
 # data channel, which devices like Bambu Lab printers require and ftplib can't do.

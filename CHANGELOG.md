@@ -6,6 +6,23 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.3.3] — 2026-11-04
+Listed in the official MCP Registry, and ready for Glama.
+
+### Added
+- **Official MCP Registry**: every release now lists itself at
+  registry.modelcontextprotocol.io as `io.github.IkarusMK/aicortex`. The image carries
+  the registry's ownership label, `server.json` describes the server, and the release
+  workflow publishes it right after the image — with GitHub's OIDC token (no stored
+  secret) and a pinned, signature-checked `mcp-publisher`.
+- **Glama**: `glama/stdio_bridge.py` lets Glama (glama.ai) build AICortex and list its
+  tools in its sandbox — over stdio, on loopback only, with throw-away data under the
+  working directory; `glama.json` names the maintainer. Neither is part of the image.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.3.3` and redeploy; `data/` stays as it is.
+  Nothing changes in how AICortex runs.
+
 ## [2.3.2] — 2026-11-04
 Every button in view, a README that explains AICortex in 30 seconds, and one image
 build per release.
