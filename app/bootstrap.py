@@ -277,8 +277,9 @@ def register(mcp):
                      task: Annotated[str, _TASK] = "") -> str:
         """Briefing for the start of a conversation: who the user is, how they want
         you to work and, for `project`, its notes, open tasks and last session —
-        plus skills and integrations matching `task`. Short (≤ 4,000 characters).
-        Example: cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
+        plus skills and integrations matching `task`. Short (≤ 4,000 characters); a
+        project with no notes yet says so. Example:
+        cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
         return start.build(project, task)
 
     @mcp.tool

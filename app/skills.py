@@ -224,11 +224,12 @@ def _may_change(folder: Path) -> tuple[bool, str]:
 
 def register(mcp):
     @mcp.tool
-    def skill_search(query: str,
+    def skill_search(query: Annotated[str, Field(description="The task in plain words")],
                      category: Annotated[str, Field(description="Only skills in this category; "
                                                                 "empty = all")] = "") -> str:
-        """Find skills relevant to a task (ranked name — description). Call this
-        before specialized work, then skill_load the best match."""
+        """Find skills for a task: up to 10 lines "name — description", best first (a
+        word in the name counts most, then description, tags, text); no match says so.
+        Call this before specialized work, then skill_load the best match."""
         results = search(query, category)
         if not results:
             return f"No skills matched '{query}'. (Use skill_write to add one.)"
@@ -273,7 +274,9 @@ def register(mcp):
     @mcp.tool
     def skill_load(name: Annotated[str, Field(description="The name skill_search returned "
                                                           "(before the ' — ')")]) -> str:
-        """Load a skill's full instructions by its name — find the name with skill_search."""
+        """Load a skill's full instructions (its whole SKILL.md) by name — find the name
+        with skill_search. An unknown name, or a skill outside your allowed set, gets a
+        message saying so."""
         import tenancy
         path = SKILLS_DIR / _slug(name) / "SKILL.md"
         if not path.exists():

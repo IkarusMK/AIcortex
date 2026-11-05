@@ -370,8 +370,10 @@ def register(mcp):
     """Register the memory_* tools on a FastMCP instance."""
 
     @mcp.tool
-    def memory_write(title: str, content: str,
-                     type: Annotated[str, Field(json_schema_extra={"enum": list(CANON_TYPES)})],
+    def memory_write(title: Annotated[str, Field(description="Short title; it names the memory")],
+                     content: Annotated[str, Field(description="The fact itself, in Markdown")],
+                     type: Annotated[str, Field(description="Required — one of the four types above",
+                                                json_schema_extra={"enum": list(CANON_TYPES)})],
                      scope: Annotated[str, _SCOPE] = "shared",
                      tags: Annotated[str, Field(description='Comma-separated, e.g. "garden, mqtt"')] = "",
                      source: Annotated[str, Field(description='Where the fact comes from, e.g. a URL; '
@@ -458,19 +460,20 @@ def register(mcp):
                                                            "(before the ' — ')")],
                     scope: Annotated[str, _SCOPE] = "shared") -> str:
         """Read a memory's full content and version by its name — find the name with
-        memory_search."""
+        memory_search. An unknown name returns "No memory named …"."""
         path = _note_path(_scope_dir(scope), name)
         if not path.exists():
             return f"No memory named '{name}' in scope '{scope}'."
         return path.read_text(encoding="utf-8")
 
     @mcp.tool
-    def memory_search(query: str, scope: Annotated[str, _SCOPE] = "shared",
+    def memory_search(query: Annotated[str, Field(description="Words to look for, any order")],
+                      scope: Annotated[str, _SCOPE] = "shared",
                       project: Annotated[str, Field(description="Only this project's memories")] = "",
                       type: Annotated[str, Field(description="Only this type: user, feedback, "
                                                              "project or reference")] = "",
                       tag: Annotated[str, Field(description="Only memories with this tag")] = "",
-                      limit: int = 20) -> str:
+                      limit: Annotated[int, Field(description="Most results, 1–100")] = 20) -> str:
         """Find memories by words (any order); best matches first — a hit in the
         title counts most, then tags/project, then the text. Returns name, title and
         a snippet; memory_read gives the full text."""

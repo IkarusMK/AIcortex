@@ -261,8 +261,9 @@ def register(mcp):
                                                            "empty = all")] = "",
                   owner: Annotated[str, Field(description="Agent holding the task, as after "
                                                           "owner= in the list; empty = any")] = "") -> str:
-        """List the tasks on the shared agent board (id, status, owner, title),
-        optionally filtered."""
+        """List the tasks on the shared agent board — work handed between agents —
+        oldest first, every match (id, status, owner, title). Check it before adding or
+        claiming one (task_add / task_claim via integration_call)."""
         items = _mine(_read(TASKS_FILE))
         sel = [t for t in items
                if (not status or t.get("status") == status)

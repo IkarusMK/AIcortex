@@ -3,10 +3,11 @@
 Glama rated their definitions B (3.8/5) in November 2026: none of the 37 parameters
 had a description, `bootstrap` said only "Same as cortex_start", and `memory_read`
 pointed to memory_list — a tool a client with the core profile does not see. A model
-had to guess what `scope`, `owner` or `expected_version` take. Now every parameter
-that isn't self-explanatory carries a short description, every description stands on
-its own, and a tool outside the core set is only named together with the way to reach
-it (integration_call). The whole listing stays small: models read it in every chat.
+had to guess what `scope`, `owner` or `expected_version` take, and what comes back for
+an unknown name or no match. Now every parameter carries a short description, every
+description stands on its own and says what happens, and a tool outside the core set
+is only named together with the way to reach it (integration_call). The whole listing
+stays small: models read it in every chat.
 """
 import asyncio
 import re
@@ -14,20 +15,18 @@ import re
 import pytest
 from fastmcp import Client
 
-# Parameters a model can't use correctly from their name alone.
-NEEDS_DESCRIPTION = {
-    "cortex_start": {"project", "task"},
-    "bootstrap": {"project", "task"},
-    "memory_write": {"scope", "tags", "source", "review", "project", "expected_version"},
-    "memory_read": {"name", "scope"},
-    "memory_search": {"scope", "project", "type", "tag"},
-    "skill_search": {"category"},
-    "skill_load": {"name"},
-    "task_list": {"status", "owner"},
-    "session_save": {"session_id", "next_steps", "status", "model", "project"},
-    "integration_call": {"name", "arguments"},
+# What each description must say about the tool's behaviour (Glama's second round:
+# not-found and empty results, result counts and order, what comes back, when to use).
+DOCUMENTED = {
+    "memory_read": ["no memory named"],
+    "skill_load": ["unknown name"],
+    "skill_search": ["up to 10"],
+    "task_list": ["oldest first"],
+    "cortex_start": ["no notes yet"],
+    "integration_call": ["unchanged", "changes or deletes data"],
+    "session_save": ["memory_write"],
 }
-LISTING_BUDGET = 12_000   # characters of the whole core listing (was 9,807 before)
+LISTING_BUDGET = 13_000   # characters of the core listing: 9,807 before, 12,640 now
 
 
 def _listing(server):
@@ -44,12 +43,19 @@ def core_tools(monkeypatch, request):
     return server, {t.name: t for t in _listing(server)}
 
 
-def test_parameters_that_need_it_are_described(core_tools):
+def test_every_parameter_is_described(core_tools):
     _, tools = core_tools
-    missing = {name: sorted(p for p in params
-                            if not (tools[name].inputSchema["properties"][p].get("description") or "").strip())
-               for name, params in NEEDS_DESCRIPTION.items()}
+    missing = {name: sorted(p for p, schema in tool.inputSchema["properties"].items()
+                            if not (schema.get("description") or "").strip())
+               for name, tool in tools.items()}
     assert not {k: v for k, v in missing.items() if v}
+
+
+def test_descriptions_say_what_happens(core_tools):
+    _, tools = core_tools
+    gaps = {name: [p for p in phrases if p not in tools[name].description.lower()]
+            for name, phrases in DOCUMENTED.items()}
+    assert not {k: v for k, v in gaps.items() if v}
 
 
 def test_bootstrap_explains_itself(core_tools):

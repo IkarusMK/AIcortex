@@ -156,7 +156,11 @@ def _summary(tool) -> str:
 
 def register(mcp):
     @mcp.tool
-    async def integration_search(query: str, limit: int = 8, ctx: Context = None) -> str:
+    async def integration_search(
+            query: Annotated[str, Field(description="What you want to do, in plain words "
+                                                    "(any language)")],
+            limit: Annotated[int, Field(description="Most matches, 1–20")] = 8,
+            ctx: Context = None) -> str:
         """Find a tool for what you want to do among everything AICortex offers beyond
         the core set — devices (MQTT, FTP), services, files, mail, calendars, printing,
         scanning, SSH, webhooks, scheduling, playbooks (multi-stage work with
@@ -179,8 +183,11 @@ def register(mcp):
             arguments: Annotated[dict | None, Field(description="That tool's parameters as an "
                                                                 "object")] = None,
             ctx: Context = None):
-        """Run a tool found with integration_search. The same permissions apply as for
-        calling the tool directly. Example: integration_call(name="print_document",
+        """Run a tool found with integration_search and return its result unchanged —
+        its own errors too; a name you may not call is refused with a pointer to
+        integration_search. Same permissions as calling the tool directly: one that
+        changes or deletes data does so here as well, so confirm such steps as you would
+        there. Example: integration_call(name="print_document",
         arguments={"printer": "office", "file": "scan.pdf"})."""
         allowed = {t.name for t in await _callable_tools(ctx)}
         if name not in allowed:

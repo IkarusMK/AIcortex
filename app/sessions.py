@@ -181,7 +181,10 @@ def render(s: dict) -> str:
 def register(mcp):
     @mcp.tool
     @_serialized
-    def session_save(summary: str, title: str = "",
+    def session_save(summary: Annotated[str, Field(description="What happened and where it "
+                                                              "stands, in a few lines")],
+                     title: Annotated[str, Field(description="Title of a new session; its id is "
+                                                             "made from it")] = "",
                      session_id: Annotated[str, Field(description="Id from an earlier session_save "
                                                                   "to continue it; empty = new session")] = "",
                      next_steps: Annotated[str, Field(description="What to do next, for whoever "
@@ -193,9 +196,9 @@ def register(mcp):
                      project: Annotated[str, Field(description="Project this work belongs to; "
                                                                "cortex_start shows its latest "
                                                                "session")] = "") -> str:
-        """Append a checkpoint to a work session so another LLM/device can resume it.
-        Keep `summary` short (what happened, current state). Returns the session id.
-        Old sessions auto-expire after SESSION_RETENTION_DAYS."""
+        """Append a checkpoint to a work session so another LLM/device can resume it —
+        for handing over work in progress; durable facts belong in memory_write.
+        Returns the session id. Old sessions auto-expire after SESSION_RETENTION_DAYS."""
         if not (summary or "").strip():
             return "Nothing to save: 'summary' is required."
         now = _now()
