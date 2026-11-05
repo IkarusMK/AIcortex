@@ -15,9 +15,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   it does instead of "Same as cortex_start", and `memory_read` points to
   `memory_search` instead of `memory_list`, which a client with the core profile
   doesn't see; a tool outside the core set is only named together with
-  `integration_call`. Glama had rated the definitions B (3.8/5). The listing grows
-  from 9,807 to 12,640 characters (about 710 tokens per conversation); a test keeps
-  it under 13,000.
+  `integration_call`. `cortex_start` says to call it first, what comes back without
+  arguments and when the briefing is shortened, and names `bootstrap`,
+  `memory_search` and `task_list`; `integration_search` sets itself apart from
+  `skill_search` and `memory_search`. Glama had rated the definitions B (3.8/5).
+  The listing grows from 9,807 to 12,886 characters (about 770 tokens per
+  conversation); a test keeps it under 13,000.
 
 ## [2.3.3] — 2026-11-04
 Listed in the official MCP Registry, and ready for Glama.

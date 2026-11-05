@@ -22,11 +22,14 @@ DOCUMENTED = {
     "skill_load": ["unknown name"],
     "skill_search": ["up to 10"],
     "task_list": ["oldest first"],
-    "cortex_start": ["no notes yet"],
+    # the entry point names its alias and the tools for later in the conversation —
+    # Glama rated it below its own alias bootstrap until it did (3.6 vs 4.4)
+    "cortex_start": ["no notes yet", "shortened", "bootstrap", "memory_search", "task_list"],
+    "integration_search": ["best first", "no match", "skill_search", "memory_search"],
     "integration_call": ["unchanged", "changes or deletes data"],
     "session_save": ["memory_write"],
 }
-LISTING_BUDGET = 13_000   # characters of the core listing: 9,807 before, 12,640 now
+LISTING_BUDGET = 13_000   # characters of the core listing: 9,807 before, 12,886 now
 
 
 def _listing(server):

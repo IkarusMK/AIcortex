@@ -275,10 +275,13 @@ def register(mcp):
     @mcp.tool
     def cortex_start(project: Annotated[str, _PROJECT] = "",
                      task: Annotated[str, _TASK] = "") -> str:
-        """Briefing for the start of a conversation: who the user is, how they want
-        you to work and, for `project`, its notes, open tasks and last session —
-        plus skills and integrations matching `task`. Short (≤ 4,000 characters); a
-        project with no notes yet says so. Example:
+        """Call this first in every conversation. Returns a briefing: who the user is
+        and how they want you to work; for `project` its notes, open tasks and last
+        session (a project with no notes yet says so); for `task` matching skills and
+        integrations. Without arguments: that profile and the known projects. At most
+        4,000 characters — longer lists are cut and marked "shortened". bootstrap is
+        the same for older setups; later in the conversation use memory_search for a
+        fact and task_list for the task board. Example:
         cortex_start(project="Birdhouse", task="slice a bracket for the printer")."""
         return start.build(project, task)
 

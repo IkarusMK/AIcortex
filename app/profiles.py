@@ -161,12 +161,12 @@ def register(mcp):
                                                     "(any language)")],
             limit: Annotated[int, Field(description="Most matches, 1–20")] = 8,
             ctx: Context = None) -> str:
-        """Find a tool for what you want to do among everything AICortex offers beyond
-        the core set — devices (MQTT, FTP), services, files, mail, calendars, printing,
-        scanning, SSH, webhooks, scheduling, playbooks (multi-stage work with
-        approvals), agents and administration. Returns each
-        match with its parameters (* = required); run one with integration_call.
-        Example: integration_search("print a PDF on the office printer")."""
+        """Find a tool beyond the core set — devices, services, files, mail, calendars,
+        printing, scanning, SSH, webhooks, scheduling, playbooks, agents and
+        administration. Returns matches best first, each with its parameters
+        (* = required); no match says so. Run one with integration_call. For how-to
+        instructions use skill_search, for stored facts memory_search. Example:
+        integration_search("print a PDF on the office printer")."""
         terms = _terms(query)
         tools = [t for t in await _callable_tools(ctx) if t.name not in CORE_TOOLS]
         ranked = sorted(((_score(terms, t), t) for t in tools), key=lambda st: (-st[0], st[1].name))
