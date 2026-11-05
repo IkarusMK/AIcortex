@@ -418,7 +418,10 @@ async def _one_job(client, job: dict, rec: dict, key: str) -> str:
 
 
 def _access(rec: dict) -> tuple[str, str]:
-    """(key, problem): problem is "no-signin" or "no-key" when the model can't be asked."""
+    """(key, problem): problem is "paid-model", "no-signin" or "no-key" when the model
+    can't be asked — "paid-model" before any key is even read."""
+    if runners.model_problem(rec):
+        return "", "paid-model"
     if rec["kind"] in RESPONSES_KINDS:
         chatgpt_signin.keep_alive()
         return "", "" if chatgpt_signin.status()["plan"] else "no-signin"
@@ -578,8 +581,8 @@ async def probe(rec: dict) -> tuple[bool, str]:
         return await asyncio.to_thread(runner_cloud.test, rec)
     key, problem = await asyncio.to_thread(_access, rec)
     if problem:
-        return False, ("Not signed in with ChatGPT." if problem == "no-signin"
-                       else "No key stored yet.")
+        return False, {"paid-model": runners.FREE_ONLY_NOTE,
+                       "no-signin": "Not signed in with ChatGPT."}.get(problem, "No key stored yet.")
     try:
         answer = (await _ask(rec, key)).strip()
     except Exception as exc:

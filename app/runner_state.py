@@ -9,7 +9,7 @@ IDLE = {"state": "waiting", "detail": "", "link": "", "at": ""}
 
 
 def put(rid: str, state: str, detail: str = "", link: str = "") -> None:
-    """state: idle | ran | no-key | no-signin | error."""
+    """state: idle | ran | no-key | no-signin | paid-model | error."""
     with _lock:
         _states[rid] = {"state": state, "detail": str(detail)[:200], "link": link,
                         "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}

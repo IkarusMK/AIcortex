@@ -62,6 +62,11 @@ The model must support **tool calling**, or it can't use AICortex. OpenRouter's 
 models end in `:free`; not all of them call tools well, and they have daily limits — a
 **Test** and one small job tell you whether a model works for you.
 
+**Free models only** (ticked for a new OpenRouter runner): the runner then only takes a
+model whose name ends in `:free` — checked when you save and again before every request,
+so it can't run up a bill. For a runner from before 2.3.4, tick it under **Edit**. A
+spending limit on the OpenRouter key itself is a good second fence.
+
 ### ChatGPT plan *(admins)*
 
 **New runner** → **ChatGPT plan** → **Sign in with ChatGPT** → open the sign-in, sign

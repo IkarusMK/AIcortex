@@ -14,6 +14,7 @@ Object.assign(I18N.de, {
   rn_new_title: "Neuer Runner", rn_edit_title: "Runner bearbeiten",
   rn_f_kind: "Art", rn_f_name: "Name", rn_f_model: "Modell", rn_f_url: "Adresse (OpenAI-kompatibel)",
   rn_f_trigger: "API-Adresse der Cloud-Aufgabe (oder ihre trig_…-ID)", rn_f_enabled: "Eingeschaltet",
+  rn_f_free_only: "Nur kostenlose Modelle (der Name endet auf „:free“)",
   "rn_k_claude-cloud": "Claude (Cloud-Aufgabe wecken)", rn_k_chatgpt: "ChatGPT-Abo",
   rn_k_anthropic: "Anthropic-API-Schlüssel", rn_k_openai: "OpenAI-API-Schlüssel", rn_k_openrouter: "OpenRouter",
   rn_k_gemini: "Google Gemini", rn_k_compatible: "OpenAI-kompatibel (eigene Adresse, z. B. Ollama)",
@@ -34,6 +35,7 @@ Object.assign(I18N.de, {
   rn_s_off: "aus", rn_s_waiting: "prüft ab der nächsten Minute", rn_s_idle: "zuletzt geprüft {0}, nichts fällig",
   rn_s_ran: "{0}: {1}", "rn_s_no-key": "kein brauchbarer Schlüssel/Token gespeichert",
   "rn_s_no-signin": "noch nicht mit ChatGPT angemeldet", rn_s_error: "Fehler ({0}) — {1}",
+  "rn_s_paid-model": "das Modell ist nicht kostenlos, „Nur kostenlose Modelle“ ist an",
   rn_session: "Claude-Sitzung öffnen ↗", rn_test: "Testen", rn_make_std: "Als Standard",
   rn_mine: "Mein Standard", rn_make_mine: "Als mein Standard",
   confirm_rn_test_cloud: "Claude jetzt zum Test wecken? Das startet eine kurze Sitzung in deinem Konto.",
@@ -60,6 +62,7 @@ Object.assign(I18N.en, {
   rn_new_title: "New runner", rn_edit_title: "Edit runner",
   rn_f_kind: "Kind", rn_f_name: "Name", rn_f_model: "Model", rn_f_url: "Address (OpenAI-compatible)",
   rn_f_trigger: "The cloud task's API address (or its trig_… id)", rn_f_enabled: "Switched on",
+  rn_f_free_only: "Free models only (the name ends in \":free\")",
   "rn_k_claude-cloud": "Claude (wake a cloud task)", rn_k_chatgpt: "ChatGPT plan",
   rn_k_anthropic: "Anthropic API key", rn_k_openai: "OpenAI API key", rn_k_openrouter: "OpenRouter",
   rn_k_gemini: "Google Gemini", rn_k_compatible: "OpenAI-compatible (own address, e.g. Ollama)",
@@ -80,6 +83,7 @@ Object.assign(I18N.en, {
   rn_s_off: "off", rn_s_waiting: "checks from the next minute", rn_s_idle: "last checked {0}, nothing due",
   rn_s_ran: "{0}: {1}", "rn_s_no-key": "no usable key/token stored",
   "rn_s_no-signin": "not signed in with ChatGPT yet", rn_s_error: "error ({0}) — {1}",
+  "rn_s_paid-model": "the model isn't free, and \"free models only\" is on",
   rn_session: "Open the Claude session ↗", rn_test: "Test", rn_make_std: "Make standard",
   rn_mine: "My default", rn_make_mine: "Make my default",
   confirm_rn_test_cloud: "Wake Claude now for a test? This starts a short session in your account.",
@@ -105,7 +109,7 @@ function rnStateCell(rec) {
   const s = rec.state || { state: "waiting" };
   const text = document.createElement("span");
   text.textContent = t(`rn_s_${s.state}`, cronStamp(s.at), s.detail || "");
-  if (["no-key", "no-signin", "error"].includes(s.state)) text.className = "err";
+  if (["no-key", "no-signin", "paid-model", "error"].includes(s.state)) text.className = "err";
   td.append(text);
   if (String(s.link || "").startsWith("https://claude.ai/")) {
     const a = document.createElement("a");
@@ -240,6 +244,7 @@ function kindView() {
   $("#rn-chatgpt").classList.toggle("hidden", !chat);
   $("#rn-key-label").textContent = t(cloud ? "rn_f_token" : compat ? "rn_f_key_opt" : "rn_f_key");
   $("#rn-model-hint").textContent = t(k === "anthropic" ? "rn_m_claude" : chat ? "rn_m_chatgpt" : "rn_m_api");
+  $("#rn-free-box").classList.toggle("hidden", k !== "openrouter");
   $("#rn-model").required = !cloud && !chat && k !== "anthropic";
   $("#rn-url").required = compat;
   $("#rn-trigger").required = cloud;
@@ -260,6 +265,7 @@ async function openRunner(rec) {
   $("#rn-url").value = rec ? rec.base_url || "" : "";
   $("#rn-trigger").value = rec ? rec.trigger || "" : "";
   $("#rn-enabled").checked = rec ? !!rec.enabled : true;
+  $("#rn-free-only").checked = rec ? !!rec.free_only : true;   // a new runner: free models first
   kindView();
   $("#rn-editor").classList.remove("hidden");
   $("#rn-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -270,6 +276,7 @@ async function saveRunner() {
   const body = { kind: k, name: $("#rn-name").value.trim(), enabled: $("#rn-enabled").checked,
                  model: $("#rn-model").value.trim(), base_url: $("#rn-url").value.trim(),
                  trigger: $("#rn-trigger").value.trim() };
+  if (k === "openrouter") body.free_only = $("#rn-free-only").checked;
   if (RUNNERS.editing) body.id = RUNNERS.editing.id;
   const src = $("#rn-key-src").value;
   if (src === "new" && k !== "chatgpt") body.key = $("#rn-key").value;

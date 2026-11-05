@@ -53,6 +53,12 @@ SETUP_TOKEN_NOTE = (  # nosec B105 - a message, not a secret
     "Claude via `claude setup-token` no longer works — Anthropic refuses the token outside "
     "Claude Code. Set up a Claude cloud task instead (see the Runner tab), then delete the "
     "old token RUNNER_LLM_KEY in the vault.")
+# "Free models only" for an OpenRouter runner: OpenRouter marks a model's free variant
+# with this suffix (05.11.2026: all 12 such models of 452 cost $0). Checked when saving
+# and again before every request.
+FREE_SUFFIX = ":free"
+FREE_ONLY_NOTE = ('Free models only: the OpenRouter model name must end in ":free" '
+                  '(e.g. vendor/model:free).')
 FIRE_URL = "https://api.anthropic.com/v1/claude_code/routines/{trigger}/fire"
 TRIGGER = re.compile(r"trig_[A-Za-z0-9_-]{4,80}")
 NAME_MAX, MODEL_MAX, URL_MAX = 80, 200, 300
@@ -183,7 +189,7 @@ def public(rec: dict) -> dict:
     keys = ("id", "name", "kind", "owner", "enabled", "model", "base_url", "trigger", "note",
             "updated", "updated_by")
     ref = rec.get("key")
-    return dict({k: rec.get(k, "") for k in keys},
+    return dict({k: rec.get(k, "") for k in keys}, free_only=bool(rec.get("free_only")),
                 key={"name": ref["name"], "shared": bool(ref.get("shared"))} if ref else None)
 
 
@@ -321,8 +327,21 @@ def _fields(fields: dict, current, kind: str, cloud_ok: bool):
             return None, "Paste the cloud task's API address or its trig_… id."
     name = (pick("name") or LABELS[kind])[:NAME_MAX]
     enabled = bool(fields["enabled"]) if "enabled" in fields else bool(cur.get("enabled", True))
-    return {"name": name, "model": model, "base_url": base_url, "trigger": trigger,
-            "enabled": enabled}, ""
+    free_only = kind == "openrouter" and (
+        bool(fields["free_only"]) if "free_only" in fields else bool(cur.get("free_only", False)))
+    values = {"name": name, "model": model, "base_url": base_url, "trigger": trigger,
+              "enabled": enabled, "free_only": free_only}
+    problem = model_problem(dict(values, kind=kind))
+    return (None, problem) if problem else (values, "")
+
+
+def model_problem(rec: dict) -> str:
+    """Why this runner may not ask its model ("" if it may): a runner limited to free
+    models whose model isn't one."""
+    model = str(rec.get("model") or "").strip().lower()
+    if rec.get("kind") == "openrouter" and rec.get("free_only") and not model.endswith(FREE_SUFFIX):
+        return FREE_ONLY_NOTE
+    return ""
 
 
 def _rights(data: dict, current, kind: str, by: str, admin: bool) -> str:
@@ -482,6 +501,7 @@ def register(mcp):
         for r in visible(data, ident, admin):
             tags = (" — standard" if r["id"] == data["standard"] else "") + (
                 " — your default" if r["id"] == mine else "") + (
+                " — free models only" if r.get("free_only") else "") + (
                 f" — owner {r.get('owner') or '?'}" if admin else "")
             lines.append(f"- {r['id']} — {r.get('name', '')} — {r.get('kind', '')} — "
                          f"{'on' if r.get('enabled') else 'off'}{tags}")

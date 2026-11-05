@@ -95,7 +95,7 @@ def register(mcp, h):
             return sess
         sub, admin = who(sess)
         fields = {k: body[k] for k in ("id", "name", "kind", "model", "base_url", "trigger",
-                                        "enabled", "key_ref") if k in body}
+                                        "enabled", "free_only", "key_ref") if k in body}
         ok, message, rec = runners.save(fields, by=sub, admin=admin, key=str(body.get("key") or ""),
                                         cloud_ok=sess.get("mode", "oidc") != "open")
         extra = {"runner": runners.public(rec)} if rec else {}

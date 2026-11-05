@@ -6,6 +6,13 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Added
+- **Free models only** for an OpenRouter runner: ticked for a new one, the runner only
+  takes a model whose name ends in `:free` (on 05.11.2026 all 12 such models of 452
+  cost $0) — checked when it is saved and again before every request, so a
+  hand-edited `runners.json` can't run up a bill either. Existing runners stay as they
+  are until it is ticked; `runner_list` marks such runners.
+
 ### Changed
 - **The tools explain themselves**: the eleven tools a client sees up front now
   describe all 37 parameters (e.g. `scope`, `owner`, `expected_version`) and say what
