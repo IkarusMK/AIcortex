@@ -6,6 +6,9 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.3.4] — 2026-11-05
+Free models only for an OpenRouter runner, and tools that explain themselves.
+
 ### Added
 - **Free models only** for an OpenRouter runner: ticked for a new one, the runner only
   takes a model whose name ends in `:free` (on 05.11.2026 all 12 such models of 452
@@ -28,6 +31,13 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   `skill_search` and `memory_search`. Glama had rated the definitions B (3.8/5).
   The listing grows from 9,807 to 12,886 characters (about 770 tokens per
   conversation); a test keeps it under 13,000.
+- `paramiko` (SSH) at least 5.1.0 — the image already built with it.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.3.4` and redeploy; `data/` stays as it is.
+- An OpenRouter runner from before keeps running as it was: to limit it to free
+  models, open it under **Edit** and tick **Free models only** (its model name must
+  then end in `:free`).
 
 ## [2.3.3] — 2026-11-04
 Listed in the official MCP Registry, and ready for Glama.
