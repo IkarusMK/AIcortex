@@ -6,9 +6,15 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.4.2] — 2026-11-09
+Scans report the real number of pages.
+
 ### Fixed
 - `scan_document` reports the real number of pages. Some scanners return a feeder
   stack as one multi-page PDF, and the result said "1 page(s)" for all of it.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.4.2` and redeploy; `data/` stays as it is.
 
 ## [2.4.1] — 2026-11-09
 The Search tab now finds everything the WebUI holds.
