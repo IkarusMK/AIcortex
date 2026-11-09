@@ -892,4 +892,5 @@ def register(mcp):
         body=_body, gate=_gate_mutation, audit=_audit)
     webui_views.register(mcp, helpers)
     webui_runner.register(mcp, helpers)
-    webui_search.register(mcp, helpers, _skill_rows)
+    webui_search.register(mcp, helpers, types.SimpleNamespace(
+        skills=_skill_rows, services=_service_rows, users=lambda: _user_rows()["users"]))

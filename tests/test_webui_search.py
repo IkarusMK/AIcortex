@@ -1,4 +1,4 @@
-"""WebUI tab "Search": find skills, tools and secrets quickly from one field.
+"""WebUI tab "Search": find everything in the WebUI quickly from one field.
 
 Before: skills, tools and secrets were only findable on their own pages (or through
 the assistant). Now one admin view searches all three. It is admin-only like the vault
@@ -94,10 +94,14 @@ def test_finds_secrets_by_name_and_never_returns_a_value(ui):
     assert _search(c, "s3cr3t")["secrets"] == []          # a value is never searchable
 
 
+GROUPS = ("skills", "tools", "secrets", "services", "cron", "runners", "playbooks", "runs",
+          "notes", "clients", "users")
+
+
 def test_a_too_short_query_returns_nothing(ui):
     c = ui()
     for q in ("", " ", "a"):
-        assert _search(c, q) == {"query": q.strip(), "skills": [], "tools": [], "secrets": []}
+        assert _search(c, q) == {"query": q.strip(), **{g: [] for g in GROUPS}}
 
 
 def test_results_are_capped_per_group(ui):
@@ -118,3 +122,116 @@ def test_the_search_tab_is_wired_into_the_ui(ui):
     js = c.get("/ui/assets/view-search.js")
     assert js.status_code == 200 and "VIEWS.search" in js.text and 'ADMIN_VIEWS.add("search")' in js.text
     assert "innerHTML" not in js.text      # results are rendered as text, never as markup
+
+
+# ── Everything the WebUI has, not only skills, tools and secrets ─────────────
+# Each area is filled through its own WebUI endpoint (as a person would), then found
+# by the search. Keys and secrets that come back once on creation must never show up.
+
+def _ok(r):
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_finds_services_and_devices_by_name_description_and_secret_name(ui):
+    c = ui()
+    _ok(c.post("/ui/api/registry/services", json={
+        "name": "Recipe Box", "base_url": "https://recipes.example.com", "category": "Household",
+        "token_env": "RECIPE_TOKEN", "description": "Recipes and shopping lists"}))
+    for q in ("recipe", "shopping", "RECIPE_TOKEN"):
+        hits = _search(c, q)["services"]
+        assert [(h["kind"], h["name"]) for h in hits] == [("services", "recipe-box")], q
+    assert set(hits[0]) == {"kind", "name", "target", "description", "secret"}
+    assert hits[0]["target"] == "https://recipes.example.com" and hits[0]["secret"] == "RECIPE_TOKEN"
+
+
+def test_finds_cron_jobs_by_name_and_prompt(ui):
+    c = ui()
+    _ok(c.post("/ui/api/cron", json={"name": "Morning digest", "schedule": "0 7 * * *",
+                                     "prompt": "Summarise the weather and the calendar"}))
+    by_name = _search(c, "digest")["cron"]
+    assert [h["name"] for h in by_name] == ["Morning digest"]
+    assert by_name[0]["schedule"] == "0 7 * * *" and "weather" in by_name[0]["summary"]
+    assert [h["name"] for h in _search(c, "calendar")["cron"]] == ["Morning digest"]
+
+
+def test_finds_runners_but_never_their_key(ui):
+    c = ui()
+    key = "sk-test-runner-key-4711"
+    _ok(c.post("/ui/api/runners", json={"name": "Night shift", "kind": "anthropic", "key": key}))
+    r = c.get("/ui/api/search", params={"q": "night"})
+    assert key not in r.text
+    hits = r.json()["runners"]
+    assert [(h["name"], h["kind"]) for h in hits] == [("Night shift", "anthropic")]
+    assert set(hits[0]) == {"id", "name", "kind", "owner", "enabled"}
+
+
+def test_finds_playbooks_and_their_runs(ui):
+    c = ui()
+    _ok(c.post("/ui/api/playbooks", json={"name": "Release flow", "title": "Release flow",
+                                          "description": "Ship a new version step by step",
+                                          "stages": [{"id": "plan", "name": "Plan", "goal": "g",
+                                                      "artifact": "plan.md", "approval": "webui"}]}))
+    _ok(c.post("/ui/api/playbooks/runs/start", json={"playbook": "release-flow", "project": "Garden"}))
+    found = _search(c, "release")
+    assert [h["name"] for h in found["playbooks"]] == ["release-flow"]
+    assert "step by step" in found["playbooks"][0]["summary"]
+    runs = _search(c, "garden")["runs"]
+    assert [(h["playbook_title"], h["project"], h["status"]) for h in runs] == [("Release flow", "Garden", "active")]
+
+
+def test_finds_notes_by_title_and_by_text(ui):
+    c = ui()
+    _ok(c.post("/ui/api/memory", json={"title": "Nozzle size", "content": "The printer uses a 0.4 mm nozzle.",
+                                       "type": "reference", "project": "Workshop", "tags": "printer"}))
+    assert [h["title"] for h in _search(c, "nozzle")["notes"]] == ["Nozzle size"]
+    hit = _search(c, "0.4 mm")["notes"][0]
+    assert hit["title"] == "Nozzle size" and hit["project"] == "Workshop" and "0.4 mm" in hit["summary"]
+
+
+def test_finds_clients_but_never_their_key(ui):
+    c = ui()
+    created = _ok(c.post("/ui/api/agentkeys", json={"identity": "carol", "name": "kitchen tablet"}))
+    secret = created["key"]
+    assert secret.startswith("ak_")
+    r = c.get("/ui/api/search", params={"q": "kitchen"})
+    assert secret not in r.text
+    hits = r.json()["clients"]
+    assert [(h["name"], h["owner"]) for h in hits] == [("kitchen tablet", "carol")]
+    assert set(hits[0]) == {"keyid", "name", "owner", "status"}
+
+
+def test_finds_users_by_identity_and_note(ui):
+    c = ui()
+    _ok(c.post("/ui/api/users", json={"identity": "grandma", "role": "viewer", "note": "reads the recipes"}))
+    assert [(h["identity"], h["role"]) for h in _search(c, "grandma")["users"]] == [("grandma", "viewer")]
+    assert [h["identity"] for h in _search(c, "recipes")["users"]] == ["grandma"]
+
+
+def test_the_view_shows_every_group_and_links_to_its_tab(ui):
+    js = ui().get("/ui/assets/view-search.js").text
+    for group, tab in (("services", "#services"), ("cron", "#cron"), ("runners", "#runners"),
+                       ("playbooks", "#playbooks"), ("runs", "#playbooks"), ("notes", "#memory"),
+                       ("clients", "#clients"), ("users", "#users"), ("secrets", "#vault")):
+        assert f'"{group}"' in js and f'"{tab}"' in js, group
+
+
+def test_edge_cases_snippet_key_status_and_an_unreadable_note(fresh_server, monkeypatch):
+    ws = sys.modules["webui_search"]
+    assert ws._snippet("First line\nsecond line", "zzz", {"yyy": 2}) == "First line"   # no match → first line
+    assert ws._snippet("", "x", {}) == ""
+    assert ws._key_status({"disabled": True}) == "disabled"
+    assert ws._key_status({"expires": time.time() - 60}) == "expired"
+    assert ws._key_status({"expires": time.time() + 60}) == ws._key_status({}) == "active"
+    shared = sys.modules["memory"].scope_path("shared")
+    shared.mkdir(parents=True, exist_ok=True)
+    (shared / "good.md").write_text("---\ntitle: Good one\n---\n\nBody\n", encoding="utf-8")
+    (shared / "broken.md").write_text("---\ntitle: Broken\n---\n", encoding="utf-8")
+    real = sys.modules["memory"].read_meta
+
+    def read_meta(p):
+        if p.name == "broken.md":
+            raise OSError("unreadable")
+        return real(p)
+    monkeypatch.setattr(sys.modules["memory"], "read_meta", read_meta)
+    assert [r["title"] for r in ws._note_rows()] == ["Good one"]

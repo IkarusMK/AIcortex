@@ -6,6 +6,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Changed
+- **Search finds everything** the WebUI holds, not only skills, tools and secrets:
+  services & devices, cron jobs, runners, playbooks and their runs, notes, clients
+  and users too — only groups with hits are shown, each hit opens its tab. Runner and
+  client keys never reach the browser, secrets stay names only.
+
 ## [2.4.0] — 2026-11-09
 Scanning picks glass or feeder by itself on any eSCL scanner, and a Search tab in the WebUI.
 

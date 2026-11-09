@@ -88,7 +88,7 @@
         </div>
       </section>
 
-      <!-- Search: skills, tools and secrets (names only) in one field -->
+      <!-- Search: everything the WebUI holds, in one field (secrets by name only) -->
       <section id="view-search" class="view hidden">
         <header class="view-head">
           <h1 data-i18n="nav_search"></h1>
@@ -97,20 +97,8 @@
           <p class="dim small" data-i18n="se_hint"></p>
           <input id="se-q" class="inp" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="se_ph">
         </div>
-        <div class="search-results">
-          <div class="panel">
-            <h3><span data-i18n="se_skills"></span> <span id="se-skills-n" class="dim"></span></h3>
-            <div id="se-skills"></div>
-          </div>
-          <div class="panel">
-            <h3><span data-i18n="se_tools"></span> <span id="se-tools-n" class="dim"></span></h3>
-            <div id="se-tools"></div>
-          </div>
-          <div class="panel">
-            <h3><span data-i18n="se_secrets"></span> <span id="se-secrets-n" class="dim"></span></h3>
-            <div id="se-secrets"></div>
-          </div>
-        </div>
+        <p id="se-status" class="dim small search-status"></p>
+        <div class="search-results" id="se-results"></div>
       </section>
 
       <!-- Vault -->
