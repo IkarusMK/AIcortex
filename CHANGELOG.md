@@ -17,6 +17,10 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   says so. The result names the source used.
 - `scan_document(duplex=true)` scans both sides in the feeder where the device can —
   and says so instead of scanning one side when it can't.
+- **WebUI tab „Search“** (admin): one field finds skills, tools and secrets at once —
+  by name and description, German words too ("drucken" finds the print tools), best
+  match first. Secrets are matched by name and description only; their values never
+  reach the browser, not even as a match. A skill hit opens it in the Skills tab.
 
 ### Changed
 - An explicit `source` the scanner doesn't have (`adf` on a glass-only device,

@@ -50,6 +50,7 @@
       </div>
       <nav class="nav">
         <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
+        <a href="#search" data-nav="search" data-admin><span class="ico">⌕</span><span data-i18n="nav_search"></span></a>
         <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
         <a href="#cron"     data-nav="cron"><span class="ico">⏱</span><span data-i18n="nav_cron"></span></a>
         <a href="#runners"  data-nav="runners"><span class="ico">▶</span><span data-i18n="nav_runners"></span></a>
@@ -84,6 +85,31 @@
         <div class="stat-grid" id="ov-grid"></div>
         <div class="term-chip wide"><span class="term-icon">&gt;_</span>
           <span class="term-text" data-i18n="ov_footer"></span><span class="cursor" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <!-- Search: skills, tools and secrets (names only) in one field -->
+      <section id="view-search" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_search"></h1>
+        </header>
+        <div class="panel">
+          <p class="dim small" data-i18n="se_hint"></p>
+          <input id="se-q" class="inp" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="se_ph">
+        </div>
+        <div class="search-results">
+          <div class="panel">
+            <h3><span data-i18n="se_skills"></span> <span id="se-skills-n" class="dim"></span></h3>
+            <div id="se-skills"></div>
+          </div>
+          <div class="panel">
+            <h3><span data-i18n="se_tools"></span> <span id="se-tools-n" class="dim"></span></h3>
+            <div id="se-tools"></div>
+          </div>
+          <div class="panel">
+            <h3><span data-i18n="se_secrets"></span> <span id="se-secrets-n" class="dim"></span></h3>
+            <div id="se-secrets"></div>
+          </div>
         </div>
       </section>
 
@@ -724,5 +750,6 @@
   <script src="/ui/assets/view-runner.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbooks.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbook-lib.js?v={{v}}"></script>
+  <script src="/ui/assets/view-search.js?v={{v}}"></script>
 </body>
 </html>

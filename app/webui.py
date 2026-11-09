@@ -52,6 +52,7 @@ _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "view-runner.js": "application/javascript; charset=utf-8",
     "view-playbooks.js": "application/javascript; charset=utf-8",
     "view-playbook-lib.js": "application/javascript; charset=utf-8",
+    "view-search.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
     "logo.svg": "image/svg+xml",
 }
@@ -884,9 +885,11 @@ def register(mcp):
     import types
 
     import webui_runner
+    import webui_search
     import webui_views
     helpers = types.SimpleNamespace(
         json=_json, require_session=_require_session, require_admin=_require_admin,
         body=_body, gate=_gate_mutation, audit=_audit)
     webui_views.register(mcp, helpers)
     webui_runner.register(mcp, helpers)
+    webui_search.register(mcp, helpers, _skill_rows)

@@ -371,3 +371,9 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 @media (max-width: 1100px) { #rn-table td.actions { min-width: 170px; } }
 /* The vault table needs more room than half a laptop screen: put the form below it */
 @media (max-width: 1400px) { #view-vault .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Search tab: three result groups under the field; tool hits are not links */
+.search-results { display: grid; gap: 14px; margin-top: 14px; }
+.sk-item.static { cursor: default; }
+.sk-item .sig { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 4px;
+  overflow-wrap: anywhere; }
