@@ -6,6 +6,9 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-11-09
+Scanning picks glass or feeder by itself on any eSCL scanner, and a Search tab in the WebUI.
+
 ### Added
 - **Scanning picks glass or feeder by itself**, on any eSCL scanner whatever the
   vendor: `scan_document` now defaults to `source="auto"`. It reads the device's
@@ -31,6 +34,12 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 - The scan request sends the source as `pwg:InputSource`, as the eSCL standard (and
   sane-airscan) does. Strict devices ignored the old `scan:InputSource` and scanned
   the glass even when the feeder was asked for.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.4.0` and redeploy; `data/` stays as it is.
+- `scan_document` now chooses the source itself. Callers that passed `source=platen`
+  or `source=adf` keep that choice; it is only refused when the scanner lacks that
+  source or the feeder is empty.
 
 ## [2.3.4] — 2026-11-05
 Free models only for an OpenRouter runner, and tools that explain themselves.
