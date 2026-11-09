@@ -549,3 +549,55 @@ def test_duplex_with_an_explicit_glass_scan_is_refused(srv, world):
         "Scanner 'flatbed': two-sided scanning needs the document feeder — put the pages in the "
         "feeder and scan with source=adf.")
     assert world.posts == []
+
+
+# --- The result counts sheets, not documents ------------------------------------------
+# Some scanners return a whole feeder stack as ONE multi-page PDF; the result must count
+# its pages, not the documents.
+
+def _pdf(pages):
+    import io
+
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument.new()
+    for _ in range(pages):
+        doc.new_page(200, 200)
+    buf = io.BytesIO()
+    doc.save(buf)
+    doc.close()
+    return buf.getvalue()
+
+
+def test_a_feeder_stack_in_one_pdf_is_counted_by_its_pages(srv, world):
+    _add(srv)
+    stack = _pdf(6)
+    world.page_script = [_Resp(200, stack), _Resp(404)]
+    out = _scan(srv, filename="stack.pdf")
+    assert out.startswith(f"Scanned {len(stack)} bytes, 6 page(s) → /data/work/stack.pdf.")
+
+
+def test_pages_of_several_documents_add_up(srv, world):
+    _add(srv)
+    a, b = _pdf(3), _pdf(2)
+    world.page_script = [_Resp(200, a), _Resp(200, b), _Resp(404)]
+    assert f"Scanned {len(a) + len(b)} bytes, 5 page(s) → " in _scan(srv, filename="two.pdf")
+
+
+def test_a_jpeg_is_one_page_per_document_even_if_it_looks_like_a_pdf(srv, world):
+    _add(srv)
+    world.page_script = [_Resp(200, _pdf(4)), _Resp(404)]
+    assert ", 1 page(s) → " in _scan(srv, filename="p.jpg", format="jpeg")
+
+
+def test_an_unreadable_pdf_counts_as_one_page(srv, world):
+    _add(srv)
+    world.page_script = [_Resp(200, b"not a pdf"), _Resp(404)]
+    assert ", 1 page(s) → " in _scan(srv, filename="odd.pdf")
+
+
+def test_pdf_page_count_helper(srv, monkeypatch):
+    imaging = sys.modules["imaging"]
+    assert imaging.pdf_page_count(_pdf(2)) == 2
+    assert imaging.pdf_page_count(b"garbage") is None
+    monkeypatch.setattr(imaging, "_pdfium", None)
+    assert imaging.pdf_page_count(_pdf(2)) is None

@@ -81,6 +81,20 @@ def pdf_to_jpegs(data: bytes, first: int = 0, count: int = MAX_PAGES):
         doc.close()
 
 
+def pdf_page_count(data: bytes):
+    """Pages in a PDF, or None if it can't be read."""
+    if _pdfium is None:
+        return None
+    try:
+        doc = _pdfium.PdfDocument(data)
+    except Exception:
+        return None
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
 def _is_pdf(data: bytes, suffix: str) -> bool:
     return (suffix or "").lower() == ".pdf" or data[:5] == b"%PDF-"
 

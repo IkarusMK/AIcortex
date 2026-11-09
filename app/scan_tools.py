@@ -34,6 +34,7 @@ except Exception:  # pragma: no cover
 
 import httpx
 
+import imaging
 import netguard
 import secrets_store
 import services as services_mod
@@ -427,8 +428,11 @@ def register(mcp):
             (WORK_DIR / name).write_bytes(page)
             saved.append((name, page))
         total = sum(len(p) for p in pages)
+        # A feeder stack can arrive as ONE multi-page PDF: count sheets, not documents.
+        sheets = sum((imaging.pdf_page_count(p) or 1) if fmt == "application/pdf" else 1
+                     for p in pages)
         listed = ", ".join(f"/data/work/{n}" for n, _ in saved)
-        result = f"Scanned {total} bytes, {len(saved)} page(s) → {listed}.{source_note}"
+        result = f"Scanned {total} bytes, {sheets} page(s) → {listed}.{source_note}"
 
         # 4) Optional: push into Paperless (each page as its own document).
         if paperless:
