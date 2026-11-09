@@ -6,11 +6,17 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.4.1] — 2026-11-09
+The Search tab now finds everything the WebUI holds.
+
 ### Changed
 - **Search finds everything** the WebUI holds, not only skills, tools and secrets:
   services & devices, cron jobs, runners, playbooks and their runs, notes, clients
   and users too — only groups with hits are shown, each hit opens its tab. Runner and
   client keys never reach the browser, secrets stay names only.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.4.1` and redeploy; `data/` stays as it is.
 
 ## [2.4.0] — 2026-11-09
 Scanning picks glass or feeder by itself on any eSCL scanner, and a Search tab in the WebUI.
