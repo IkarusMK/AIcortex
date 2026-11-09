@@ -4,6 +4,9 @@ The scan-side counterpart of print_tools.py. eSCL is the open, vendor-neutral
 scan protocol behind Apple AirScan and Mopria, supported by virtually all modern
 multifunction devices (Epson, HP, Canon, Brother …). A scan job is:
 
+  0. GET  {base}/ScannerCapabilities / ScannerStatus -> which sources the device has
+     (scan:Platen, scan:Adf …) and whether paper is in the feeder (scan:AdfState),
+     so source="auto" picks glass or feeder on any vendor's device
   1. POST ScanSettings XML to {base}/ScanJobs  -> 201 + Location header (job URL)
   2. GET  {Location}/NextDocument               -> the scanned bytes (PDF/JPEG)
      (repeat for multi-page ADF until 404)
@@ -18,8 +21,16 @@ import cfgstore
 import os
 import re
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
+
+# defusedxml for the device's XML (billion-laughs / entity DoS defense), as in
+# webdav_tools; stdlib only if the dependency is absent so the connector still boots.
+try:
+    from defusedxml.ElementTree import fromstring as _xml_fromstring
+except Exception:  # pragma: no cover
+    _xml_fromstring = ET.fromstring
 
 import httpx
 
@@ -60,7 +71,11 @@ def _load(name: str):
         return None
 
 
-def _settings_xml(color: str, source: str, fmt: str, resolution: int) -> str:
+def _settings_xml(color: str, source: str, fmt: str, resolution: int,
+                  duplex: bool = False) -> str:
+    # InputSource lives in the PWG namespace (eSCL spec; sane-airscan sends it the
+    # same way) — a strict device ignores scan:InputSource and scans the glass.
+    # Duplex only for the feeder and only when asked for.
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<scan:ScanSettings xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"'
@@ -72,12 +87,13 @@ def _settings_xml(color: str, source: str, fmt: str, resolution: int) -> str:
         '<pwg:XOffset>0</pwg:XOffset><pwg:YOffset>0</pwg:YOffset>'
         '<pwg:ContentRegionUnits>escl:ThreeHundredthsOfInches</pwg:ContentRegionUnits>'
         '</pwg:ScanRegion></pwg:ScanRegions>'
-        f'<scan:InputSource>{source}</scan:InputSource>'
+        f'<pwg:InputSource>{source}</pwg:InputSource>'
         f'<scan:ColorMode>{color}</scan:ColorMode>'
         f'<scan:DocumentFormatExt>{fmt}</scan:DocumentFormatExt>'
         f'<scan:XResolution>{resolution}</scan:XResolution>'
         f'<scan:YResolution>{resolution}</scan:YResolution>'
-        '</scan:ScanSettings>'
+        + ('<scan:Duplex>true</scan:Duplex>' if duplex else '')
+        + '</scan:ScanSettings>'
     )
 
 
@@ -109,6 +125,122 @@ def _looks_like_tls_error(exc) -> bool:
             return True
         e = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
     return False
+
+
+def _wanted_source(source) -> str:
+    """'Platen' / 'Feeder' for an explicit choice, else 'auto' (also for unknown words)."""
+    return _SOURCE.get((source or "auto").strip().lower(), "auto")
+
+
+def _local(tag) -> str:
+    """Element name without its namespace — device prefixes (scan:, escl:, none) vary."""
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _parse_xml(content):
+    try:
+        return _xml_fromstring(content)
+    except Exception:
+        return None
+
+
+def _parse_caps(content):
+    """{'platen', 'adf', 'duplex'} from ScannerCapabilities, or None if unusable."""
+    root = _parse_xml(content) if content else None
+    if root is None or _local(root.tag) != "ScannerCapabilities":
+        return None
+    names = {_local(e.tag) for e in root.iter()}
+    caps = {"platen": "Platen" in names, "adf": "Adf" in names,
+            "duplex": "AdfDuplexInputCaps" in names}
+    return caps if (caps["platen"] or caps["adf"]) else None
+
+
+def _parse_adf_state(content):
+    """The scan:AdfState value from ScannerStatus (e.g. ScannerAdfLoaded), or None."""
+    root = _parse_xml(content) if content else None
+    if root is None:
+        return None
+    for e in root.iter():
+        if _local(e.tag) == "AdfState":
+            return (e.text or "").strip() or None
+    return None
+
+
+def _get_device_page(cfg: dict, host: str, transports, page: str):
+    """GET {base}/{page} (ScannerCapabilities / ScannerStatus) on the first transport
+    that answers 200 — same TLS rules and egress guard as the scan itself.
+    Returns ((scheme, port, base), body) or (None, None)."""
+    for scheme, port, base in transports:
+        try:
+            with netguard.guard(host):
+                r = httpx.get(f"{scheme}://{host}:{port}{base}/{page}", timeout=15,
+                              verify=netguard.tls_verify(cfg))
+        except Exception:
+            continue
+        if r.status_code == 200 and r.content:
+            return (scheme, port, base), r.content
+    return None, None
+
+
+_ADF_PROBLEMS = {
+    "ScannerAdfJam": "reports a paper jam (ScannerAdfJam) — clear it and scan again.",
+    "ScannerAdfDoorOpen": "'s cover is open (ScannerAdfDoorOpen) — close it and scan again.",
+    "ScannerAdfProcessing": " is still busy (ScannerAdfProcessing) — wait a moment and scan again.",
+}
+
+
+def _adf_problem(state: str) -> str:
+    text = _ADF_PROBLEMS.get(state, f"reports {state} — check the feeder and scan again.")
+    sep = "" if text[0] in "' " else " "
+    return f": the document feeder{sep}{text}"
+
+
+def _decide_source(wanted: str, caps, adf_state, duplex: bool):
+    """Pick 'Platen' / 'Feeder' from what the device reported.
+    Returns (source, reason_for_auto, error) — error is a sentence fragment that
+    follows "Scanner '<name>'" and means: don't start a job."""
+    if wanted != "auto":
+        if caps and wanted == "Feeder" and not caps["adf"]:
+            return None, None, (" has no document feeder (only a glass) — scan with "
+                                "source=platen or source=auto.")
+        if caps and wanted == "Platen" and not caps["platen"]:
+            return None, None, (" has no glass (only a document feeder) — put the pages in "
+                                "the feeder and scan with source=adf or source=auto.")
+        if wanted == "Feeder" and adf_state == "ScannerAdfEmpty":
+            return None, None, (": the document feeder is empty — put the pages in the "
+                                "feeder, or scan from the glass with source=platen.")
+        if wanted == "Feeder" and adf_state not in (None, "ScannerAdfLoaded"):
+            return None, None, _adf_problem(adf_state)
+        src, reason = wanted, None
+    elif caps is None:
+        src, reason = (("Feeder", "two-sided scanning needs the feeder") if duplex else
+                       ("Platen", "the scanner did not report its capabilities"))
+    elif not caps["adf"]:
+        src, reason = "Platen", "the scanner has only a glass"
+    elif not caps["platen"]:
+        src, reason = "Feeder", "the scanner has only a feeder"
+    elif adf_state == "ScannerAdfLoaded":
+        src, reason = "Feeder", "paper in the feeder"
+    elif adf_state == "ScannerAdfEmpty":
+        src, reason = "Platen", "the feeder is empty"
+    elif adf_state is None:
+        src, reason = (("Feeder", "two-sided scanning needs the feeder") if duplex else
+                       ("Platen", "the scanner did not report whether the feeder is loaded"))
+    else:
+        return None, None, _adf_problem(adf_state)
+
+    if duplex and src == "Platen":
+        if caps and not caps["adf"]:
+            return None, None, (": two-sided scanning needs a document feeder, and this "
+                                "scanner has only a glass.")
+        if adf_state == "ScannerAdfEmpty":
+            return None, None, (": two-sided scanning needs the document feeder, but it is "
+                                "empty — put the pages in the feeder and scan again.")
+        return None, None, (": two-sided scanning needs the document feeder — put the pages "
+                            "in the feeder and scan with source=adf.")
+    if duplex and caps and not caps["duplex"]:
+        return None, None, ": its document feeder cannot scan both sides — scan without duplex."
+    return src, reason, None
 
 
 def register(mcp):
@@ -163,13 +295,24 @@ def register(mcp):
 
     @mcp.tool
     def scan_document(scanner: str, resolution: int = 300, color: str = "color",
-                      source: str = "platen", format: str = "pdf",
-                      filename: str = "", paperless: str = "") -> str:
+                      source: str = "auto", format: str = "pdf",
+                      filename: str = "", paperless: str = "",
+                      duplex: bool = False) -> str:
         """Scan a document via eSCL and save it under /data/work. color: color|gray|bw.
-        source: platen (flatbed) | adf (feeder). format: pdf | jpeg. Optionally push
-        the result straight into Paperless: pass paperless=<a service name registered
-        with service_add> (base_url of your Paperless, token_env -> API token in the
-        vault); the scan is uploaded to its /api/documents/post_document/.
+        format: pdf | jpeg.
+
+        source: auto (default) | platen (glass) | adf (document feeder). auto asks the
+        device — works for any eSCL scanner, whatever the vendor: a scanner with only a
+        glass or only a feeder uses that; with both, paper in the feeder → feeder (all
+        pages), empty feeder → glass. A paper jam / open feeder cover stops before
+        scanning with a clear message. If the device doesn't report its state, auto
+        uses the glass and says so. An explicit source the device lacks is refused.
+        duplex=true scans both sides in the feeder (only if the device can).
+        The result names the source used.
+
+        Optionally push the result straight into Paperless: pass paperless=<a service
+        name registered with service_add> (base_url of your Paperless, token_env -> API
+        token in the vault); the scan is uploaded to its /api/documents/post_document/.
 
         To SEE the scan afterwards, call fs_view('<the saved filename>') — it renders the
         page as an image the assistant reads with vision (don't push private scans through
@@ -183,15 +326,34 @@ def register(mcp):
             return f"Blocked by network policy — {reason}"
 
         cmode = _COLOR.get((color or "color").lower(), "RGB24")
-        src = _SOURCE.get((source or "platen").lower(), "Platen")
         fmt = _FORMAT.get((format or "pdf").lower(), "application/pdf")
-        xml = _settings_xml(cmode, src, fmt, int(resolution))
+
+        # 0) Ask the device what it has (glass / feeder) and, where it matters, whether
+        #    paper is in the feeder. The transport that answers is tried first for the job.
+        wanted = _wanted_source(source)
+        transports = _candidates(cfg)
+        probed, caps_raw = _get_device_page(cfg, host, transports, "ScannerCapabilities")
+        caps = _parse_caps(caps_raw)
+        if caps and probed:
+            transports = [probed] + [t for t in transports if t != probed]
+        adf_state = None
+        if caps and caps["adf"] and (wanted == "Feeder" or (wanted == "auto" and caps["platen"])):
+            _t, status_raw = _get_device_page(cfg, host, transports[:1], "ScannerStatus")
+            adf_state = _parse_adf_state(status_raw)
+        src, reason, problem = _decide_source(wanted, caps, adf_state, bool(duplex))
+        if problem:
+            return f"Scanner '{scanner}'{problem}"
+        two_sided = bool(duplex) and src == "Feeder"
+        source_note = (f" Source: {'feeder' if src == 'Feeder' else 'glass'}"
+                       f"{', both sides' if two_sided else ''}"
+                       f"{f' (chosen automatically — {reason})' if reason else ''}.")
+        xml = _settings_xml(cmode, src, fmt, int(resolution), two_sided)
 
         # 1) Create the scan job (try the candidate transports until one accepts).
         job_url = None
         attempts = []          # every transport we tried + why it failed
         tls_failed = False     # an https attempt failed cert verification
-        for scheme, port, base in _candidates(cfg):
+        for scheme, port, base in transports:
             url = f"{scheme}://{host}:{port}{base}/ScanJobs"
             try:
                 # guard() re-applies the egress policy at connect (anti-rebinding).
@@ -266,7 +428,7 @@ def register(mcp):
             saved.append((name, page))
         total = sum(len(p) for p in pages)
         listed = ", ".join(f"/data/work/{n}" for n, _ in saved)
-        result = f"Scanned {total} bytes, {len(saved)} page(s) → {listed}."
+        result = f"Scanned {total} bytes, {len(saved)} page(s) → {listed}.{source_note}"
 
         # 4) Optional: push into Paperless (each page as its own document).
         if paperless:

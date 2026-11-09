@@ -6,6 +6,28 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Added
+- **Scanning picks glass or feeder by itself**, on any eSCL scanner whatever the
+  vendor: `scan_document` now defaults to `source="auto"`. It reads the device's
+  `ScannerCapabilities` (glass, feeder, two-sided feeder) and, when both exist, the
+  feeder state in `ScannerStatus`: paper in the feeder → all pages from the feeder,
+  empty feeder → the glass. A scanner with only a glass or only a feeder just uses
+  it. A paper jam or an open feeder cover stops before scanning, with a clear
+  message; if the device doesn't report its state, the glass is used and the result
+  says so. The result names the source used.
+- `scan_document(duplex=true)` scans both sides in the feeder where the device can —
+  and says so instead of scanning one side when it can't.
+
+### Changed
+- An explicit `source` the scanner doesn't have (`adf` on a glass-only device,
+  `platen` on a sheet-feed scanner), or `adf` with an empty feeder, is refused
+  instead of returning an empty or wrong scan. Unknown `source` words mean `auto`.
+
+### Fixed
+- The scan request sends the source as `pwg:InputSource`, as the eSCL standard (and
+  sane-airscan) does. Strict devices ignored the old `scan:InputSource` and scanned
+  the glass even when the feeder was asked for.
+
 ## [2.3.4] — 2026-11-05
 Free models only for an OpenRouter runner, and tools that explain themselves.
 

@@ -50,6 +50,11 @@ class _World:
         self.job_script = []   # per ScanJobs POST: _Resp or Exception (last one repeats)
         self.page_script = []  # per NextDocument GET: _Resp or Exception
         self.upload_script = []  # per Paperless POST
+        # eSCL device queries, kept apart from the page GETs so page counts stay exact.
+        # Default: the device answers neither (404), like a scanner without these pages.
+        self.meta = []         # every ScannerCapabilities / ScannerStatus GET
+        self.caps_script = [_Resp(404)]
+        self.status_script = [_Resp(404)]
 
     def _next(self, script, index):
         item = script[min(index, len(script) - 1)]
@@ -75,6 +80,11 @@ def world(fresh_server, monkeypatch):
 
     def get(url, **kw):
         w.guarded.append(socket.getaddrinfo.__name__ == "_filtered_getaddrinfo")
+        for suffix, script in (("/ScannerCapabilities", w.caps_script),
+                               ("/ScannerStatus", w.status_script)):
+            if url.endswith(suffix):
+                w.meta.append({"url": url, **kw})
+                return w._next(script, sum(m["url"].endswith(suffix) for m in w.meta) - 1)
         w.gets.append({"url": url, **kw})
         return w._next(w.page_script, len(w.gets) - 1)
 
@@ -192,7 +202,8 @@ def test_https_then_http_fallback_rebuilds_a_relative_job_location(srv, world, t
     assert [p["url"] for p in world.posts] == ["https://scan.example.com:443/eSCL/ScanJobs",
                                                "http://scan.example.com:80/eSCL/ScanJobs"]
     assert world.gets[0]["url"] == "http://scan.example.com:80/eSCL/ScanJobs/9/NextDocument"
-    assert out == "Scanned 5 bytes, 1 page(s) → /data/work/doc.pdf."
+    assert out == ("Scanned 5 bytes, 1 page(s) → /data/work/doc.pdf. Source: glass (chosen "
+                   "automatically — the scanner did not report its capabilities).")
     assert (tmp_path / "work_dir" / "doc.pdf").read_bytes() == b"PAGE1"
     assert all(world.guarded)  # every request ran inside netguard.guard()
 
@@ -241,7 +252,7 @@ def test_pages_are_drained_to_404_and_named_without_a_dot_extension(srv, world, 
     world.page_script = [_Resp(200, b"A"), _Resp(200, b"BB"), _Resp(404)]
     out = _scan(srv, filename="my scan")
     work = tmp_path / "work_dir"
-    assert out == "Scanned 3 bytes, 2 page(s) → /data/work/my_scan, /data/work/my_scan-2."
+    assert out.startswith("Scanned 3 bytes, 2 page(s) → /data/work/my_scan, /data/work/my_scan-2. Source: ")
     assert (work / "my_scan").read_bytes() == b"A" and (work / "my_scan-2").read_bytes() == b"BB"
     assert len(world.gets) == 3
 
@@ -324,3 +335,217 @@ def test_paperless_failures_keep_the_scan_and_explain_the_problem(srv, world, tm
     out = _scan(srv, filename="p.pdf", paperless="paperless")
     assert out.startswith("Scanned 5 bytes, 1 page(s) → /data/work/p.pdf.") and expected in out
     assert (tmp_path / "work_dir" / "p.pdf").read_bytes() == b"PAGE1"
+
+
+# --- Choosing the source (glass / feeder) the vendor-neutral eSCL way -----------------
+# Every eSCL device describes its sources in ScannerCapabilities (scan:Platen, scan:Adf
+# with AdfSimplexInputCaps / AdfDuplexInputCaps) and reports the feeder in ScannerStatus
+# (scan:AdfState). Prefixes differ between vendors, so the parser must go by local name.
+
+_ESCL = "http://schemas.hp.com/imaging/escl/2011/05/03"
+_PWG = "http://www.pwg.org/schemas/2010/12/sm"
+
+
+def _caps(platen=True, adf=True, duplex=False, p="scan"):
+    tag = (lambda name: f"{p}:{name}") if p else (lambda name: name)
+    ns = f'xmlns:{p}="{_ESCL}"' if p else f'xmlns="{_ESCL}"'
+    body = ""
+    if platen:
+        body += f"<{tag('Platen')}><{tag('PlatenInputCaps')}><{tag('MinWidth')}>16</{tag('MinWidth')}>" \
+                f"</{tag('PlatenInputCaps')}></{tag('Platen')}>"
+    if adf:
+        body += f"<{tag('Adf')}><{tag('AdfSimplexInputCaps')}><{tag('MinWidth')}>16</{tag('MinWidth')}>" \
+                f"</{tag('AdfSimplexInputCaps')}>"
+        if duplex:
+            body += f"<{tag('AdfDuplexInputCaps')}><{tag('MinWidth')}>16</{tag('MinWidth')}>" \
+                    f"</{tag('AdfDuplexInputCaps')}>"
+        body += f"</{tag('Adf')}>"
+    return _Resp(200, (f'<?xml version="1.0" encoding="UTF-8"?><{tag("ScannerCapabilities")} {ns} '
+                       f'xmlns:pwg="{_PWG}"><pwg:Version>2.63</pwg:Version>{body}'
+                       f'</{tag("ScannerCapabilities")}>').encode())
+
+
+def _status(adf_state=None, p="scan"):
+    tag = (lambda name: f"{p}:{name}") if p else (lambda name: name)
+    ns = f'xmlns:{p}="{_ESCL}"' if p else f'xmlns="{_ESCL}"'
+    adf = f"<{tag('AdfState')}>{adf_state}</{tag('AdfState')}>" if adf_state else ""
+    return _Resp(200, (f'<?xml version="1.0" encoding="UTF-8"?><{tag("ScannerStatus")} {ns} '
+                       f'xmlns:pwg="{_PWG}"><pwg:Version>2.63</pwg:Version><pwg:State>Idle</pwg:State>'
+                       f'{adf}</{tag("ScannerStatus")}>').encode())
+
+
+def _source_sent(world):
+    xml = [p for p in world.posts if p["url"].endswith("/ScanJobs")][0]["content"].decode()
+    return xml
+
+
+def test_auto_uses_the_feeder_when_paper_is_loaded(srv, world):
+    _add(srv, ca_bundle="/data/ca.pem")
+    world.caps_script, world.status_script = [_caps()], [_status("ScannerAdfLoaded")]
+    world.page_script = [_Resp(200, b"P1"), _Resp(200, b"P2"), _Resp(404)]
+    out = _scan(srv, filename="stack.pdf")
+    assert "<pwg:InputSource>Feeder</pwg:InputSource>" in _source_sent(world)
+    assert out.startswith("Scanned 4 bytes, 2 page(s) → /data/work/stack.pdf, /data/work/stack-2.pdf.")
+    assert out.endswith("Source: feeder (chosen automatically — paper in the feeder).")
+    assert [m["url"] for m in world.meta] == ["https://scan.example.com:443/eSCL/ScannerCapabilities",
+                                              "https://scan.example.com:443/eSCL/ScannerStatus"]
+    assert all(m["verify"] == "/data/ca.pem" for m in world.meta)  # same TLS rules as the scan
+    assert all(world.guarded)                                      # and the same egress guard
+
+
+def test_auto_uses_the_glass_when_the_feeder_is_empty(srv, world):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps()], [_status("ScannerAdfEmpty")]
+    out = _scan(srv)
+    assert "<pwg:InputSource>Platen</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith("Source: glass (chosen automatically — the feeder is empty).")
+
+
+def test_a_glass_only_scanner_never_asks_about_a_feeder(srv, world):
+    _add(srv)
+    world.caps_script = [_caps(adf=False)]
+    out = _scan(srv)
+    assert "<pwg:InputSource>Platen</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith("Source: glass (chosen automatically — the scanner has only a glass).")
+    assert not any(m["url"].endswith("/ScannerStatus") for m in world.meta)
+
+
+def test_a_feeder_only_scanner_always_uses_the_feeder(srv, world):
+    _add(srv)
+    world.caps_script = [_caps(platen=False)]
+    out = _scan(srv)
+    assert "<pwg:InputSource>Feeder</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith("Source: feeder (chosen automatically — the scanner has only a feeder).")
+
+
+@pytest.mark.parametrize("state,expected", [
+    ("ScannerAdfJam", "the document feeder reports a paper jam (ScannerAdfJam) — clear it and scan again."),
+    ("ScannerAdfDoorOpen", "the document feeder's cover is open (ScannerAdfDoorOpen) — close it and scan again."),
+    ("ScannerAdfProcessing", "the document feeder is still busy (ScannerAdfProcessing) — wait a moment and scan again."),
+    ("ScannerAdfMispick", "the document feeder reports ScannerAdfMispick — check the feeder and scan again."),
+])
+def test_a_feeder_problem_stops_before_any_job_is_started(srv, world, state, expected):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps()], [_status(state)]
+    assert _scan(srv) == f"Scanner 'flatbed': {expected}"
+    assert world.posts == [] and world.gets == []
+
+
+@pytest.mark.parametrize("status,reason", [
+    ([_Resp(404)], "the scanner did not report whether the feeder is loaded"),
+    ([httpx.ReadTimeout("slow")], "the scanner did not report whether the feeder is loaded"),
+    ([_status(None)], "the scanner did not report whether the feeder is loaded"),
+    ([_Resp(200, b"<not xml")], "the scanner did not report whether the feeder is loaded"),
+])
+def test_an_unknown_feeder_state_falls_back_to_the_glass_and_says_so(srv, world, status, reason):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps()], status
+    out = _scan(srv)
+    assert "<pwg:InputSource>Platen</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith(f"Source: glass (chosen automatically — {reason}).")
+
+
+@pytest.mark.parametrize("caps", [[_Resp(404)], [httpx.ConnectError("refused")], [_Resp(200, b"garbage")]])
+def test_unknown_capabilities_keep_the_previous_behaviour(srv, world, caps):
+    _add(srv)
+    world.caps_script = caps
+    out = _scan(srv)
+    assert "<pwg:InputSource>Platen</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith("Source: glass (chosen automatically — the scanner did not report its capabilities).")
+    assert [p["url"] for p in world.posts][0] == "https://scan.example.com:443/eSCL/ScanJobs"
+
+
+def test_capabilities_pick_the_transport_the_job_then_uses(srv, world):
+    _add(srv)
+    world.caps_script = [httpx.ConnectError("https refused"), _caps(adf=False)]
+    world.job_script = [_job("/eSCL/ScanJobs/4")]
+    _scan(srv)
+    assert [m["url"] for m in world.meta] == ["https://scan.example.com:443/eSCL/ScannerCapabilities",
+                                              "http://scan.example.com:80/eSCL/ScannerCapabilities"]
+    assert world.posts[0]["url"] == "http://scan.example.com:80/eSCL/ScanJobs"  # no pointless https retry
+
+
+@pytest.mark.parametrize("source,caps,expected", [
+    ("adf", _caps(adf=False), "has no document feeder (only a glass) — scan with source=platen or source=auto."),
+    ("platen", _caps(platen=False), "has no glass (only a document feeder) — put the pages in the feeder and "
+                                    "scan with source=adf or source=auto."),
+])
+def test_an_explicit_source_the_scanner_lacks_is_refused(srv, world, source, caps, expected):
+    _add(srv)
+    world.caps_script = [caps]
+    assert _scan(srv, source=source) == f"Scanner 'flatbed' {expected}"
+    assert world.posts == []
+
+
+def test_an_explicit_feeder_scan_with_an_empty_feeder_is_refused(srv, world):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps()], [_status("ScannerAdfEmpty")]
+    assert _scan(srv, source="adf") == ("Scanner 'flatbed': the document feeder is empty — put the pages in "
+                                        "the feeder, or scan from the glass with source=platen.")
+    assert world.posts == []
+
+
+def test_explicit_sources_still_work_and_glass_skips_the_feeder_query(srv, world):
+    _add(srv)
+    world.caps_script = [_caps()]
+    out = _scan(srv, source="glass")
+    assert "<pwg:InputSource>Platen</pwg:InputSource>" in _source_sent(world) and out.endswith("Source: glass.")
+    assert not any(m["url"].endswith("/ScannerStatus") for m in world.meta)
+    world.posts.clear(); world.gets.clear(); world.status_script = [_status("ScannerAdfLoaded")]
+    out = _scan(srv, source="feeder")
+    assert "<pwg:InputSource>Feeder</pwg:InputSource>" in _source_sent(world) and out.endswith("Source: feeder.")
+
+
+@pytest.mark.parametrize("prefix", ["escl", ""])
+def test_namespace_prefixes_do_not_matter(srv, world, prefix):
+    _add(srv)
+    world.caps_script = [_caps(p=prefix)]
+    world.status_script = [_status("ScannerAdfLoaded", p=prefix)]
+    out = _scan(srv)
+    assert "<pwg:InputSource>Feeder</pwg:InputSource>" in _source_sent(world)
+    assert out.endswith("(chosen automatically — paper in the feeder).")
+
+
+def test_duplex_is_sent_only_when_the_feeder_can_do_it(srv, world):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps(duplex=True)], [_status("ScannerAdfLoaded")]
+    out = _scan(srv, duplex=True)
+    xml = _source_sent(world)
+    assert "<pwg:InputSource>Feeder</pwg:InputSource>" in xml and "<scan:Duplex>true</scan:Duplex>" in xml
+    assert out.endswith("Source: feeder, both sides (chosen automatically — paper in the feeder).")
+    world.posts.clear(); world.gets.clear()
+    _scan(srv)  # no duplex wish → no Duplex element at all
+    assert "Duplex" not in _source_sent(world)
+
+
+@pytest.mark.parametrize("caps,status,expected", [
+    (_caps(duplex=False), _status("ScannerAdfLoaded"),
+     "its document feeder cannot scan both sides — scan without duplex."),
+    (_caps(adf=False), None, "two-sided scanning needs a document feeder, and this scanner has only a glass."),
+    (_caps(), _status("ScannerAdfEmpty"), "two-sided scanning needs the document feeder, but it is empty — put "
+                                          "the pages in the feeder and scan again."),
+])
+def test_duplex_that_cannot_work_is_refused_before_a_job(srv, world, caps, status, expected):
+    _add(srv)
+    world.caps_script = [caps]
+    if status is not None:
+        world.status_script = [status]
+    assert _scan(srv, duplex=True) == f"Scanner 'flatbed': {expected}"
+    assert world.posts == []
+
+
+def test_an_explicit_feeder_scan_stops_on_a_feeder_problem(srv, world):
+    _add(srv)
+    world.caps_script, world.status_script = [_caps()], [_status("ScannerAdfJam")]
+    assert _scan(srv, source="adf") == ("Scanner 'flatbed': the document feeder reports a paper jam "
+                                        "(ScannerAdfJam) — clear it and scan again.")
+    assert world.posts == []
+
+
+def test_duplex_with_an_explicit_glass_scan_is_refused(srv, world):
+    _add(srv)
+    world.caps_script = [_caps(duplex=True)]
+    assert _scan(srv, source="platen", duplex=True) == (
+        "Scanner 'flatbed': two-sided scanning needs the document feeder — put the pages in the "
+        "feeder and scan with source=adf.")
+    assert world.posts == []

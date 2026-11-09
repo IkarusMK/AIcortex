@@ -49,6 +49,10 @@ def _scan_tool(monkeypatch, get_sequence):
         return _Resp(201, headers={"Location": "http://10.0.0.9:80/eSCL/ScanJobs/1"})
 
     def fake_get(url, **kw):
+        # Device queries for source="auto" (ScannerCapabilities / ScannerStatus) are not
+        # page fetches: answer "not available" and keep them out of the page count.
+        if url.endswith(("/ScannerCapabilities", "/ScannerStatus")):
+            return _Resp(404)
         i = counters["get"]
         counters["get"] += 1
         return get_sequence[i]
