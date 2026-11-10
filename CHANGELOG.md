@@ -6,6 +6,52 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-11-10
+Upstream MCP servers that want a browser sign-in (for example with 2FA) can be connected.
+
+### Added
+- **OAuth sign-in for upstream MCP servers**: `mcp_add(name, url, auth="oauth")`
+  registers a server that hands out access through a browser login (often with 2FA)
+  and short-lived tokens instead of a fixed token. Each person signs in once in the
+  WebUI (Services → **Sign in**). AICortex finds the login from the server's own
+  metadata (RFC 9728 / RFC 8414), registers itself as a public client (dynamic client
+  registration), uses PKCE S256 and the resource indicator, and renews the access on
+  its own with the refresh token. A token the server rejects is renewed once and the
+  call repeated.
+- **`read_only` for MCP servers**: `mcp_add(..., read_only=True)` lets `mcp_call` run
+  only tools the server's own listing marks read-only; `mcp_tools` marks them. Once on,
+  only a person in the WebUI can switch it off again — a tool call cannot.
+
+### Fixed
+- `mcp_tools` and the read-only check see every tool of a server that lists its tools
+  in pages (`nextCursor`), not only the first page.
+
+### Security
+- A sign-in belongs to the person who made it: it sits encrypted in their own vault
+  area, every call uses the caller's own login (cron jobs their owner's), and nobody
+  else, admins included, can use it. Sign out in the WebUI; deleting the server removes
+  everyone's sign-in.
+- Tokens never leave the server: not in tool results, not in WebUI answers. The vault
+  names `MCP_OAUTH_*` are reserved: they never resolve for a service or runner, a
+  webhook cannot send one (not even the caller's own), and nobody sets or edits one by
+  hand. The access token only goes to the address it was issued for (a changed server
+  URL needs a new sign-in) and the refresh token only to the endpoint that issued it.
+- Only the scopes the server names are asked for; without them, only the standard
+  identity scopes (openid, profile, email, offline_access) — never everything the
+  provider lists.
+- The flow checks state, the signed-in person, the issuer (RFC 9207 — required when the
+  provider promises it) and that the server's metadata names its own address. Before
+  leaving for the provider the WebUI shows where the sign-in happens and asks to
+  confirm. Server and provider must use https — plain http only when the server itself
+  is plain http in the LAN — and every request passes the SSRF guard.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.5.0` and redeploy; `data/` stays as it is.
+- The provider must accept `<BASE_URL>/ui/mcp-oauth/callback` as redirect address —
+  set `BASE_URL` to the address people open the WebUI at.
+- Signing out removes the login from AICortex. To withdraw the access at the provider
+  as well, use the provider's own settings.
+
 ## [2.4.2] — 2026-11-09
 Scans report the real number of pages.
 
