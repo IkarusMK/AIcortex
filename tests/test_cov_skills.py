@@ -88,9 +88,9 @@ def test_awkward_descriptions_survive_the_round_trip_and_collapse_to_one_line(li
 
 
 def test_categories_snap_onto_the_existing_spelling(lib):
-    _write(lib, "one", category="Trading")
-    assert _write(lib, "two", category="  trading ") == "Saved skill 'two' [Trading]."
-    assert _write(lib, "three", category="TRADING") == "Saved skill 'three' [Trading]."
+    _write(lib, "one", category="Cooking")
+    assert _write(lib, "two", category="  cooking ") == "Saved skill 'two' [Cooking]."
+    assert _write(lib, "three", category="COOKING") == "Saved skill 'three' [Cooking]."
     assert _write(lib, "four", category="new   area") == "Saved skill 'four' [new area]."
 
 
@@ -213,17 +213,17 @@ def test_an_authorless_legacy_skill_is_admin_only_and_open_without_enforcement(m
 
 def test_a_person_sees_only_the_skills_an_admin_granted(monkeypatch, lib):
     _write(lib, "grill-tips", category="home", description="barbecue basics")
-    _write(lib, "tax-help", category="finance", description="barbecue taxes")
+    _write(lib, "garden-help", category="garden", description="barbecue garden")
     _as(monkeypatch, "alice")
     assert _t(lib, "skill_list").startswith("No skills available to you.")
     assert _t(lib, "skill_search", {"query": "barbecue"}).startswith("No skills matched")
-    assert _t(lib, "skill_load", {"name": "tax-help"}).startswith("Denied: skill 'tax-help'")
-    assert _t(lib, "skill_resource", {"name": "tax-help", "filename": "x"}).startswith("Denied:")
+    assert _t(lib, "skill_load", {"name": "garden-help"}).startswith("Denied: skill 'garden-help'")
+    assert _t(lib, "skill_resource", {"name": "garden-help", "filename": "x"}).startswith("Denied:")
     _grant(alice={"skills": ["home"]})
     assert _t(lib, "skill_list").count("skill(s)") == 1 and "home — 1" in _t(lib, "skill_list")
     assert _t(lib, "skill_search", {"query": "barbecue"}) == "- grill-tips — barbecue basics"
     assert _t(lib, "skill_load", {"name": "grill-tips"}).startswith("---")
-    assert _t(lib, "skill_load", {"name": "tax-help"}).startswith("Denied:")
+    assert _t(lib, "skill_load", {"name": "garden-help"}).startswith("Denied:")
     _as_admin(monkeypatch)
     assert _t(lib, "skill_search", {"query": "barbecue"}).count("\n") == 1
 

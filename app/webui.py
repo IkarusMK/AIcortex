@@ -884,6 +884,7 @@ def register(mcp):
     # ── a person's own area + registries (notes, jobs, playbooks) ────────────
     import types
 
+    import webui_mcp_oauth
     import webui_runner
     import webui_search
     import webui_views
@@ -892,5 +893,7 @@ def register(mcp):
         body=_body, gate=_gate_mutation, audit=_audit)
     webui_views.register(mcp, helpers)
     webui_runner.register(mcp, helpers)
+    webui_mcp_oauth.register(mcp, helpers, types.SimpleNamespace(
+        sign=_sign, verify=_verify, base_url=_base_url, cookie=_cookie, session=_session))
     webui_search.register(mcp, helpers, types.SimpleNamespace(
         skills=_skill_rows, services=_service_rows, users=lambda: _user_rows()["users"]))

@@ -203,7 +203,14 @@ _INTERNAL_ENV = frozenset({
     "PATH", "HOME", "HOSTNAME", "PWD", "USER", "LANG", "TZ", "PUID", "PGID",
 })
 # RUNNER_: the runners' own keys (RUNNER_KEY_<id>, runners.py) — never a service's.
-_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_", "RUNNER_")
+# MCP_OAUTH_: a person's OAuth sign-in to an upstream MCP server (mcp_oauth.py), read
+# only through get_owned and written only by mcp_oauth — never sent by a service,
+# webhook or runner, never set or edited by hand.
+LOGIN_PREFIX = "MCP_OAUTH_"
+_INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_", "RUNNER_",
+                      LOGIN_PREFIX)
+_RESERVED = (f"Refused: secret names starting with {LOGIN_PREFIX} are reserved for OAuth "
+             f"sign-ins — sign in in the AICortex WebUI (Services → Sign in) instead.")
 _INTERNAL_SUFFIXES = ("_DIR",)
 
 
@@ -247,11 +254,21 @@ def _caller_namespace() -> str:
         return ""
 
 
+def get_owned(name: str, owner: str):
+    """The secret `name` from exactly `owner`'s private area — no environment value, no
+    shared fallback, no caller resolution. For logins that belong to one person
+    (mcp_oauth): whoever asks, only that person's entry comes back."""
+    if not name or "/" in name or not owner:
+        return None
+    return _read_all().get(f"{_owner_prefix(owner)}/{name}")
+
+
 def get_own_secret(name: str):
     """Only the current caller's PERSONAL secret `name` — never an env value, never a
     shared one. For tools that send a secret to a destination the caller chooses
-    (webhook_send): a user may send their own token, not everyone's."""
-    if not name or "/" in name:
+    (webhook_send): a user may send their own token, not everyone's — and never one of
+    the server's own names (``is_internal_env``), an OAuth sign-in included."""
+    if not name or "/" in name or is_internal_env(name):
         return None
     ns = _caller_namespace()
     return _read_all().get(f"{ns}/{name}") if ns else None
@@ -263,12 +280,15 @@ def get_own_secret(name: str):
 
 @_serialized
 def vault_set(name: str, value: str, owner: str = "", description: str = "",
-              by: str = "") -> str:
+              by: str = "", reserved_ok: bool = False) -> str:
     """Store a secret (shared, or in `owner`'s private namespace). Returns a
-    user-facing message; the value is never echoed back."""
+    user-facing message; the value is never echoed back. `reserved_ok` is for
+    mcp_oauth alone, which writes the sign-ins under the reserved names."""
     name = (name or "").strip()
     if not name or "/" in name:
         return "Refused: secret name is required and may not contain '/'."
+    if name.upper().startswith(LOGIN_PREFIX) and not reserved_ok:
+        return _RESERVED
     if _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
         return ("Refusing to store: STORAGE_ENCRYPTION_KEY is not set, so the vault "
                 "would be PLAINTEXT despite the .enc name. Generate a key with "
@@ -312,6 +332,8 @@ def vault_update(name: str, owner: str = "", value: str = "", description=None, 
     """Change an existing secret in place: a new value (never echoed) and/or its
     description; an empty value keeps the stored one."""
     name = (name or "").strip()
+    if name.upper().startswith(LOGIN_PREFIX):
+        return _RESERVED
     if value and _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
         return "Refusing to store: STORAGE_ENCRYPTION_KEY is not set."
     try:
@@ -362,6 +384,26 @@ def vault_delete(name: str, owner: str = "") -> str:
         where = f" from {owner}'s vault" if owner else ""
         return f"Deleted secret '{name}'{where}."
     return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
+
+
+@_serialized
+def vault_purge(name: str) -> int:
+    """Delete `name` from every area — shared and every person's. Returns how many
+    entries went. An unreadable vault is left alone (0)."""
+    name = (name or "").strip()
+    try:
+        d = _read_all(strict=True)
+    except VaultUnreadable:
+        return 0
+    gone = [k for k in d if k == name or (k.startswith("users/") and k.split("/", 2)[-1] == name)]
+    if not gone:
+        return 0
+    _write_all({k: v for k, v in d.items() if k not in gone})
+    meta = _meta()
+    dropped = [meta.pop(k, None) for k in gone]      # every one, not just the first hit
+    if any(m is not None for m in dropped):
+        store.write_json(VAULT_META, meta)
+    return len(gone)
 
 
 def vault_entries() -> list:

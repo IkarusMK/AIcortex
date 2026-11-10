@@ -237,7 +237,7 @@ Both modes run the same image. **Private data** (memory, vault) fails **open** s
 | Email (IMAP) | `imap_add` · `imap_list` · `imap_search` · `imap_fetch` | Read incoming mail (read-only, PEEK); pull attachments → `/data/work` |
 | Printing (IPP) | `print_add` · `print_list` · `print_delete` · `print_document` | Print PDFs/images to a LAN printer via IPP/AirPrint |
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device → `/data/work`, optionally into Paperless; picks glass or document feeder by itself (any eSCL device), two-sided where the feeder can |
-| MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data |
+| MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data — with a vault token, or `auth="oauth"` for servers that want a browser sign-in (each person signs in once in the WebUI); `read_only` allows only tools the server marks read-only |
 | Webhooks | `webhook_add` · `webhook_list` · `webhook_delete` · `webhook_send` | Inbound `POST /hooks/<name>` (secret/HMAC) → inbox (event-driven); outbound POST notify |
 | Multi-agent | `agent_register`/`list` · `task_add`/`list`/`claim`/`update` · `task_next` · `task_handoff` · `inbox_*` | Presence-aware team: capability-routed pull & context-preserving handoff |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log; auto-expires |
@@ -384,7 +384,7 @@ Call it with the key as a bearer token:
 curl -X POST https://agent.example.com/api/v1/tools/memory_search \
   -H "Authorization: Bearer ak_ab12cd34ef56_XXXXXXXX…" \
   -H "Content-Type: application/json" \
-  -d '{"query": "trading rules"}'
+  -d '{"query": "printer settings"}'
 ```
 
 Security, by design: keys are **hashed at rest** (constant-time compare) and **default-deny** — a key reaches only the tools in its `scopes` allow-list, further narrowed by the identity's role and device areas. Secret-, key- and tenancy-management tools are **never** reachable via a key. Each key is **rate-limited**; pass `?stream=1` (or `Accept: text/event-stream`) for **SSE** on long-running tools. Full detail: **[docs/rest-api.md](docs/rest-api.md)**.

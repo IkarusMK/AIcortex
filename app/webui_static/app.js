@@ -581,6 +581,7 @@ function newSkill() {
 async function loadServices() {
   const d = await api("/ui/api/services");
   SERVICES = d.services;
+  if (typeof oauthLoad === "function") await oauthLoad();   // view-registry.js
   renderSvChips();
   renderSvTable();
 }
@@ -627,6 +628,7 @@ function renderSvTable() {
       b.addEventListener("click", () => fn().catch((x) => toast(x.message, false)));
       act.append(b);
     });
+    if (typeof oauthCell === "function") oauthCell(s, sec, act);   // OAuth sign-in (view-registry.js)
     tr.append(kind, name, target, sec, desc, act);
     tbody.append(tr);
   });
@@ -730,6 +732,7 @@ async function boot() {
   $("#ui-version").textContent = `AICortex v${ME.version}`;
   show("app");
   route();
+  if (typeof oauthNotice === "function") oauthNotice();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

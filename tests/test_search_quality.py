@@ -43,7 +43,7 @@ def test_memory_search_ranks_title_hits_first(fresh_server):
 
 
 def test_duplicate_hint_ignores_common_words(fresh_server):
-    _call(fresh_server, "memory_write", {"title": "Meeting with the bank", "type": "project",
+    _call(fresh_server, "memory_write", {"title": "Meeting with the landlord", "type": "project",
                                          "content": "x"})
     text = _call(fresh_server, "memory_write", {"title": "Dinner with friends", "type": "project",
                                                 "content": "y"})

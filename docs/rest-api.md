@@ -32,7 +32,7 @@ All three require `Authorization: Bearer <key>`. The tool list and the OpenAPI s
 curl -X POST https://agent.example.com/api/v1/tools/memory_search \
   -H "Authorization: Bearer ak_ab12cd34ef56_XXXXXXXX…" \
   -H "Content-Type: application/json" \
-  -d '{"query": "trading rules"}'
+  -d '{"query": "printer settings"}'
 ```
 
 ```json

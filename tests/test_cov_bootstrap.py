@@ -85,14 +85,14 @@ def test_json_grouped_stays_flat_without_categories_and_groups_with_them(brain, 
 
     grouped = tmp_path / "grouped"
     _json(grouped / "a-lamp.json", {"description": "lamp", "category": "Home"})
-    _json(grouped / "b-bank.json", {"description": "bank", "category": " finance "})
+    _json(grouped / "b-shop.json", {"description": "shop", "category": " garden "})
     _json(grouped / "c-misc.json", {"description": "misc"})
     _json(grouped / "d-bad.json", "{oops")
     out = b._json_grouped(grouped)
-    assert out == ["  [finance]", "    - b-bank — bank", "  [Home]", "    - a-lamp — lamp",
+    assert out == ["  [garden]", "    - b-shop — shop", "  [Home]", "    - a-lamp — lamp",
                    "  [Uncategorized]", "    - c-misc — misc", "    - d-bad — (unreadable)"]
     only_home = b._json_grouped(grouped, allowed=lambda name, cat: cat == "Home")
-    assert "    - a-lamp — lamp" in only_home and not any("bank" in ln for ln in only_home)
+    assert "    - a-lamp — lamp" in only_home and not any("shop" in ln for ln in only_home)
 
 
 def test_skill_overview_lists_names_while_small(brain):
@@ -106,14 +106,14 @@ def test_skill_overview_lists_names_while_small(brain):
 def test_skill_overview_collapses_to_category_counts_when_large(brain):
     b = sys.modules["bootstrap"]
     for n in range(8):
-        _skill(f"trade-{n}", "trading")
+        _skill(f"cook-{n}", "cooking")
     for n in range(3):
         _skill(f"home-{n}", "home", key="cluster")
     _skill("plain")
     (b.SKILLS_DIR / "odd" / "SKILL.md").mkdir(parents=True)     # unreadable as a file
     _skill("quoted", '"devops"')
     lines = b._skill_list()
-    assert lines[:4] == ["  trading: 8", "  home: 3", "  uncategorized: 2", "  devops: 1"]
+    assert lines[:4] == ["  cooking: 8", "  home: 3", "  uncategorized: 2", "  devops: 1"]
     assert lines[-1].startswith("  → 14 skills total") and "skill_search(query)" in lines[-1]
 
 
@@ -217,19 +217,19 @@ def test_a_confined_person_sees_their_own_memory_in_the_catalog(monkeypatch, bra
 def test_services_and_devices_need_a_grant_for_a_non_admin(monkeypatch, brain):
     b = sys.modules["bootstrap"]
     _json(b.SERVICES_DIR / "lamp.json", {"base_url": "https://lamp.example.com", "category": "Home"})
-    _json(b.SERVICES_DIR / "bank.json", {"base_url": "https://bank.example.org", "category": "Finance"})
+    _json(b.SERVICES_DIR / "shop.json", {"base_url": "https://shop.example.org", "category": "Office"})
     _json(b.MQTT_DIR / "broker1.json", {"host": "mqtt.example.net"})
     _json(b.MQTT_DIR / "broker2.json", {"host": "192.0.2.9"})
     _as(monkeypatch, "alice")
     nothing = _t(brain, "cortex_catalog")
-    assert "lamp" not in nothing and "bank" not in nothing and "broker" not in nothing
+    assert "lamp" not in nothing and "shop" not in nothing and "broker" not in nothing
     _grant(alice={"services": ["home"], "mqtt": ["broker1"]})
     granted = _t(brain, "cortex_catalog")
-    assert "lamp — https://lamp.example.com" in granted and "bank" not in granted
+    assert "lamp — https://lamp.example.com" in granted and "shop" not in granted
     assert "broker1" in granted and "broker2" not in granted and "192.0.2.9" not in granted
     _as_admin(monkeypatch)
     everything = _t(brain, "cortex_catalog")
-    assert "bank" in everything and "broker2" in everything
+    assert "shop" in everything and "broker2" in everything
 
 
 def test_team_board_and_jobs_are_limited_to_the_persons_own(monkeypatch, brain):

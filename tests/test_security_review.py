@@ -129,7 +129,7 @@ def test_old_vault_key_is_never_resolved(monkeypatch, outbox, enforced):
 
 def test_catalog_and_agent_list_show_only_own_jobs_and_agents(enforced):
     _run(enforced, "alice", "user", "agent_register", {"name": "alice-agent",
-                                                       "capabilities": "finance mail"})
+                                                       "capabilities": "office mail"})
     _run(enforced, "alice", "user", "cron_add", {"name": "nightly", "schedule": "0 3 * * *",
                                                  "prompt": "Summarise my salary mails"})
     for role in ("user", "viewer"):

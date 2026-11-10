@@ -104,7 +104,7 @@ def _existing_categories() -> list[str]:
 
 def _canonical_category(category: str) -> str:
     """Normalize a category and snap it onto an existing one if it matches
-    case-insensitively — so 'Trading', 'trading' and ' trading ' never split the
+    case-insensitively — so 'Cooking', 'cooking' and ' cooking ' never split the
     library into near-duplicate buckets."""
     cat = re.sub(r"\s+", " ", (category or "")).strip()
     if not cat:
@@ -327,7 +327,7 @@ def register(mcp):
             existing = _existing_categories()
             hint = ("Reuse one of these existing categories: "
                     + ", ".join(existing)) if existing else (
-                    "No categories yet — start a clear one, e.g. 'trading', "
+                    "No categories yet — start a clear one, e.g. 'cooking', "
                     "'home-automation', 'devops', 'documents'.")
             return ("Refused: a skill MUST be categorized (house rule — keeps the "
                     "library tidy and bootstrap compact). Re-call skill_write with "

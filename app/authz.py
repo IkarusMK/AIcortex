@@ -150,6 +150,12 @@ def is_agent_key() -> bool:
     return bool(isinstance(claims, dict) and claims.get("aicortex_key"))
 
 
+def from_webui() -> bool:
+    """Is the current call made by a person in the WebUI (a REST-layer identity that is
+    not an agent key)? For the few settings only a person may loosen."""
+    return bool(_REST_IDENTITY.get()) and _REST_VIA.get() != "key"
+
+
 def enabled() -> bool:
     # Secure by default: enforce unless explicitly disabled.
     return os.environ.get("AUTH_ENFORCE", "1").strip().lower() not in ("0", "false", "no", "off")
