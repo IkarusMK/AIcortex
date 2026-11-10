@@ -142,3 +142,93 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-sv-close").addEventListener("click", () => $("#sv-editor").classList.add("hidden"));
   $("#btn-sv-delete").addEventListener("click", () => deleteRegistry(REG.kind, REG.name).catch(fail));
 });
+
+/* OAuth sign-in for MCP servers (mcp_add auth="oauth"): each person's status, the
+   Sign in / Sign out button in the services table, and the notice after the provider
+   sends the person back (/ui?mcp_oauth=<result>#services). Tokens never reach the
+   browser — the status says only whether you are signed in and until when. */
+Object.assign(I18N.de, {
+  oa_signin: "Anmelden", oa_signout: "Abmelden",
+  oa_confirm: "Zur Anmeldung bei {0} für den Server {1} wechseln? Prüfe dort in der Adresszeile, dass es wirklich dein Anbieter ist.",
+  oa_signed_in: "angemeldet", oa_signed_out: "nicht angemeldet",
+  oa_renews: "verlängert sich selbst", oa_until: "gültig bis {0}",
+  oa_ok: "Bei „{0}“ angemeldet.", oa_signed_out_toast: "Abgemeldet.",
+  oa_state: "Anmeldung abgebrochen oder abgelaufen — bitte neu starten.",
+  oa_session: "Bitte zuerst in AICortex anmelden, dann erneut starten.",
+  oa_person: "Diese Anmeldung hat jemand anderes gestartet — abgelehnt.",
+  oa_denied: "Der Anbieter hat den Zugriff nicht freigegeben.",
+  oa_issuer: "Die Antwort kam von einem anderen Anbieter — abgelehnt.",
+  oa_exchange: "Der Anbieter hat kein Token ausgestellt.",
+  oa_vault: "Kein Verschlüsselungsschlüssel gesetzt — die Anmeldung wurde nicht gespeichert.",
+  oa_error: "Anmeldung fehlgeschlagen.",
+});
+Object.assign(I18N.en, {
+  oa_signin: "Sign in", oa_signout: "Sign out",
+  oa_confirm: "Go to {0} to sign in for the server {1}? Check the address bar there to make sure it really is your provider.",
+  oa_signed_in: "signed in", oa_signed_out: "not signed in",
+  oa_renews: "renews itself", oa_until: "valid until {0}",
+  oa_ok: "Signed in to “{0}”.", oa_signed_out_toast: "Signed out.",
+  oa_state: "The sign-in was cancelled or timed out — please start again.",
+  oa_session: "Please sign in to AICortex first, then start again.",
+  oa_person: "Someone else started this sign-in — refused.",
+  oa_denied: "The provider did not grant access.",
+  oa_issuer: "The answer came from another provider — refused.",
+  oa_exchange: "The provider did not issue a token.",
+  oa_vault: "No encryption key is set — the sign-in was not stored.",
+  oa_error: "Sign-in failed.",
+});
+
+let OAUTH = {};
+
+async function oauthLoad() {
+  OAUTH = {};
+  if (!SERVICES.some((s) => s.kind === "mcp")) return;
+  try {
+    const d = await api("/ui/api/mcp-oauth");
+    (d.servers || []).forEach((s) => { OAUTH[s.name] = s; });
+  } catch (e) { /* the status is extra; the table renders without it */ }
+}
+
+function oauthCell(s, secretCell, actionCell) {
+  const st = s.kind === "mcp" ? OAUTH[s.name] : null;
+  if (!st) return;
+  secretCell.textContent = ""; secretCell.className = "";
+  const tag = document.createElement("span");
+  tag.className = "tag " + (st.signed_in ? "ok" : "warn");
+  tag.textContent = "OAuth · " + t(st.signed_in ? "oa_signed_in" : "oa_signed_out");
+  if (st.signed_in) {
+    tag.title = st.renews ? t("oa_renews")
+      : st.expires_at ? t("oa_until", new Date(st.expires_at * 1000).toLocaleString()) : "";
+  }
+  secretCell.append(tag);
+  const b = document.createElement("button");
+  b.className = "btn sm " + (st.signed_in ? "ghost" : "primary");
+  b.textContent = t(st.signed_in ? "oa_signout" : "oa_signin");
+  b.addEventListener("click", () =>
+    (st.signed_in ? oauthSignOut(s.name) : oauthSignIn(s.name)).catch((x) => toast(x.message, false)));
+  actionCell.prepend(b);
+}
+
+async function oauthSignIn(name) {
+  const d = await api("/ui/api/mcp-oauth/start", { method: "POST", body: { server: name } });
+  if (!d.ok) { toast(d.message, false); return; }
+  // Say where the sign-in happens before leaving: the provider's host and the server.
+  if (!(await confirmModal(t("oa_confirm", d.login_host, d.server_url)))) return;
+  location.assign(d.url);      // the provider's login page (https, checked by the server)
+}
+
+async function oauthSignOut(name) {
+  const d = await api("/ui/api/mcp-oauth/logout", { method: "POST", body: { server: name } });
+  toast(d.ok ? t("oa_signed_out_toast") : d.message, d.ok);
+  await loadServices();
+}
+
+function oauthNotice() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get("mcp_oauth");
+  if (!code) return;
+  const key = "oa_" + code;
+  toast(code === "ok" ? t("oa_ok", q.get("server") || "") : (I18N.en[key] ? t(key) : t("oa_error")),
+    code === "ok");
+  history.replaceState(null, "", location.pathname + location.hash);
+}

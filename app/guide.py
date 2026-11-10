@@ -151,6 +151,8 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Lesend, markiert NICHT als gelesen (PEEK); Anhänge optional → /data/work.
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
+  Server mit Browser-Anmeldung (OAuth, z. B. eine Bank): mcp_add(name, url, auth="oauth"[, read_only=True]);
+  dann meldet sich jede Person selbst in der WebUI an (Dienste → Anmelden) — der Login gilt nur für sie.
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: der Job läuft im BEREICH dieses Users (Nicht-Admin darf nur als er selbst planen).
   once=True für einmalige Jobs („morgen um 8“ = "0 8 <Tag> <Monat> *"): danach schaltet er sich aus.
@@ -340,6 +342,8 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   imap_list / imap_search(account[, mailbox, query, limit]) / imap_fetch(account, uid[, save_attachments]).
   Read-only, does NOT mark seen (PEEK); attachments optionally → /data/work.
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
+  Servers with a browser sign-in (OAuth, e.g. a bank): mcp_add(name, url, auth="oauth"[, read_only=True]);
+  each person then signs in in the WebUI (Services → Sign in) — the login is theirs alone.
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: the job runs in that user's AREA (a non-admin may schedule only as themselves).
   once=True for a one-off job ("tomorrow at 8" = "0 8 <day> <month> *"): it then switches itself off.
