@@ -9,15 +9,19 @@ identity binding, a policy decision before each call, and an audit log.
 
 DESIGN SAFETY (so it can't lock a hands-off operator out):
 - ON by default (secure by default); AUTH_ENFORCE=0 disables it entirely.
-- Fail-open: any error resolving identity/policy → allow (degrade, don't brick).
+- Fail-open on POLICY glitches (degrade, don't brick) — but never on IDENTITY once
+  sign-in is configured: with OIDC every /mcp caller carries a token, so a caller
+  whose identity can't be resolved ("unknown"/empty) gets NO role and is denied
+  (audited). Without OIDC, "unknown" is the local operator, exactly as before.
 - Roles can come from the IdP: if the token carries a role/group claim
   (AUTH_ROLE_CLAIM, default "groups", e.g. PocketID groups), it drives the role.
-  Dormant today because the FastMCP OIDC proxy issues minimal-claim tokens — it
-  activates automatically once the claim is forwarded, no rework needed.
 - Secure defaults WHEN enabled: the RUNNER_TOKEN (headless/autonomy) becomes a
   non-admin "user" role — it can no longer register services/MCP servers, set
-  secrets, add cron jobs, etc. (closes #2/#4/#5/#7/#15) — while an interactive
-  OIDC operator stays "admin" by default, so the human isn't locked out.
+  secrets, add cron jobs, etc. (closes #2/#4/#5/#7/#15). An interactive person is
+  admin only as an OPERATOR (policy "operators", or an explicit role); everyone
+  else the IdP lets in starts as "user". The first person to sign in to a fresh
+  install becomes the operator, and an upgrade keeps today's admins as operators
+  (see ``migrate_operators``), so the human isn't locked out.
 - Policy is DATA: optional /data/auth/policy.json maps identities → roles.
 
 Roles:
@@ -161,15 +165,39 @@ def enabled() -> bool:
     return os.environ.get("AUTH_ENFORCE", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def auth_configured() -> bool:
+    """Is interactive sign-in (OIDC) configured? Then every caller of /mcp presents a
+    token, so an identity that can't be resolved is a fault — never the local operator
+    it stands for in a server without sign-in."""
+    return bool(os.environ.get("OIDC_CONFIG_URL") and os.environ.get("OIDC_CLIENT_ID"))
+
+
+def _unresolved(identity) -> bool:
+    return not identity or identity == "unknown"
+
+
+def _identity_required() -> bool:
+    """Under enforcement WITH sign-in configured, an unresolved identity gets no role
+    and no unrestricted area (fail-closed). Otherwise it keeps its old meaning."""
+    return enabled() and auth_configured()
+
+
+def _unresolved_role() -> str:
+    """The role of a caller whose identity lookup failed: none at all when sign-in is
+    configured (every tool denied), else the "user" fallback of a server without it."""
+    return "" if _identity_required() else "user"
+
+
 def audit_all() -> bool:
     return os.environ.get("AUTH_AUDIT_ALL", "0").strip().lower() in ("1", "true", "yes")
 
 
 def _policy() -> dict:
     try:
-        return json.loads(POLICY_FILE.read_text(encoding="utf-8"))
+        obj = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    return obj if isinstance(obj, dict) else {}
 
 
 _RANK = {"viewer": 0, "user": 1, "admin": 2}
@@ -212,30 +240,181 @@ def _role_from_claims(claims) -> str:
     return best
 
 
+def _explicit_role(pol, identity: str) -> str:
+    """The identity's explicit policy role ("roles"), or "" — tolerating a hand-edited
+    policy where "roles" is not an object."""
+    roles = pol.get("roles") if isinstance(pol, dict) else None
+    role = roles.get(identity) if isinstance(roles, dict) and identity else None
+    return role if role in _VALID_ROLES else ""
+
+
+def _configured_default(pol) -> str:
+    """The operator's chosen role for interactive identities nobody configured:
+    OIDC_DEFAULT_ROLE, then policy "default". "" when neither is set."""
+    default = pol.get("default") if isinstance(pol, dict) else ""
+    return str(os.environ.get("OIDC_DEFAULT_ROLE") or default or "")
+
+
+def operators(pol=None) -> frozenset:
+    """Identities listed in policy "operators" — the people who are admin when they
+    sign in interactively (OIDC/WebUI). Never their agent keys or cron jobs."""
+    pol = _policy() if pol is None else pol
+    ops = pol.get("operators") if isinstance(pol, dict) else None
+    if not isinstance(ops, list):
+        return frozenset()
+    return frozenset(o.strip() for o in ops if isinstance(o, str) and o.strip())
+
+
+def _has_explicit_admin(pol) -> bool:
+    roles = pol.get("roles") if isinstance(pol, dict) else None
+    return isinstance(roles, dict) and "admin" in roles.values()
+
+
+def _bootstrap_open(pol) -> bool:
+    """Would the next interactive identity nobody configured become the operator?
+    Only while nobody is in charge yet: no operator, no explicit admin and no
+    configured default role."""
+    return not (operators(pol) or _has_explicit_admin(pol) or _configured_default(pol))
+
+
+def session_role(identity: str, claim_role: str = "", pol=None) -> str:
+    """Role of an interactive person (OIDC token, WebUI session), computed from the
+    CURRENT policy — so a demotion or a policy change takes effect on the next request.
+
+    Precedence: explicit ``roles`` → the IdP's claim role → OIDC_DEFAULT_ROLE → policy
+    ``default`` → listed in ``operators`` → admin, otherwise "user". A configured
+    default that is not a valid role is "user", never admin.
+
+    Without sign-in configured, "unknown" is the local operator and keeps today's
+    meaning (the configured default, else admin); with sign-in configured an
+    unresolved identity gets no role at all."""
+    if _unresolved(identity) and _identity_required():
+        return ""
+    pol = _policy() if pol is None else pol
+    explicit = _explicit_role(pol, identity)
+    if explicit:
+        return explicit
+    if claim_role in _VALID_ROLES:
+        return claim_role
+    configured = _configured_default(pol)
+    if configured:
+        return configured if configured in _VALID_ROLES else "user"
+    if _unresolved(identity) or identity in operators(pol):
+        return "admin"
+    return "user"
+
+
+def default_role(pol=None) -> str:
+    """What a NEW interactive identity (no policy entry, no IdP claim) gets right now —
+    for the WebUI. While nobody is in charge the next sign-in becomes the operator."""
+    pol = _policy() if pol is None else pol
+    configured = _configured_default(pol)
+    if configured:
+        return configured if configured in _VALID_ROLES else "user"
+    return "admin" if _bootstrap_open(pol) else "user"
+
+
+def _policy_strict() -> dict:
+    """policy.json for a read-modify-write: {} when absent, but an unreadable or
+    non-object file RAISES — rewriting it from {} would wipe everyone's roles."""
+    if not POLICY_FILE.exists():
+        return {}
+    obj = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError("policy.json is not an object")
+    return obj
+
+
+def _bootstrap_operator(identity: str) -> bool:
+    """Record ``identity`` as the first operator, if nobody is in charge yet. Runs
+    under the policy lock and re-checks there, so two first sign-ins at once can't
+    both become operator. Never raises; a broken policy is left untouched."""
+    try:
+        import store
+        import tenancy
+        with store.locked(POLICY_FILE):
+            pol = _policy_strict()
+            if not _bootstrap_open(pol):
+                return identity in operators(pol)
+            tenancy._write_policy({**pol, "operators": [identity]})
+    except Exception as exc:
+        audit(identity, "user", "bootstrap", "deny",
+              f"could not record the first operator: {type(exc).__name__}")
+        return False
+    audit(identity, "admin", "bootstrap", "allow",
+          "first interactive sign-in recorded as operator (nobody was in charge)")
+    return True
+
+
+def migrate_operators():
+    """Upgrade step, run once at startup (server._build_auth, sign-in configured).
+
+    Up to 2.5.0 every interactive identity nobody configured was admin. Keep exactly
+    those people admin by listing them as operators: everyone in policy "users" or
+    "roles" without an explicit non-admin role. Only NEW identities then start as
+    "user". Skipped when the policy already has "operators" or a default role is
+    configured (OIDC_DEFAULT_ROLE / policy "default" keep deciding as before), and
+    when nobody is listed (a fresh install bootstraps at the first sign-in instead).
+    Returns the recorded list, or None when nothing was written. Never raises."""
+    try:
+        import store
+        import tenancy
+        with store.locked(POLICY_FILE):
+            pol = _policy_strict()
+            if "operators" in pol or _configured_default(pol):
+                return None
+            listed = set()
+            for key in ("users", "roles"):
+                section = pol.get(key)
+                if isinstance(section, dict):
+                    listed |= {str(k).strip() for k in section if str(k).strip()}
+            roles = pol.get("roles") if isinstance(pol.get("roles"), dict) else {}
+            admins = sorted(i for i in listed if roles.get(i) not in ("user", "viewer"))
+            if not admins:
+                return None
+            tenancy._write_policy({**pol, "operators": admins})
+    except Exception as exc:
+        audit("system", "-", "migrate_operators", "deny",
+              f"operators not migrated: {type(exc).__name__}: {exc}")
+        return None
+    audit("system", "-", "migrate_operators", "allow",
+          f"today's admins kept as operators: {', '.join(admins)}")
+    return admins
+
+
 def role_for(identity: str, is_runner: bool, claims=None) -> str:
     """Resolve a caller's role. Precedence: explicit per-identity policy →
     IdP role/group claim → runner/default fallback. Secure defaults: runner→user,
-    everyone else→admin (so the human operator is never locked out)."""
+    an agent key→its person's explicit role or user, an interactive person →
+    ``session_role`` (operators are admin, everyone else user). The very first
+    interactive identity of an install nobody is in charge of becomes the operator.
+    With sign-in configured, an unresolved identity gets no role ("")."""
+    if _unresolved(identity) and _identity_required():
+        return ""
     if isinstance(claims, dict) and claims.get("aicortex_key"):
         # A per-agent key (agent_auth.py) is never an accidental admin: the key's
         # person's explicit policy role, else "user" — same rule as on REST.
         return role_for_apikey(identity)
     pol = _policy()
-    roles = pol.get("roles", {}) if isinstance(pol, dict) else {}
-    if identity and identity in roles and roles[identity] in _VALID_ROLES:
-        return roles[identity]
     claim_role = _role_from_claims(claims)
-    if claim_role:
-        return claim_role
     if is_runner:
+        explicit = _explicit_role(pol, identity)
+        if explicit or claim_role:
+            return explicit or claim_role
         r = os.environ.get("RUNNER_ROLE") or pol.get("runner") or "user"
-    else:
-        r = os.environ.get("OIDC_DEFAULT_ROLE") or pol.get("default") or "admin"
-    return r if r in _VALID_ROLES else "user"
+        return r if r in _VALID_ROLES else "user"
+    role = session_role(identity, claim_role, pol)
+    if (role == "user" and not claim_role and not _explicit_role(pol, identity)
+            and not _unresolved(identity) and _bootstrap_open(pol)
+            and _bootstrap_operator(identity)):
+        return "admin"
+    return role
 
 
 def decide(role: str, tool: str) -> tuple[bool, str]:
     """Allow/deny a tool for a role (deny-by-default for unknown roles)."""
+    if not role:
+        return False, "no role: the caller's identity could not be resolved"
     if role == "admin":
         return True, "admin"
     if role == "viewer":
@@ -249,9 +428,45 @@ def decide(role: str, tool: str) -> tuple[bool, str]:
     return False, f"unknown role '{role}'"
 
 
+_AUDIT_MAX_BYTES = 5_000_000   # rotate the audit log at this size (AUDIT_MAX_BYTES; 0 = never)
+_AUDIT_KEEP = 3                # rotated generations kept: audit.log.1 … .3 (AUDIT_KEEP)
+
+
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return value if value >= minimum else default
+
+
+def _rotate_audit() -> None:
+    """Size-based rotation: audit.log → audit.log.1 → … → audit.log.<AUDIT_KEEP>, the
+    oldest dropped. Unauthenticated callers can cause audit lines (refused /hooks
+    deliveries), so an unbounded file could fill the data volume. Checked before each
+    write; the lock + re-check keep two writers from rotating twice. Never raises."""
+    try:
+        limit = _env_int("AUDIT_MAX_BYTES", _AUDIT_MAX_BYTES, 0)
+        if not limit or AUDIT_FILE.stat().st_size < limit:
+            return
+        keep = _env_int("AUDIT_KEEP", _AUDIT_KEEP, 1)
+        import store
+        with store.locked(AUDIT_FILE.with_name("audit-rotate")):
+            if AUDIT_FILE.stat().st_size < limit:
+                return                    # another writer rotated while we waited
+            for n in range(keep - 1, 0, -1):
+                older = AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.{n}")
+                if older.exists():
+                    os.replace(older, AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.{n + 1}"))
+            os.replace(AUDIT_FILE, AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.1"))
+    except Exception:
+        pass  # a full or read-only volume must not stop auditing (or the call)
+
+
 def audit(identity: str, role: str, tool: str, decision: str, reason: str) -> None:
     try:
         AUTH_DIR.mkdir(parents=True, exist_ok=True)
+        _rotate_audit()
         rec = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "identity": identity or "unknown", "role": role,
@@ -264,8 +479,10 @@ def audit(identity: str, role: str, tool: str, decision: str, reason: str) -> No
 
 
 def _identity():
-    """(identity, is_runner, claims) from the FastMCP auth context. Fail-open to
-    ('unknown', False, {}) so a resolution problem can't lock anyone out."""
+    """(identity, is_runner, claims) from the FastMCP auth context, or
+    ('unknown', False, {}) when there is none. What "unknown" may do depends on the
+    server: without sign-in it is the local operator; with sign-in configured it gets
+    no role at all (role_for), so a resolution problem fails CLOSED there."""
     try:
         from fastmcp.server.dependencies import get_access_token
         tok = get_access_token()
@@ -366,8 +583,9 @@ def effective_identity():
     identity, then an active cron act-as binding, else the real caller. When the
     runner is executing a job as an owner, that owner (at the owner's own privilege) is
     the effective caller for both tool-gating and data-scoping — so the job is confined
-    to the owner's area, never the runner's. Fail-open to ('unknown','user') only on a
-    hard resolution error."""
+    to the owner's area, never the runner's. On a hard resolution error: ('unknown',
+    '') — no role, every tool denied — when sign-in is configured; ('unknown', 'user')
+    on a server without sign-in, as before."""
     try:
         rest = _REST_IDENTITY.get()
         if rest:
@@ -377,7 +595,7 @@ def effective_identity():
     try:
         ident, is_runner, claims = _identity()
     except Exception:
-        return "unknown", "user"
+        return "unknown", _unresolved_role()
     try:
         import actas
         owner = actas.current(binding_key(ident))    # only the caller that started the run
@@ -388,7 +606,7 @@ def effective_identity():
     try:
         return ident, role_for(ident, is_runner, claims)
     except Exception:
-        return "unknown", "user"
+        return "unknown", _unresolved_role()
 
 
 def enforce_rest(identity: str, role: str, tool: str, args) -> tuple[bool, str]:

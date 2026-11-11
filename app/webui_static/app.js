@@ -13,6 +13,8 @@ const I18N = {
     denied_title: "Kein Zugriff",
     denied_text: "Diese Verwaltungsoberfläche ist nur für Administratoren. Deine Rolle reicht dafür nicht aus.",
     logout: "Abmelden",
+    logout_all: "Überall abmelden",
+    confirm_logout_all: "Alle WebUI-Sitzungen beenden – auch deine? Danach muss sich jeder neu anmelden.",
     nav_overview: "Übersicht", nav_vault: "Vault", nav_skills: "Skills", nav_users: "Benutzer",
     nav_services: "Services & Geräte", nav_logs: "Logs",
     sv_col_kind: "Art", sv_col_name: "Name", sv_col_target: "Ziel",
@@ -97,6 +99,8 @@ const I18N = {
     us_f_devices: "Geräte-Freigaben", us_ph_devices: "z. B. ssh=all; caldav=nextcloud-cal",
     us_f_note: "Notiz",
     confirm_del_user: "Eintrag für „{0}“ entfernen?",
+    us_operator: "Operator",
+    us_operator_hint: "Operator: Admin bei der Anmeldung (policy.json „operators“)",
     save: "Speichern", cancel: "Abbrechen", delete: "Löschen",
     clear: "Leeren", confirm: "Ja, löschen",
     toast_error: "Fehler: {0}",
@@ -109,6 +113,8 @@ const I18N = {
     denied_title: "No access",
     denied_text: "This management UI is for administrators only. Your role isn't sufficient.",
     logout: "Sign out",
+    logout_all: "Sign out everywhere",
+    confirm_logout_all: "End every WebUI session, including yours? Everyone has to sign in again.",
     nav_overview: "Overview", nav_vault: "Vault", nav_skills: "Skills", nav_users: "Users",
     nav_services: "Services & devices", nav_logs: "Logs",
     sv_col_kind: "Kind", sv_col_name: "Name", sv_col_target: "Target",
@@ -193,6 +199,8 @@ const I18N = {
     us_f_devices: "Device grants", us_ph_devices: "e.g. ssh=all; caldav=nextcloud-cal",
     us_f_note: "Note",
     confirm_del_user: "Remove the entry for “{0}”?",
+    us_operator: "operator",
+    us_operator_hint: "Operator: admin when signing in (policy.json “operators”)",
     save: "Save", cancel: "Cancel", delete: "Delete",
     clear: "Clear", confirm: "Yes, delete",
     toast_error: "Error: {0}",
@@ -671,10 +679,20 @@ async function loadUsers() {
     const id = document.createElement("td"); id.className = "mono"; id.textContent = u.identity;
     const role = document.createElement("td");
     const rtag = document.createElement("span");
-    const r = u.role || d.default_role;
+    // No explicit role: show what the person really gets (operator → admin, else the
+    // default), marked with * — not the bare env default.
+    const r = u.role || u.effective_role || d.default_role;
     rtag.className = "tag" + (r === "admin" ? " role-admin" : r === "viewer" ? " role-viewer" : "");
-    rtag.textContent = u.role || `${d.default_role}*`;
+    rtag.textContent = u.role || `${r}*`;
     role.append(rtag);
+    if (u.operator) {
+      const op = document.createElement("span");
+      op.className = "tag";
+      op.style.marginLeft = "6px";
+      op.textContent = t("us_operator");
+      op.title = t("us_operator_hint");
+      role.append(op);
+    }
     const area = document.createElement("td");
     area.className = "small";
     const devs = Object.entries(u.devices).map(([k, v]) => `${k}=${v}`).join("; ");
@@ -728,6 +746,8 @@ async function boot() {
   }
   if (!ME.authenticated) { show("view-login"); return; }
   $$("[data-admin]").forEach((el) => el.classList.toggle("hidden", !isAdmin()));
+  // Only signed-in sessions can be ended; the local operator (no sign-in) has none.
+  $("#btn-logout-all").classList.toggle("hidden", !(isAdmin() && ME.mode === "oidc"));
   $("#user-name").textContent = ME.name || ME.sub;
   $("#ui-version").textContent = `AICortex v${ME.version}`;
   show("app");
@@ -743,6 +763,14 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   $("#btn-logout").addEventListener("click", logout);
   $("#btn-logout-denied").addEventListener("click", logout);
+  $("#btn-logout-all").addEventListener("click", async () => {
+    if (!(await confirmModal(t("confirm_logout_all")))) return;
+    try {
+      const r = await api("/ui/api/sessions/revoke", { method: "POST", body: {} });
+      if (!r.ok) { toast(r.message, false); return; }
+      location.href = "/ui";
+    } catch (err2) { toast(t("toast_error", err2.message), false); }
+  });
 
   $$("[data-setlang]").forEach((b) => b.addEventListener("click", () => {
     LANG = b.dataset.setlang;

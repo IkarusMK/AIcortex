@@ -22,6 +22,9 @@ DESIGN SAFETY:
   the check path → deny, logged loudly to the audit log. In homelab mode no checks
   run, so a defect can't strand anyone.
 - Admins are never confined.
+- An identity that can't be resolved ("unknown"/empty) is confined to a bucket of
+  its own when sign-in (OIDC) is configured — there it can only be a fault. Without
+  sign-in it is the local operator and stays unconfined.
 - The identity is the forwarded upstream ``sub`` (PocketIDProxy) when present, so
   isolation is per-PERSON, not per-OAuth-client. A cron act-as run is scoped to the
   job OWNER (see authz.effective_identity / actas).
@@ -85,6 +88,18 @@ def isolation_enabled() -> bool:
     return _enforced()
 
 
+def _unresolved_is_fault(identity) -> bool:
+    """Is this an identity that couldn't be resolved ("unknown"/empty) on a server
+    where that can only be a fault? Under enforcement WITH sign-in configured (OIDC)
+    every caller presents a token, so such a caller is confined — never unrestricted.
+    Without sign-in, "unknown" is the local operator and stays unconfined. Reads the
+    env directly (mirrors authz.auth_configured) for the same reason as _enforced."""
+    if identity and identity != "unknown":
+        return False
+    return _enforced() and bool(os.environ.get("OIDC_CONFIG_URL")
+                                and os.environ.get("OIDC_CLIENT_ID"))
+
+
 def _policy() -> dict:
     try:
         return json.loads(POLICY_FILE.read_text(encoding="utf-8"))
@@ -115,8 +130,14 @@ def area_for(identity: str, role: str) -> dict:
     unrestricted = {"memory_scope": None, "vault_ns": None, "confined": False}
     if not isolation_enabled():
         return unrestricted
-    # Admins are never confined; an unresolved identity fails open (no confinement)
-    # so a resolution glitch can't strand a caller in a bogus "unknown" bucket.
+    if _unresolved_is_fault(identity):
+        # Sign-in configured: an unresolved caller is a fault, not a person. Confine it
+        # to a bucket of its own (whatever role it claims, whatever policy says for
+        # "unknown") — authz already denies it every tool; this is the second wall.
+        own = f"users/{_safe(identity or 'unknown')}"
+        return {"memory_scope": own, "vault_ns": own, "confined": True}
+    # Admins are never confined; without sign-in an unresolved identity is the local
+    # operator and stays unconfined, as before.
     if role == "admin" or not identity or identity == "unknown":
         return unrestricted
     users = _policy().get("users") or {}
@@ -184,6 +205,8 @@ def _access_spec(identity: str, role: str, key: str):
     exception into a fail-closed deny (+audit) when enforced."""
     if not _enforced():
         return _ACCESS_ALL                 # homelab: no checks, everything open
+    if _unresolved_is_fault(identity):
+        return frozenset()                 # unresolved caller under sign-in → nothing
     if role == "admin":
         return _ACCESS_ALL                 # admins are never confined
     users = _policy().get("users")
