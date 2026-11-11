@@ -66,8 +66,9 @@ def http_middleware():
       off by default and only checks loopback-bound servers, so it never protected
       the NAS — this one does, without turning away native clients on LAN IPs,
       Docker names or VPN names.
-    - per-client-IP rate limits on the auth endpoints and /hooks (see ratelimit.py),
-      so the app is not left to an external CrowdSec alone.
+    - per-client-IP rate limits on the auth endpoints, /ui/api and /hooks, and a
+      cooldown after repeated credential failures on /mcp and /api/v1 (see
+      ratelimit.py), so the app is not left to an external CrowdSec alone.
     """
     from starlette.middleware import Middleware
 
@@ -86,10 +87,19 @@ def uvicorn_config():
     X-Forwarded-For entry as the client IP — the one a client can write — so the
     per-IP rate limits and the audit trail can be fooled. Warn, don't refuse: an
     existing install keeps starting."""
-    if os.environ.get("FORWARDED_ALLOW_IPS", "").strip() == "*":
+    trusted = os.environ.get("FORWARDED_ALLOW_IPS", "").strip()
+    if trusted == "*":
         print("[AICortex] WARNING: FORWARDED_ALLOW_IPS=\"*\" lets clients forge their IP "
               "(rate limits, audit). Set it to your proxy's source, e.g. "
               "127.0.0.1,172.16.0.0/12.")
+    elif not trusted and os.environ.get("BASE_URL", "").strip().lower().startswith("https://"):
+        # Behind a TLS proxy, but uvicorn trusts only 127.0.0.1 then: a proxy that
+        # connects from anywhere else makes every client one address — one client's
+        # failed sign-ins lock everyone out, and the audit shows only the proxy.
+        print("[AICortex] WARNING: BASE_URL is https but FORWARDED_ALLOW_IPS is not set. "
+              "Unless the reverse proxy connects from 127.0.0.1, every client shares its "
+              "address: the per-IP rate limits then lock out everyone at once. Set "
+              "FORWARDED_ALLOW_IPS to the proxy's source, e.g. 172.16.0.0/12.")
     return {"server_header": False}
 
 
@@ -403,6 +413,12 @@ def main():
     import ratelimit
     limits = ratelimit.describe(ratelimit.limits_from_env())
     print(f"[AICortex] rate limits per client IP: {limits}")
+    failures = ratelimit.failure_limit_from_env()
+    if failures:
+        (count, period), cooldown = failures
+        spec = ratelimit.describe({"": (count, period)}).strip()
+        print(f"[AICortex] credential failures (401/403) on /mcp and /api/v1: more than "
+              f"{spec} per client IP → {int(cooldown)}s cooldown")
     # The runners tick once a minute and stay idle until one is switched on in the
     # WebUI (tab "Runners").
     runner_builtin.start(PORT)
