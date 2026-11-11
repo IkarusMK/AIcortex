@@ -203,6 +203,12 @@ def _build_auth():
     migrated = authz.migrate_operators()
     if migrated:
         print(f"[AICortex] auth: kept {len(migrated)} existing admin(s) as operators")
+    named = authz.env_operators()
+    if named:
+        print(f"[AICortex] auth: operators from OPERATORS: {', '.join(sorted(named))}")
+    # Nobody in charge yet: only the first sign-in within OPERATOR_BOOTSTRAP_MINUTES
+    # of this start becomes the operator (logged loudly), never one months later.
+    authz.start_bootstrap_window()
 
     # ALSO accept static bearer tokens for headless clients (per-agent keys and
     # RUNNER_TOKEN). Interactive apps keep using OIDC unchanged; MultiAuth tries

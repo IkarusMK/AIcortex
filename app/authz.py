@@ -19,9 +19,11 @@ DESIGN SAFETY (so it can't lock a hands-off operator out):
   non-admin "user" role — it can no longer register services/MCP servers, set
   secrets, add cron jobs, etc. (closes #2/#4/#5/#7/#15). An interactive person is
   admin only as an OPERATOR (policy "operators", or an explicit role); everyone
-  else the IdP lets in starts as "user". The first person to sign in to a fresh
-  install becomes the operator, and an upgrade keeps today's admins as operators
-  (see ``migrate_operators``), so the human isn't locked out.
+  else the IdP lets in starts as "user". OPERATORS (env) names operators outright;
+  otherwise the first person to sign in to an install nobody is in charge of becomes
+  the operator — only within OPERATOR_BOOTSTRAP_MINUTES of the start — and an upgrade
+  keeps today's admins as operators (see ``migrate_operators``), so the human isn't
+  locked out. The last person in charge can't be removed (``last_operator_refusal``).
 - Policy is DATA: optional /data/auth/policy.json maps identities → roles.
 
 Roles:
@@ -35,6 +37,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -255,14 +258,48 @@ def _configured_default(pol) -> str:
     return str(os.environ.get("OIDC_DEFAULT_ROLE") or default or "")
 
 
-def operators(pol=None) -> frozenset:
-    """Identities listed in policy "operators" — the people who are admin when they
-    sign in interactively (OIDC/WebUI). Never their agent keys or cron jobs."""
-    pol = _policy() if pol is None else pol
+def env_operators() -> frozenset:
+    """Identities named in OPERATORS (comma-separated) — operators whatever the policy
+    says, so an install can name its operator before anyone signs in."""
+    raw = os.environ.get("OPERATORS", "")
+    return frozenset(p.strip() for p in raw.split(",") if p.strip())
+
+
+def _policy_operators(pol) -> frozenset:
     ops = pol.get("operators") if isinstance(pol, dict) else None
     if not isinstance(ops, list):
         return frozenset()
     return frozenset(o.strip() for o in ops if isinstance(o, str) and o.strip())
+
+
+def operators(pol=None) -> frozenset:
+    """The operators — the people who are admin when they sign in interactively
+    (OIDC/WebUI): listed in policy "operators" or in OPERATORS. Never their agent keys
+    or cron jobs."""
+    pol = _policy() if pol is None else pol
+    return _policy_operators(pol) | env_operators()
+
+
+def in_charge(pol) -> frozenset:
+    """Who the policy (with OPERATORS) makes admin at sign-in on its own: operators
+    without an explicit non-admin role, and explicit admins."""
+    roles = pol.get("roles") if isinstance(pol, dict) else None
+    roles = roles if isinstance(roles, dict) else {}
+    admins = {str(i) for i, r in roles.items() if r == "admin"}
+    return frozenset(admins | {o for o in operators(pol)
+                               if _explicit_role(pol, o) in ("", "admin")})
+
+
+def last_operator_refusal(old, new) -> str:
+    """"" or why a policy change must be refused: it would remove the last person in
+    charge, leaving an install nobody can manage (and, at the next start, open to
+    whoever signs in first)."""
+    before = in_charge(old)
+    if not before or in_charge(new):
+        return ""
+    return (f"Refused: {', '.join(sorted(before))} is the last operator — nobody would be "
+            f"admin any more. Make someone else an operator or an admin first "
+            f"(OPERATORS, or role admin in the users view).")
 
 
 def _has_explicit_admin(pol) -> bool:
@@ -281,9 +318,10 @@ def session_role(identity: str, claim_role: str = "", pol=None) -> str:
     """Role of an interactive person (OIDC token, WebUI session), computed from the
     CURRENT policy — so a demotion or a policy change takes effect on the next request.
 
-    Precedence: explicit ``roles`` → the IdP's claim role → OIDC_DEFAULT_ROLE → policy
-    ``default`` → listed in ``operators`` → admin, otherwise "user". A configured
-    default that is not a valid role is "user", never admin.
+    Precedence: explicit ``roles`` → the IdP's claim role → named in OPERATORS → admin
+    → OIDC_DEFAULT_ROLE → policy ``default`` → listed in policy ``operators`` → admin,
+    otherwise "user". A configured default that is not a valid role is "user", never
+    admin.
 
     Without sign-in configured, "unknown" is the local operator and keeps today's
     meaning (the configured default, else admin); with sign-in configured an
@@ -296,6 +334,8 @@ def session_role(identity: str, claim_role: str = "", pol=None) -> str:
         return explicit
     if claim_role in _VALID_ROLES:
         return claim_role
+    if identity in env_operators():
+        return "admin"            # named by the deployment: not one of "nobody configured"
     configured = _configured_default(pol)
     if configured:
         return configured if configured in _VALID_ROLES else "user"
@@ -306,12 +346,13 @@ def session_role(identity: str, claim_role: str = "", pol=None) -> str:
 
 def default_role(pol=None) -> str:
     """What a NEW interactive identity (no policy entry, no IdP claim) gets right now —
-    for the WebUI. While nobody is in charge the next sign-in becomes the operator."""
+    for the WebUI. While nobody is in charge and the bootstrap window is open, the next
+    sign-in becomes the operator."""
     pol = _policy() if pol is None else pol
     configured = _configured_default(pol)
     if configured:
         return configured if configured in _VALID_ROLES else "user"
-    return "admin" if _bootstrap_open(pol) else "user"
+    return "admin" if _bootstrap_open(pol) and _bootstrap_window_open() else "user"
 
 
 def _policy_strict() -> dict:
@@ -323,6 +364,45 @@ def _policy_strict() -> dict:
     if not isinstance(obj, dict):
         raise ValueError("policy.json is not an object")
     return obj
+
+
+# The first-come bootstrap: on a start with nobody in charge, the first interactive
+# sign-in within OPERATOR_BOOTSTRAP_MINUTES becomes the operator. Without a window,
+# an install whose policy names nobody handed admin to whoever signed in first — at
+# any time, months later. Opened only by ``start_bootstrap_window`` (server startup).
+_BOOTSTRAP_MINUTES = 30
+_BOOTSTRAP: dict = {"until": None}      # monotonic deadline; None = closed
+
+
+def _clock() -> float:
+    return time.monotonic()
+
+
+def _bootstrap_window_open() -> bool:
+    until = _BOOTSTRAP["until"]
+    return until is not None and _clock() < until
+
+
+def start_bootstrap_window(pol=None) -> int:
+    """Startup step (server._build_auth, sign-in configured): open the first-come
+    window when nobody is in charge, and say so loudly. Returns the minutes it is open
+    (0 = closed: someone is in charge, or OPERATOR_BOOTSTRAP_MINUTES=0)."""
+    pol = _policy() if pol is None else pol
+    minutes = _env_int("OPERATOR_BOOTSTRAP_MINUTES", _BOOTSTRAP_MINUTES, 0)
+    _BOOTSTRAP["until"] = None
+    if not _bootstrap_open(pol):
+        return 0
+    if not minutes:
+        print("[AICortex] WARNING: nobody is operator (admin) and the first-come bootstrap "
+              "is off (OPERATOR_BOOTSTRAP_MINUTES=0). Name the operator with "
+              "OPERATORS=<identity> (the IdP 'sub') and restart.")
+        return 0
+    _BOOTSTRAP["until"] = _clock() + minutes * 60
+    print(f"[AICortex] WARNING: nobody is operator (admin) yet. The FIRST person to sign "
+          f"in within the next {minutes} minutes becomes the operator. Name the operator "
+          f"instead with OPERATORS=<identity> (the IdP 'sub'); "
+          f"OPERATOR_BOOTSTRAP_MINUTES=0 switches this off.")
+    return minutes
 
 
 def _bootstrap_operator(identity: str) -> bool:
@@ -341,8 +421,12 @@ def _bootstrap_operator(identity: str) -> bool:
         audit(identity, "user", "bootstrap", "deny",
               f"could not record the first operator: {type(exc).__name__}")
         return False
+    _BOOTSTRAP["until"] = None
     audit(identity, "admin", "bootstrap", "allow",
           "first interactive sign-in recorded as operator (nobody was in charge)")
+    print(f"[AICortex] WARNING: operator bootstrap: '{identity}' signed in first and is "
+          f"now the operator (admin). If that is not you, remove them in the WebUI "
+          f"(Users) or in policy.json and set OPERATORS.")
     return True
 
 
@@ -387,7 +471,8 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
     IdP role/group claim → runner/default fallback. Secure defaults: runner→user,
     an agent key→its person's explicit role or user, an interactive person →
     ``session_role`` (operators are admin, everyone else user). The very first
-    interactive identity of an install nobody is in charge of becomes the operator.
+    interactive identity of an install nobody is in charge of becomes the operator —
+    within the bootstrap window after the start only (``start_bootstrap_window``).
     With sign-in configured, an unresolved identity gets no role ("")."""
     if _unresolved(identity) and _identity_required():
         return ""
@@ -406,7 +491,7 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
     role = session_role(identity, claim_role, pol)
     if (role == "user" and not claim_role and not _explicit_role(pol, identity)
             and not _unresolved(identity) and _bootstrap_open(pol)
-            and _bootstrap_operator(identity)):
+            and _bootstrap_window_open() and _bootstrap_operator(identity)):
         return "admin"
     return role
 

@@ -927,25 +927,15 @@ def register(mcp):
             if v and v not in tenancy._AREA_VALUES:
                 return _json({"error": f"{label} must be one of "
                                        f"{tenancy._AREA_VALUES}"}, 400)
-        pol = tenancy._policy()
-        roles = pol.get("roles") if isinstance(pol.get("roles"), dict) else {}
-        users = pol.get("users") if isinstance(pol.get("users"), dict) else {}
-        if role == "default":
-            roles.pop(identity, None)
-        elif role:
-            roles[identity] = role
-        # A hand-edited policy may hold something else than an object here — start
-        # over instead of failing with a 500.
-        existing = users.get(identity)
-        entry = dict(existing) if isinstance(existing, dict) else {}
+        changes, dropped = {}, set()
         for label in ("memory", "vault"):
             v = str(body.get(label, "")).strip().lower()
             if v:
-                entry[label] = v
+                changes[label] = v
         for label in ("services", "skills"):
             v = str(body.get(label, "")).strip()
             if v:
-                entry[label] = tenancy._norm_access(v)
+                changes[label] = tenancy._norm_access(v)
         devices = body.get("devices")
         if isinstance(devices, dict):
             for kind, spec in devices.items():
@@ -954,16 +944,32 @@ def register(mcp):
                     return _json({"error": f"unknown device kind '{kind}'"}, 400)
                 spec = str(spec).strip()
                 if spec == "unset":
-                    entry.pop(kind, None)
+                    dropped.add(kind)
                 elif spec:
-                    entry[kind] = tenancy._norm_access(spec)
+                    changes[kind] = tenancy._norm_access(spec)
         note = str(body.get("note", "")).strip()
         if note:
-            entry["note"] = note
-        entry.setdefault("memory", "own")
-        users[identity] = entry
-        pol["roles"], pol["users"] = roles, users
-        tenancy._write_policy(pol)
+            changes["note"] = note
+
+        def change(pol):
+            roles = pol.get("roles") if isinstance(pol.get("roles"), dict) else {}
+            users = pol.get("users") if isinstance(pol.get("users"), dict) else {}
+            if role == "default":
+                roles = {k: v for k, v in roles.items() if k != identity}
+            elif role:
+                roles = {**roles, identity: role}
+            # A hand-edited policy may hold something else than an object here — start
+            # over instead of failing with a 500.
+            existing = users.get(identity)
+            kept = {k: v for k, v in (existing if isinstance(existing, dict) else {}).items()
+                    if k not in dropped}
+            entry = {"memory": "own", **kept, **changes}
+            return {**pol, "roles": roles, "users": {**users, identity: entry}}
+        try:
+            tenancy.update_policy(change)
+        except (tenancy.PolicyRefused, ValueError) as exc:
+            _audit(sess, "user_set", "deny", f"identity={identity}: {str(exc)[:160]}")
+            return _json({"ok": False, "message": str(exc)}, 409)
         _audit(sess, "user_set", "allow", f"identity={identity} role={role or '-'}")
         return _json({"ok": True, "message": f"Saved '{identity}'."})
 
@@ -979,19 +985,28 @@ def register(mcp):
         if body is None:
             return _json({"error": "invalid body"}, 400)
         identity = str(body.get("identity", "")).strip()
-        pol = tenancy._policy()
-        updated = dict(pol)
-        for key in ("roles", "users"):
-            section = pol.get(key)
-            if isinstance(section, dict) and identity in section:
-                updated[key] = {k: v for k, v in section.items() if k != identity}
-        if identity and identity in authz.operators(pol):
-            updated["operators"] = [o for o in pol["operators"]
-                                    if not (isinstance(o, str) and o.strip() == identity)]
-        if updated == pol:
+
+        def change(pol):
+            updated = dict(pol)
+            for key in ("roles", "users"):
+                section = pol.get(key)
+                if isinstance(section, dict) and identity in section:
+                    updated[key] = {k: v for k, v in section.items() if k != identity}
+            ops = pol.get("operators")
+            if identity and isinstance(ops, list):
+                updated["operators"] = [o for o in ops
+                                        if not (isinstance(o, str) and o.strip() == identity)]
+            return updated
+        try:
+            old, new = tenancy.update_policy(change)
+        except (tenancy.PolicyRefused, ValueError) as exc:
+            _audit(sess, "user_delete", "deny", f"identity={identity}: {str(exc)[:160]}")
+            return _json({"ok": False, "message": str(exc)}, 409)
+        if new == old:
+            more = (" They are named in OPERATORS (the server's environment)."
+                    if identity in authz.env_operators() else "")
             return _json({"ok": False,
-                          "message": f"No entry for '{identity}'."}, 404)
-        tenancy._write_policy(updated)
+                          "message": f"No entry for '{identity}'.{more}"}, 404)
         _audit(sess, "user_delete", "allow", f"identity={identity}")
         return _json({"ok": True, "message": f"Removed '{identity}'."})
 
