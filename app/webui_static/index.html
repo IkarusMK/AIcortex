@@ -747,6 +747,22 @@
     </form>
   </dialog>
 
+  <!-- MCP OAuth: who may use your sign-in (view-mcp-access.js) -->
+  <dialog id="oa-access" class="modal-card panel oa-dialog" aria-labelledby="oa-access-title">
+    <form id="form-oa-access">
+      <h3 id="oa-access-title"></h3>
+      <p class="dim small" data-i18n="ma_hint"></p>
+      <fieldset id="oa-access-apps" class="oa-group"><legend data-i18n="ma_apps"></legend><div class="oa-items"></div></fieldset>
+      <fieldset id="oa-access-runners" class="oa-group"><legend data-i18n="ma_runners"></legend><div class="oa-items"></div></fieldset>
+      <fieldset id="oa-access-keys" class="oa-group"><legend data-i18n="ma_keys"></legend><div class="oa-items"></div></fieldset>
+      <label class="check"><input type="checkbox" id="oa-access-writes"><span data-i18n="ma_writes"></span></label>
+      <div class="btn-row">
+        <button type="submit" class="btn" data-i18n="ma_save"></button>
+        <button type="button" id="oa-access-cancel" class="btn ghost" data-i18n="cancel"></button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/ui/assets/app.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
@@ -755,5 +771,6 @@
   <script src="/ui/assets/view-playbooks.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbook-lib.js?v={{v}}"></script>
   <script src="/ui/assets/view-search.js?v={{v}}"></script>
+  <script src="/ui/assets/view-mcp-access.js?v={{v}}"></script>
 </body>
 </html>

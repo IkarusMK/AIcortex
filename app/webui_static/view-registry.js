@@ -217,6 +217,7 @@ function oauthCell(s, secretCell, actionCell) {
   b.addEventListener("click", () =>
     (st.signed_in ? oauthSignOut(s.name) : oauthSignIn(s.name)).catch((x) => toast(x.message, false)));
   actionCell.prepend(b);
+  if (typeof mcpAccessButton === "function") mcpAccessButton(s, actionCell);   // view-mcp-access.js
 }
 
 async function oauthSignIn(name) {

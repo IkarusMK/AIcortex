@@ -382,3 +382,19 @@ def test_the_proxy_marks_the_app_on_every_token_and_never_trusts_a_forged_mark()
     assert found.claims[pp.APP_CLAIM] == {"host": "claude.ai", "name": "Claude"}
     forged = tok({"sub": "p", pp.APP_CLAIM: {"host": "claude.ai"}})
     assert pp.APP_CLAIM not in asyncio.run(pp.annotate(Proxy(), "other", forged)).claims
+
+
+# ── the WebUI ────────────────────────────────────────────────────────────────
+def test_access_and_approvals_are_wired_into_the_webui(up):
+    js = up.ui.get("/ui/assets/view-mcp-access.js")
+    assert js.status_code == 200
+    for needle in ("/ui/api/mcp-oauth/access", "/ui/api/mcp-oauth/approvals",
+                   "/ui/api/mcp-oauth/approvals/decide", "showModal", "Freigaben", "Approvals",
+                   "Zugriff", "Access"):
+        assert needle in js.text, needle
+    assert "innerHTML" not in js.text and ".style." not in js.text
+    html = up.ui.get("/ui").text
+    assert "/ui/assets/view-mcp-access.js" in html
+    start = html.index('<dialog id="oa-access"')
+    assert "style=" not in html[start:html.index("</dialog>", start)]
+    assert "mcpAccessButton" in up.ui.get("/ui/assets/view-registry.js").text
