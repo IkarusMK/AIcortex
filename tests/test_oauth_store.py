@@ -28,6 +28,7 @@ import pytest
 pytest.importorskip("diskcache", reason="needed only to build a pre-2.6.0 store")
 
 from cryptography.fernet import Fernet  # noqa: E402
+from key_value.aio.stores.filetree import FileTreeStore  # noqa: E402  (owner-only subclass)
 
 KEY = Fernet.generate_key().decode()
 CLIENTS = "mcp-oauth-proxy-clients"
@@ -107,7 +108,7 @@ def test_old_store_is_migrated_and_logins_survive(auth_env):
 
     store = server._client_storage()
 
-    assert type(_inner(store)).__name__ == "FileTreeStore"
+    assert isinstance(_inner(store), FileTreeStore)
     assert not (auth_dir / "cache.db").exists()
     assert (auth_dir / ARCHIVE / "cache.db").exists()
     assert (auth_dir / "policy.json").read_text() == '{"users": {}}'
@@ -133,7 +134,7 @@ def test_unencrypted_old_store_is_migrated_too(auth_env, monkeypatch):
 
     store = server._client_storage()
 
-    assert type(store).__name__ == "FileTreeStore"
+    assert isinstance(store, FileTreeStore)
     client = asyncio.run(_proxy(store).get_client("client-a"))
     assert client is not None
 
@@ -173,7 +174,7 @@ def test_migration_runs_once_and_never_overwrites_newer_entries(auth_env):
     asyncio.run(store.put(key="rt-hash-1", value={"sub": "alice", "rotated": True},
                           collection=REFRESH, ttl=3600))
 
-    assert type(_inner(server._client_storage())).__name__ == "FileTreeStore"   # 2nd start
+    assert isinstance(_inner(server._client_storage()), FileTreeStore)   # 2nd start
     assert sorted(p.name for p in auth_dir.iterdir() if p.name.startswith("diskstore")) == [ARCHIVE]
 
     # A leftover old store reappears (e.g. 2.5 was started once more): its other
@@ -198,7 +199,7 @@ def test_unreadable_old_store_is_left_in_place(auth_env, capsys):
 
     store = server._client_storage()
 
-    assert type(_inner(store)).__name__ == "FileTreeStore"
+    assert isinstance(_inner(store), FileTreeStore)
     assert (auth_dir / "cache.db").exists()
     assert not (auth_dir / ARCHIVE).exists()
     assert "WARNING" in capsys.readouterr().out
@@ -209,7 +210,7 @@ def test_unreadable_old_store_is_left_in_place(auth_env, capsys):
 def test_fresh_install_needs_no_migration(auth_env):
     server, auth_dir = auth_env
     store = server._client_storage()
-    assert type(_inner(store)).__name__ == "FileTreeStore"
+    assert isinstance(_inner(store), FileTreeStore)
     assert not (auth_dir / ARCHIVE).exists()
     asyncio.run(_proxy(store).register_client(_client("client-c")))
     assert asyncio.run(_proxy(server._client_storage()).get_client("client-c")) is not None
