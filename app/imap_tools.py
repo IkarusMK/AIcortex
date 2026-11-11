@@ -19,6 +19,7 @@ from email.header import decode_header, make_header
 from pathlib import Path
 
 import cfgstore
+import errtext
 import netguard
 import secrets_store
 
@@ -88,7 +89,7 @@ def _open(cfg):
                 M = imaplib.IMAP4_SSL(host, port or 993, timeout=30, ssl_context=ctx)
         M.login(cfg.get("username", ""), pw)
     except Exception as exc:
-        return None, f"IMAP connect/login failed: {exc}"
+        return None, f"IMAP connect/login failed: {errtext.safe(exc)}"
     return M, None
 
 
@@ -203,7 +204,7 @@ def register(mcp):
                              f"{_dec(head.get('Subject')) or '(no subject)'} · {size}")
             return "\n".join(lines) or f"No messages match '{query}' in {mailbox}."
         except Exception as exc:
-            return f"Search failed: {exc}"
+            return f"Search failed: {errtext.safe(exc)}"
         finally:
             try:
                 M.logout()
@@ -266,7 +267,7 @@ def register(mcp):
                     " (call again with save_attachments=true to save)")
             return f"{head}\n{body[:_MAX_BODY]}{more}{att_line}"
         except Exception as exc:
-            return f"Fetch failed: {exc}"
+            return f"Fetch failed: {errtext.safe(exc)}"
         finally:
             try:
                 M.logout()

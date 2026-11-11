@@ -37,6 +37,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 import authz
+import errtext
 import secrets_store
 import skills
 import tenancy
@@ -485,7 +486,8 @@ def register(mcp):
         try:
             doc = _discovery()
         except Exception as exc:
-            return _json({"error": f"IdP discovery failed: {exc}"}, 502)
+            # /ui/login is public: the type and a generic reason, never the text
+            return _json({"error": f"IdP discovery failed: {errtext.safe(exc, 'webui login')}"}, 502)
         state = pysecrets.token_urlsafe(24)
         verifier = pysecrets.token_urlsafe(48)
         challenge = _b64(hashlib.sha256(verifier.encode()).digest())

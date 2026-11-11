@@ -28,6 +28,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
+import errtext
 import mcp_oauth
 import netguard
 import secrets_store
@@ -59,7 +60,7 @@ def _load(name: str):
 _PROTOCOL_VERSION = "2025-06-18"
 
 
-class _HttpMCPError(Exception):
+class _HttpMCPError(errtext.Reportable):
     """An upstream Streamable-HTTP MCP call failed (HTTP or JSON-RPC error). ``status``
     is the HTTP status when there was one (0 otherwise)."""
 
@@ -522,7 +523,7 @@ def register(mcp):
         except (mcp_oauth.OAuthError, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
-            return f"Could not reach '{server}': {exc}"
+            return f"Could not reach '{server}': {errtext.safe(exc)}"
         if not tools:
             return f"'{server}' exposes no tools."
         return _tool_lines(tools, _flag(cfg.get("read_only")))
@@ -543,4 +544,4 @@ def register(mcp):
         except (mcp_oauth.OAuthError, _Refused, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
-            return f"Call failed: {exc}"
+            return f"Call failed: {errtext.safe(exc)}"

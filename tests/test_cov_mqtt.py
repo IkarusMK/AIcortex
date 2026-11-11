@@ -316,7 +316,7 @@ def test_connect_time_guard_rejects_a_dns_rebinding_answer(env):
 @pytest.mark.parametrize("setup,expected", [
     (lambda b: setattr(b, "connack", _RC(True, "Not authorized")), "Connect failed: MQTT connect refused: Not authorized"),
     (lambda b: setattr(b, "connack", None), "Connect failed: MQTT connect timed out (no CONNACK)"),
-    (lambda b: setattr(b, "connect_error", OSError("network unreachable")), "Connect failed: network unreachable")])
+    (lambda b: setattr(b, "connect_error", OSError("network unreachable")), "Connect failed: OSError (details in the server log)")])
 @pytest.mark.parametrize("tool,extra", [PUBLISH, GET])
 def test_connect_failures_are_reported_and_nothing_is_sent(plant, setup, expected, tool, extra):
     setup(plant.broker)
@@ -339,7 +339,7 @@ def test_publish_reports_unconfirmed_and_failed_publishes_and_still_disconnects(
     plant.broker.confirmed = False
     assert plant.call("mqtt_publish", broker="plant", topic="t").endswith("NOT confirmed")
     plant.broker.publish_error = RuntimeError("queue full")
-    assert plant.call("mqtt_publish", broker="plant", topic="t") == "Publish failed: queue full"
+    assert plant.call("mqtt_publish", broker="plant", topic="t") == "Publish failed: RuntimeError (details in the server log)"
     assert (plant.last.stopped, plant.last.disconnected) == (1, 1)
 
 
@@ -379,5 +379,5 @@ def test_get_decodes_leniently_and_caps_the_output(plant):
 
 def test_get_reports_a_failed_subscribe_and_still_disconnects(plant):
     plant.broker.subscribe_error = RuntimeError("not allowed")
-    assert plant.call("mqtt_get", broker="plant", topic="t") == "Subscribe failed: not allowed"
+    assert plant.call("mqtt_get", broker="plant", topic="t") == "Subscribe failed: RuntimeError (details in the server log)"
     assert (plant.last.stopped, plant.last.disconnected) == (1, 1)

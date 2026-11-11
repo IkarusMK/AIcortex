@@ -20,6 +20,7 @@ import subprocess
 from pathlib import Path
 from urllib.parse import quote
 
+import errtext
 import netguard
 import secrets_store
 
@@ -86,7 +87,7 @@ def _connect(cfg):
     host = cfg["host"]
     ok, reason = netguard.check_host(host)
     if not ok:
-        raise ConnectionError(f"Blocked by network policy — {reason}")
+        raise errtext.Reportable(f"Blocked by network policy — {reason}")
     port = int(cfg.get("port") or 21)
     mode = (cfg.get("tls") or "none").lower()  # none | explicit | implicit
     ctx = netguard.ssl_context(cfg)  # ca_bundle > tls_insecure > verify (shared TLS policy)
@@ -104,7 +105,7 @@ def _connect(cfg):
         # only to a host the password is bound to (raises secrets_store.Refused)
         password = secrets_store.use(cfg["password_env"], host) or ""
         if not password:  # never fall back to an empty-password login
-            raise RuntimeError(f"endpoint needs secret '{cfg['password_env']}'. Use secret_set.")
+            raise errtext.Reportable(f"endpoint needs secret '{cfg['password_env']}'. Use secret_set.")
     # guard(host): enforce the egress IP policy at CONNECT time (anti DNS-rebinding)
     with netguard.guard(host):
         ftp.connect(host, port, timeout=30)
@@ -211,7 +212,7 @@ def _curl_upload(cfg: dict, src: Path, remote_path: str) -> str:
             infos.sort(key=lambda i: i[0] != socket.AF_INET)  # prefer IPv4 on LAN
             pinned_ip = infos[0][4][0]
         except Exception as exc:
-            return f"Connect failed: cannot resolve '{host}': {exc}"
+            return f"Connect failed: cannot resolve '{host}': {errtext.safe(exc)}"
     password = ""
     if cfg.get("password_env"):
         try:   # only to a host the password is bound to
@@ -295,12 +296,12 @@ def register(mcp):
         try:
             ftp = _connect(cfg)
         except Exception as exc:
-            return f"Connect failed: {exc}"
+            return f"Connect failed: {errtext.safe(exc)}"
         try:
             names = ftp.nlst(path)
             return "\n".join(names) if names else f"(empty) {path}"
         except Exception as exc:
-            return f"List failed: {exc}"
+            return f"List failed: {errtext.safe(exc)}"
         finally:
             try:
                 ftp.quit()
@@ -338,13 +339,13 @@ def register(mcp):
         try:
             ftp = _connect(cfg)
         except Exception as exc:
-            return f"Connect failed: {exc}"
+            return f"Connect failed: {errtext.safe(exc)}"
         try:
             with src.open("rb") as f:
                 ftp.storbinary(f"STOR {remote_path}", f)
             return f"Uploaded {src.name} ({src.stat().st_size} bytes) → {remote_path}"
         except Exception as exc:
-            return f"Upload failed: {exc}"
+            return f"Upload failed: {errtext.safe(exc)}"
         finally:
             try:
                 ftp.quit()

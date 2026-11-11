@@ -232,7 +232,7 @@ def test_listing_errors_and_failing_quit_still_release_the_connection(srv, world
     _add(srv)
     world.nlst_error = ftplib.error_perm("550 no such directory")
     world.quit_error = OSError("broken pipe")
-    assert _call(srv, "ftp_list", {"server": "files", "path": "/x"}) == "List failed: 550 no such directory"
+    assert _call(srv, "ftp_list", {"server": "files", "path": "/x"}) == "List failed: error_perm (the FTP server refused the request; details in the server log)"
     assert world.sessions[0].quit_called and world.sessions[0].closed
 
 
@@ -260,7 +260,7 @@ def test_upload_reports_missing_file_connect_and_store_errors(srv, world, tmp_pa
     _file(tmp_path)
     world.store_error = ftplib.error_temp("452 disk full")
     world.quit_error = OSError("gone")
-    assert _call(srv, "ftp_upload", args) == "Upload failed: 452 disk full"
+    assert _call(srv, "ftp_upload", args) == "Upload failed: error_temp (the FTP server refused the request; details in the server log)"
     assert world.sessions[0].closed  # quit failed -> close() releases the socket
     _call(srv, "ftp_add", {"name": "files", "host": "nas.example.net"})  # now a private target
     assert _call(srv, "ftp_upload", args).startswith("Connect failed: Blocked by network policy")

@@ -268,12 +268,13 @@ def test_list_error_and_malformed_answers(home, status, body, expected):
 
 def test_transport_errors_are_returned_not_raised(home):
     home.http.error = ConnectionError("connection refused")
-    assert home.call("webdav_list", endpoint="home") == "List failed: connection refused"
-    assert home.call("webdav_mkdir", endpoint="home", path="d") == "mkdir failed: connection refused"
-    assert home.call("webdav_delete", endpoint="home", path="d") == "Delete failed: connection refused"
-    assert home.call("webdav_download", endpoint="home", path="d") == "Download failed: connection refused"
+    why = "ConnectionError (could not connect; details in the server log)"   # never the text
+    assert home.call("webdav_list", endpoint="home") == f"List failed: {why}"
+    assert home.call("webdav_mkdir", endpoint="home", path="d") == f"mkdir failed: {why}"
+    assert home.call("webdav_delete", endpoint="home", path="d") == f"Delete failed: {why}"
+    assert home.call("webdav_download", endpoint="home", path="d") == f"Download failed: {why}"
     assert home.call("webdav_upload", endpoint="home", source="f.txt", dest="d") == (
-        "Upload failed: connection refused")
+        f"Upload failed: {why}")
 
 
 # --- upload ----------------------------------------------------------------

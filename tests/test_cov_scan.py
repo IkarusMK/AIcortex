@@ -288,7 +288,8 @@ def test_a_scanner_that_never_delivers_gives_up_after_bounded_retries(srv, world
 def test_fetch_errors_fail_the_scan_only_when_no_page_arrived(srv, world, tmp_path):
     _add(srv)
     world.page_script = [httpx.ReadTimeout("timed out")]
-    assert _scan(srv) == "Scan started but fetching the page failed: timed out"
+    assert _scan(srv) == ("Scan started but fetching the page failed: ReadTimeout (timed out; details in "
+                            "the server log)")
     world.gets.clear()
     world.page_script = [_Resp(200, b"KEEP"), httpx.ReadTimeout("late")]
     assert _scan(srv, filename="k.pdf").startswith("Scanned 4 bytes, 1 page(s)")
@@ -323,7 +324,7 @@ def test_paperless_without_token_env_sends_no_authorization_header(srv, world, t
     ("blocked", "(Paperless upload blocked by network policy — blocked: 10.0.0.70"),
     ("no-secret", "(Paperless needs secret 'PAPERLESS_TOKEN' — set it with secret_set.)"),
     ("http-error", "Paperless upload returned HTTP 500 for p.pdf."),
-    ("exception", "Paperless upload failed: connection reset"),
+    ("exception", "Paperless upload failed: OSError (details in the server log)"),
 ])
 def test_paperless_failures_keep_the_scan_and_explain_the_problem(srv, world, tmp_path, setup, expected):
     _add(srv)

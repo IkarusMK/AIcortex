@@ -277,7 +277,7 @@ def test_call_caps_long_output(fc):
 
 @pytest.mark.parametrize("method,hook,expected", [
     ("initialize", _Resp(401, reason="Unauthorized"), "Could not reach 'forecast': HTTP 401 Unauthorized on 'initialize'"),
-    ("initialize", OSError("connection refused"), "Could not reach 'forecast': connection refused"),
+    ("initialize", OSError("connection refused"), "Could not reach 'forecast': OSError (details in the server log)"),
     ("tools/call", _Resp(500, reason="Server Error"), "Call failed: HTTP 500 Server Error on 'tools/call'"),
     ("tools/call", _Resp(200, '{"error": {"code": -32602, "message": "bad args"}}'),
      "Call failed: tools/call: -32602 bad args")])
@@ -306,8 +306,8 @@ def test_sse_transport_uses_the_fastmcp_client_with_the_token_header(env):
 def test_sse_failures_are_reported_and_blocked_targets_never_reach_the_client(env):
     env.add(transport="sse", url=f"https://{HOST}/sse")
     env.sse.error = ConnectionError("stream closed")
-    assert env.call("mcp_call", server="forecast", tool="t") == "Call failed: stream closed"
-    assert env.call("mcp_tools", server="forecast") == "Could not reach 'forecast': stream closed"
+    assert env.call("mcp_call", server="forecast", tool="t") == "Call failed: ConnectionError (could not connect; details in the server log)"
+    assert env.call("mcp_tools", server="forecast") == "Could not reach 'forecast': ConnectionError (could not connect; details in the server log)"
     env.dns.set("lan.example.net", "10.0.0.5")
     env.add("lan", url="https://lan.example.net/sse", token_env="")   # UP_TOKEN is bound to HOST
     assert env.call("mcp_tools", server="lan").startswith("Blocked by network policy")

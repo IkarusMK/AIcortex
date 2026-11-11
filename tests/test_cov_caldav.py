@@ -264,10 +264,11 @@ def test_list_calendars_survives_malformed_or_entity_expansion_xml(home, body):
 
 def test_transport_errors_are_returned_not_raised(home):
     home.http.error = ConnectionError("connection refused")
-    assert home.call("caldav_list_calendars", endpoint="home") == "List failed: connection refused"
-    assert home.call("caldav_list_events", endpoint="home") == "Query failed: connection refused"
+    why = "ConnectionError (could not connect; details in the server log)"   # never the text
+    assert home.call("caldav_list_calendars", endpoint="home") == f"List failed: {why}"
+    assert home.call("caldav_list_events", endpoint="home") == f"Query failed: {why}"
     assert home.call("caldav_delete_event", endpoint="home", event="/c/e.ics") == (
-        "Delete failed: connection refused")
+        f"Delete failed: {why}")
 
 
 # --- list events -------------------------------------------------------------
@@ -346,7 +347,7 @@ def test_add_event_refusal_and_failure_messages(home):
     assert home.call("caldav_add_event", **args) == "Create returned HTTP 403 (check the calendar href / credentials)."
     assert home.call("caldav_add_event", **{**args, "end": "tomorrow"}).startswith("Bad start/end")
     home.http.error = OSError("disk on fire")
-    assert home.call("caldav_add_event", **args) == "Create failed: disk on fire"
+    assert home.call("caldav_add_event", **args) == "Create failed: OSError (details in the server log)"
 
 
 def test_delete_event_makes_hrefs_absolute_and_maps_statuses(home):

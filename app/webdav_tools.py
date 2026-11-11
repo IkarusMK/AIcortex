@@ -27,6 +27,7 @@ except Exception:  # pragma: no cover
 
 import httpx
 
+import errtext
 import netguard
 import secrets_store
 
@@ -152,7 +153,7 @@ def register(mcp):
             with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("PROPFIND", url, headers={"Depth": "1"})
         except Exception as exc:
-            return f"List failed: {exc}"
+            return f"List failed: {errtext.safe(exc)}"
         if r.status_code not in (207, 200):
             return f"List returned HTTP {r.status_code}. Check path / credentials."
         base_path = unquote(urlparse(base).path)  # hrefs are compared decoded, so decode this too
@@ -170,7 +171,7 @@ def register(mcp):
                 size = resp.findtext(".//d:getcontentlength", default="", namespaces=ns)
                 out.append(f"- {name}{'/' if is_dir else ''}" + (f" · {size} B" if size else ""))
         except Exception as exc:
-            return f"Could not parse listing: {exc}"
+            return f"Could not parse listing: {errtext.safe(exc)}"
         return "\n".join(out) if out else "(empty)"
 
     @mcp.tool
@@ -195,7 +196,7 @@ def register(mcp):
             with netguard.guard(urlparse(base).hostname or ""), client, open(src, "rb") as f:
                 r = client.put(url, content=f)
         except Exception as exc:
-            return f"Upload failed: {exc}"
+            return f"Upload failed: {errtext.safe(exc)}"
         if r.status_code in (200, 201, 204):
             return f"Uploaded {src.name} → {dest} ({src.stat().st_size} B)."
         return f"Upload returned HTTP {r.status_code} (check the dest folder exists — webdav_mkdir)."
@@ -223,7 +224,7 @@ def register(mcp):
                         for chunk in r.iter_bytes(chunk_size=1 << 16):
                             f.write(chunk)
         except Exception as exc:
-            return f"Download failed: {exc}"
+            return f"Download failed: {errtext.safe(exc)}"
         return f"Downloaded {path} → {out_path} ({out_path.stat().st_size} B)."
 
     @mcp.tool
@@ -240,7 +241,7 @@ def register(mcp):
             with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("MKCOL", url)
         except Exception as exc:
-            return f"mkdir failed: {exc}"
+            return f"mkdir failed: {errtext.safe(exc)}"
         if r.status_code in (201, 405):  # 405 = already exists
             return f"Folder '{path}' ready."
         return f"mkdir returned HTTP {r.status_code}."
@@ -259,7 +260,7 @@ def register(mcp):
             with netguard.guard(urlparse(base).hostname or ""), client:
                 r = client.request("DELETE", url)
         except Exception as exc:
-            return f"Delete failed: {exc}"
+            return f"Delete failed: {errtext.safe(exc)}"
         if r.status_code in (200, 204, 404):
             return f"Deleted '{path}'."
         return f"Delete returned HTTP {r.status_code}."

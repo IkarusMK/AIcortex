@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+import errtext
 import netguard
 import secrets_store
 
@@ -221,4 +222,4 @@ def register(mcp):
                                   timeout=30, verify=netguard.tls_verify(cfg))
             return f"HTTP {r.status_code}\n" + _page(r.text, offset, max_chars)
         except Exception as exc:
-            return f"Request failed: {exc}"
+            return f"Request failed: {errtext.safe(exc)}"

@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 
+import errtext
 import netguard
 
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
@@ -232,7 +233,7 @@ def register(mcp):
                     and document_format != "application/octet-stream"):
                 r = _send(scheme, ipp_scheme, "application/octet-stream")
         except Exception as exc:
-            return (f"Print request failed ({type(exc).__name__}: {exc}). "
+            return (f"Print request failed ({errtext.safe(exc, 'print')}). "
                     f"Check that the printer is powered on and reachable at "
                     f"{host}:{port}{path} — try port 631 and path /ipp/print (some use "
                     f"/ipp or /) — and that {host} is inside INTERNAL_ALLOW_CIDRS.")

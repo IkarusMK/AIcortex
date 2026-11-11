@@ -31,6 +31,7 @@ import cfgstore
 import os
 import httpx
 
+import errtext
 import netguard
 import secrets_store
 
@@ -185,7 +186,7 @@ def register(mcp):
                 r = client.request("PROPFIND", base, content=body,
                                    headers={"Depth": "1", "Content-Type": "application/xml"})
         except Exception as exc:
-            return f"List failed: {exc}"
+            return f"List failed: {errtext.safe(exc)}"
         if r.status_code not in (207, 200):
             return f"List returned HTTP {r.status_code}. Check base_url / credentials."
         out = []
@@ -199,7 +200,7 @@ def register(mcp):
                 dn = resp.findtext(".//d:displayname", default="", namespaces=_NS)
                 out.append(f"- {dn or href.rstrip('/').split('/')[-1]} · {href}")
         except Exception as exc:
-            return f"Could not parse calendars: {exc}"
+            return f"Could not parse calendars: {errtext.safe(exc)}"
         return "\n".join(out) if out else "(no calendars found under this endpoint)"
 
     @mcp.tool
@@ -236,7 +237,7 @@ def register(mcp):
                 r = client.request("REPORT", url, content=body,
                                    headers={"Depth": "1", "Content-Type": "application/xml"})
         except Exception as exc:
-            return f"Query failed: {exc}"
+            return f"Query failed: {errtext.safe(exc)}"
         if r.status_code not in (207, 200):
             return f"Query returned HTTP {r.status_code}. Check the calendar href."
         out = []
@@ -252,7 +253,7 @@ def register(mcp):
                 out.append(f"- {summary} · {_ics_field(ics, 'DTSTART')} → "
                            f"{_ics_field(ics, 'DTEND')} · {href}")
         except Exception as exc:
-            return f"Could not parse events: {exc}"
+            return f"Could not parse events: {errtext.safe(exc)}"
         return "\n".join(out) if out else "(no events in that range)"
 
     @mcp.tool
@@ -288,7 +289,7 @@ def register(mcp):
                 r = client.put(url, content=ics.encode("utf-8"),
                                headers={"Content-Type": "text/calendar; charset=utf-8"})
         except Exception as exc:
-            return f"Create failed: {exc}"
+            return f"Create failed: {errtext.safe(exc)}"
         if r.status_code in (200, 201, 204):
             return f"Created event '{summary}' ({dtstart} → {dtend})."
         return f"Create returned HTTP {r.status_code} (check the calendar href / credentials)."
@@ -313,7 +314,7 @@ def register(mcp):
             with netguard.guard(urlparse(url).hostname or ""), client:
                 r = client.request("DELETE", url)
         except Exception as exc:
-            return f"Delete failed: {exc}"
+            return f"Delete failed: {errtext.safe(exc)}"
         if r.status_code in (200, 204, 404):  # 404 = already gone
             return f"Deleted event ({r.status_code})."
         return f"Delete returned HTTP {r.status_code} (check the href / credentials)."

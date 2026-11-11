@@ -273,7 +273,7 @@ def test_server_errors_are_returned_as_send_failed(srv, world):
     _add(srv)
     world.send_error = smtplib.SMTPRecipientsRefused({"alice@example.com": (550, b"no such user")})
     out = _send(srv)
-    assert out.startswith("Send failed:") and "550" in out
+    assert out.startswith("Send failed: SMTPRecipientsRefused (the mail server refused")
 
 
 def test_header_injection_in_recipients_is_rejected(srv, world):

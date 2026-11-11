@@ -16,6 +16,7 @@ import smtplib
 from email.message import EmailMessage
 from pathlib import Path
 
+import errtext
 import netguard
 import secrets_store
 
@@ -187,5 +188,5 @@ def register(mcp):
                         server.login(cfg["username"], pw)
                     server.send_message(msg, from_addr=cfg.get("from_addr"), to_addrs=rcpts)
         except Exception as exc:
-            return f"Send failed: {exc}"
+            return f"Send failed: {errtext.safe(exc)}"
         return f"Sent '{subject}' to {', '.join(rcpts)}" + (f" with attachment {Path(attachment).name}" if attachment else "") + "."

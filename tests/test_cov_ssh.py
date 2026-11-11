@@ -261,7 +261,7 @@ def test_changed_host_key_surfaces_as_a_connect_failure(srv, world):
     world.connect_error = paramiko.BadHostKeyException("box.example.com", key, key)
     _add(srv)
     out = _call(srv, "ssh_run", {"host": "box", "command": "id"})
-    assert out.startswith("SSH connect failed: Host key for server 'box.example.com' does not match")
+    assert out.startswith("SSH connect failed: BadHostKeyException (the host key does not match")
 
 
 def test_private_target_is_blocked_unless_the_operator_allow_lists_it(srv, world, monkeypatch):
@@ -308,7 +308,7 @@ def test_run_reports_command_failure_and_closes_the_client(srv, world):
     _add(srv)
     world.exec_error = RuntimeError("channel closed")
     out = _call(srv, "ssh_run", {"host": "box", "command": "id"})
-    assert out == "Command failed: channel closed" and world.clients[0].closed
+    assert out == "Command failed: RuntimeError (details in the server log)" and world.clients[0].closed
 
 
 def test_upload_sends_a_file_from_the_data_root(srv, world, tmp_path):
@@ -337,7 +337,7 @@ def test_upload_reports_a_missing_source_and_sftp_errors(srv, world, tmp_path):
     (tmp_path / "f.txt").write_bytes(b"x")
     world.sftp = _FakeSFTP(error=OSError("permission denied"))
     out = _call(srv, "ssh_upload", {"host": "box", "source": "f.txt", "dest": "/root/x"})
-    assert out == "Upload failed: permission denied" and world.clients[0].closed
+    assert out == "Upload failed: OSError (details in the server log)" and world.clients[0].closed
 
 
 @pytest.mark.parametrize("tool,args", [
@@ -350,7 +350,7 @@ def test_every_action_reports_a_connect_failure(srv, world, tmp_path, tool, args
     _add(srv)
     (tmp_path / "f.txt").write_bytes(b"x")
     world.connect_error = OSError("refused")
-    assert _call(srv, tool, args) == "SSH connect failed: refused"
+    assert _call(srv, tool, args) == "SSH connect failed: OSError (details in the server log)"
 
 
 def test_download_lands_in_the_work_dir(srv, world, tmp_path):
@@ -390,6 +390,6 @@ def test_list_dir_empty_and_sftp_errors_for_listing_and_download(srv, world):
     _add(srv)
     assert _call(srv, "ssh_list_dir", {"host": "box"}) == "(empty)"
     world.sftp = _FakeSFTP(error=OSError("denied"))
-    assert _call(srv, "ssh_list_dir", {"host": "box"}) == "List failed: denied"
-    assert _call(srv, "ssh_download", {"host": "box", "path": "/x"}) == "Download failed: denied"
+    assert _call(srv, "ssh_list_dir", {"host": "box"}) == "List failed: OSError (details in the server log)"
+    assert _call(srv, "ssh_download", {"host": "box", "path": "/x"}) == "Download failed: OSError (details in the server log)"
     assert all(c.closed for c in world.clients)

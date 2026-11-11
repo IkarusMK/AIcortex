@@ -281,7 +281,7 @@ def test_send_to_internal_or_malformed_targets_is_blocked_before_any_request(fre
 
 def test_send_failures_come_back_as_messages(fresh_server, sent, monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectError("refused")))
-    assert _t(fresh_server, "webhook_send", {"url": "https://hooks.example.net/n"}) == "Send failed: refused"
+    assert _t(fresh_server, "webhook_send", {"url": "https://hooks.example.net/n"}) == "Send failed: ConnectError (could not connect; details in the server log)"
 
 
 def test_an_admin_may_send_any_secret_in_a_header_the_response_never_shows_it(fresh_server, sent):
