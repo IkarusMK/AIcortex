@@ -271,11 +271,12 @@ def test_tool_results_are_unwrapped_or_passed_through_as_structured_data(api):
     assert api.call("POST", "/api/v1/tools/who_probe", key).json()["result"] == "alice/user|"
 
 
-def test_tool_failures_are_500_with_detail_and_an_error_audit_line(api):
+def test_tool_failures_are_500_with_a_reference_and_an_error_audit_line(api):
     r = api.call("POST", "/api/v1/tools/boom_probe", api.mint())
-    assert r.status_code == 500 and r.json()["error"] == "tool error" and "kaboom" in r.json()["detail"]
+    assert r.status_code == 500 and r.json()["error"] == "tool error" and "kaboom" not in r.text
+    ref = r.json()["error_id"]
     rec = [x for x in api.audit() if x["tool"] == "api:boom_probe"][-1]
-    assert rec["decision"] == "error" and "kaboom" in rec["reason"]
+    assert rec["decision"] == "error" and "kaboom" in rec["reason"] and ref in rec["reason"]
     bad_args = api.call("POST", "/api/v1/tools/memory_read", api.mint(), json={})       # name missing
     assert bad_args.status_code == 400 and bad_args.json()["error"] == "invalid arguments"
 
@@ -306,7 +307,8 @@ def test_stream_off_values_give_plain_json(api):
 def test_stream_reports_failures_and_unknown_tools_as_error_events(api):
     key = api.mint()
     boom = _events(api.call("POST", "/api/v1/tools/boom_probe?stream=1", key).text)
-    assert boom[0][0] == "error" and "kaboom" in boom[0][1]["detail"]
+    assert boom[0][0] == "error" and boom[0][1]["error_id"] in boom[0][1]["detail"]
+    assert "kaboom" not in json.dumps(boom)
     ghost = _events(api.call("POST", "/api/v1/tools/ghost_probe?stream=1", key).text)
     assert ghost[0][0] == "error" and "no such tool: ghost_probe" in ghost[0][1]["detail"]
 

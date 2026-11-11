@@ -23,19 +23,27 @@ Streaming: pass ``?stream=1`` or ``Accept: text/event-stream`` to get SSE (heart
 while a long tool runs, then a final ``result``/``error`` event) — useful behind proxies
 that time out slow POSTs. Otherwise a single JSON response.
 
+Errors: a failing tool answers a generic message plus a short ``error_id``; the
+exception text (internal hosts, paths, upstream answers) stays on the server — in the
+audit line and the log, under the same id. Bad arguments name the argument and the
+problem, never the submitted value.
+
 Operator note: expose ``/api/*`` (and ``/hooks/*``) past the reverse proxy's auth, never
 ``/mcp``. Enabled by default; set ``API_ENABLED=0`` to turn the REST layer off entirely.
 """
 import asyncio
 import inspect
 import json
+import logging
 import os
+import secrets
 
 import apikeys
 import authz
 import version
 
 _MAX_BODY = int(os.environ.get("API_MAX_BODY_BYTES", str(1_000_000)))
+_log = logging.getLogger("aicortex.rest")
 _SSE_HEARTBEAT = 15  # seconds between keepalive comments while a tool runs
 
 
@@ -58,6 +66,46 @@ def _bad_arguments(exc: Exception) -> bool:
     from fastmcp.exceptions import ValidationError as ToolArgumentsError
     from pydantic import ValidationError
     return isinstance(exc, (ToolArgumentsError, ValidationError))
+
+
+class _NoSuchTool(LookupError):
+    """The streamed call named a tool that does not exist (our own message, safe to show)."""
+
+
+def _argument_problems(exc: Exception) -> str:
+    """'argument: problem; …' for a validation error — never the submitted values
+    (pydantic's text quotes them as input_value=…)."""
+    for err in (exc, exc.__cause__):
+        errors = getattr(err, "errors", None)
+        if not callable(errors):
+            continue
+        try:
+            items = errors(include_url=False, include_input=False)
+        except TypeError:
+            items = errors()
+        parts = []
+        for item in list(items)[:10]:
+            loc = ".".join(str(x) for x in item.get("loc", ()) if isinstance(x, (str, int)))
+            parts.append(f"{loc or 'arguments'}: {item.get('msg', 'invalid')}")
+        if parts:
+            return "; ".join(parts)
+    return "the arguments do not match the tool's input schema"
+
+
+def _failure(rec: dict, name: str, exc: Exception) -> dict:
+    """The answer for a failed tool call. The detail goes to the audit line and the
+    server log under a short reference; the caller gets the reference only."""
+    if isinstance(exc, _NoSuchTool):
+        _audit(rec, name, "error", str(exc))
+        return {"error": "no such tool", "tool": name, "detail": str(exc)}
+    if _bad_arguments(exc):
+        _audit(rec, name, "error", f"invalid arguments: {exc}")
+        return {"error": "invalid arguments", "detail": _argument_problems(exc)}
+    ref = secrets.token_hex(6)
+    _audit(rec, name, "error", f"[{ref}] {exc}")
+    _log.warning("REST tool '%s' failed [%s]: %s", name, ref, exc)
+    return {"error": "tool error", "error_id": ref,
+            "detail": f"The tool failed. Reference: {ref} (details are in the server log)."}
 
 
 def _wants_stream(request) -> bool:
@@ -266,10 +314,8 @@ def register(mcp):
             _audit(rec, name, "allow", "ok")
             return _json({"ok": True, "tool": name, "result": _result_payload(result)})
         except Exception as exc:
-            _audit(rec, name, "error", str(exc))
-            if _bad_arguments(exc):
-                return _json({"error": "invalid arguments", "detail": str(exc)}, 400)
-            return _json({"error": "tool error", "detail": str(exc)}, 500)
+            answer = _failure(rec, name, exc)
+            return _json(answer, 400 if answer["error"] == "invalid arguments" else 500)
 
     def _stream(mcp, rec, sub, role, name, args):
         """SSE: heartbeat while the tool runs, then one `result` (or `error`) event."""
@@ -280,7 +326,7 @@ def register(mcp):
                 with authz.rest_identity(sub, role, via="key"):
                     tool = await mcp.get_tool(name)
                     if tool is None:
-                        raise LookupError(f"no such tool: {name}")
+                        raise _NoSuchTool(f"no such tool: {name}")
                     return await tool.run(args)
 
             task = asyncio.ensure_future(run())
@@ -293,9 +339,7 @@ def register(mcp):
                 _audit(rec, name, "allow", "ok (sse)")
                 yield _sse("result", payload)
             except Exception as exc:
-                _audit(rec, name, "error", str(exc))
-                yield _sse("error", {"error": "invalid arguments" if _bad_arguments(exc)
-                                     else "tool error", "detail": str(exc)})
+                yield _sse("error", _failure(rec, name, exc))
 
         return StreamingResponse(gen(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache",
