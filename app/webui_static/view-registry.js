@@ -87,8 +87,7 @@ async function openRegistry(kind, name) {
   $("#sv-kind").value = kind; $("#sv-kind").disabled = true;
   regRenderForm(kind, { name, ...d.config });
   $("#btn-sv-delete").classList.remove("hidden");
-  $("#sv-editor").classList.remove("hidden");
-  $("#sv-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  openDialog($("#sv-editor"));
 }
 
 async function newRegistry() {
@@ -102,7 +101,7 @@ async function newRegistry() {
   $("#sv-editor-title").textContent = t("sv_new_title");
   regRenderForm(REG.kind, null);
   $("#btn-sv-delete").classList.add("hidden");
-  $("#sv-editor").classList.remove("hidden");
+  openDialog($("#sv-editor"));
 }
 
 function regCollect() {
@@ -123,7 +122,7 @@ async function saveRegistry(ev) {
   const d = await api(`/ui/api/registry/${encodeURIComponent(kind)}`, { method: "POST", body: regCollect() });
   if (!d.ok) { toast(d.message, false); return; }
   toast(t("toast_sv_saved"));
-  $("#sv-editor").classList.add("hidden");
+  closeDialog($("#sv-editor"));
   await loadServices();
 }
 
@@ -131,7 +130,7 @@ async function deleteRegistry(kind, name) {
   if (!(await confirmModal(t("confirm_sv_delete", name, kind)))) return;
   const d = await api(`/ui/api/registry/${encodeURIComponent(kind)}/delete`, { method: "POST", body: { name } });
   toast(d.ok ? t("toast_sv_deleted") : d.message, !!d.ok);
-  if (d.ok) { $("#sv-editor").classList.add("hidden"); await loadServices(); }
+  if (d.ok) { closeDialog($("#sv-editor")); await loadServices(); }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -139,7 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-sv-new").addEventListener("click", () => newRegistry().catch(fail));
   $("#sv-kind").addEventListener("change", () => { REG.kind = $("#sv-kind").value; regRenderForm(REG.kind, null); });
   $("#form-sv").addEventListener("submit", (e) => saveRegistry(e).catch(fail));
-  $("#btn-sv-close").addEventListener("click", () => $("#sv-editor").classList.add("hidden"));
   $("#btn-sv-delete").addEventListener("click", () => deleteRegistry(REG.kind, REG.name).catch(fail));
 });
 
@@ -293,14 +291,17 @@ function hostsBox() {
 function renderHostsBox(s) {
   const box = hostsBox();
   box.classList.toggle("hidden", !s);
-  if (!s) return;
-  box.querySelector("label").textContent = t("vault_hosts");
-  $("#sec-hosts-hint").textContent = t("vault_hosts_hint");
-  $("#sec-hosts").placeholder = t("vault_hosts_ph");
-  $("#sec-hosts").value = (s.hosts || []).join(", ");
-  $("#sec-hosts-state").textContent = s.hosts == null ? t("vault_hosts_unbound")
-    : (s.hosts.length ? "" : t("vault_hosts_none"));
-  $("#btn-sec-hosts").textContent = t("vault_hosts_save");
+  if (s) {
+    box.querySelector("label").textContent = t("vault_hosts");
+    $("#sec-hosts-hint").textContent = t("vault_hosts_hint");
+    $("#sec-hosts").placeholder = t("vault_hosts_ph");
+    $("#sec-hosts").value = (s.hosts || []).join(", ");
+    $("#sec-hosts-state").textContent = s.hosts == null ? t("vault_hosts_unbound")
+      : (s.hosts.length ? "" : t("vault_hosts_none"));
+    $("#btn-sec-hosts").textContent = t("vault_hosts_save");
+  }
+  // the hosts are stored on their own: what is shown now counts as unchanged
+  dialogRebase($("#vault-editor"), $("#sec-hosts"));
 }
 
 async function saveHosts() {

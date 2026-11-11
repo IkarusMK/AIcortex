@@ -8,6 +8,7 @@ lost theirs too. Now the buttons still sit side by side where there is room, wra
 each other under 1280 px and in the always-tight vault and runner tables (a single
 button never breaks inside), and the vault puts its form below the table under 1400 px.
 Measured again afterwards at 13 widths from 1024 to 1920 px: no button out of view.
+Since the create/edit forms became dialogs, the vault table has the whole width.
 """
 import re
 from pathlib import Path
@@ -34,7 +35,12 @@ def test_row_actions_wrap_where_a_table_gets_tight():
     assert media and int(media[0]) >= 1279
 
 
-def test_the_vault_form_goes_below_its_table_on_a_laptop_screen():
-    media = re.findall(r"@media \(max-width: (\d+)px\) \{ #view-vault \.grid-2 \{"
-                       r" grid-template-columns: minmax\(0, 1fr\); \} \}", CSS)
-    assert media and int(media[0]) >= 1400
+def test_the_vault_table_has_the_whole_width():
+    # Until 2.6.1 the always-open form shared the row and moved below the table under
+    # 1400 px. Now the form is a dialog (test_webui_modals.py): the table stands alone.
+    html = (Path(__file__).resolve().parent.parent / "app" / "webui_static" / "index.html").read_text(
+        encoding="utf-8")
+    view = html[html.index('id="view-vault"'):]
+    view = view[:view.index("</section>")]
+    assert 'id="vault-table"' in view and "grid-2" not in view and "<form" not in view
+    assert "#view-vault .grid-2" not in CSS

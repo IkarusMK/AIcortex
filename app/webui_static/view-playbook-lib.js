@@ -166,8 +166,7 @@ function editPlaybook(d) {
   $("#pbd-guidance").value = d ? d.guidance : "";
   PBL.stages = d ? d.stages.map((s) => ({ ...s })) : [{ approval: "webui" }];
   renderStageForm();
-  $("#pb-def-editor").classList.remove("hidden");
-  $("#pb-def-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  openDialog($("#pb-def-editor"));
 }
 
 async function savePlaybook(ev) {
@@ -179,7 +178,7 @@ async function savePlaybook(ev) {
   const r = await api("/ui/api/playbooks", { method: "POST", body });
   if (!r.ok) { toast(r.message, false); return; }
   toast(t("toast_pb_saved"));
-  $("#pb-def-editor").classList.add("hidden");
+  closeDialog($("#pb-def-editor"));
   PB.library = (await api("/ui/api/playbooks")).playbooks;
   const name = (r.message.match(/'([^']+)'/) || [])[1];
   if (name) await openPlaybook(name);
@@ -197,6 +196,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   $("#btn-pb-new").addEventListener("click", () => editPlaybook(null));
   $("#btn-pb-add-stage").addEventListener("click", () => { collectStages(); PBL.stages.push({ approval: "webui" }); renderStageForm(); });
-  $("#btn-pb-def-close").addEventListener("click", () => $("#pb-def-editor").classList.add("hidden"));
   $("#form-pb-def").addEventListener("submit", (e) => savePlaybook(e).catch(fail));
 });

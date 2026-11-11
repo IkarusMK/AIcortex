@@ -107,6 +107,7 @@
         <header class="view-head">
           <h1 data-i18n="nav_vault"></h1>
           <span class="badge cyan" data-i18n="vault_badge"></span>
+          <button id="btn-vault-new" class="btn primary sm" data-i18n="vault_new"></button>
         </header>
         <div class="term-chip wide" id="vault-state">
           <span class="term-icon">🗝</span>
@@ -115,50 +116,21 @@
           <button id="btn-vault-rekey" class="btn ghost sm hidden" data-i18n="vault_rekey"></button>
         </div>
         <p id="vault-missing" class="err small hidden"></p>
-        <div class="grid-2">
-          <div class="panel">
-            <h3 data-i18n="vault_list_title"></h3>
-            <p class="dim small" data-i18n="vault_list_hint"></p>
-            <div class="tbl-scroll">
-            <table class="tbl" id="vault-table">
-              <thead><tr>
-                <th data-i18n="vault_col_name"></th>
-                <th data-i18n="vault_col_owner"></th>
-                <th data-i18n="vault_col_used"></th>
-                <th data-i18n="vault_col_updated"></th><th></th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
-            </div>
-            <p id="vault-empty" class="dim hidden" data-i18n="vault_empty"></p>
+        <div class="panel">
+          <h3 data-i18n="vault_list_title"></h3>
+          <p class="dim small" data-i18n="vault_list_hint"></p>
+          <div class="tbl-scroll">
+          <table class="tbl" id="vault-table">
+            <thead><tr>
+              <th data-i18n="vault_col_name"></th>
+              <th data-i18n="vault_col_owner"></th>
+              <th data-i18n="vault_col_used"></th>
+              <th data-i18n="vault_col_updated"></th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
           </div>
-          <div class="panel accent">
-            <h3 id="vault-form-title" data-i18n="vault_add_title"></h3>
-            <p id="vault-edit-hint" class="dim small hidden" data-i18n="vault_edit_hint"></p>
-            <form id="form-secret" autocomplete="off">
-              <label data-i18n="vault_f_name"></label>
-              <input id="sec-name" class="inp mono" required
-                     pattern="[^/]+" data-i18n-ph="vault_ph_name">
-              <label data-i18n="vault_f_value"></label>
-              <div class="pw-row">
-                <input id="sec-value" class="inp mono" type="password" required
-                       data-i18n-ph="vault_ph_value">
-                <button type="button" id="sec-toggle" class="btn ghost sm">👁</button>
-              </div>
-              <label data-i18n="vault_f_desc"></label>
-              <input id="sec-desc" class="inp" maxlength="300" data-i18n-ph="vault_ph_desc">
-              <label data-i18n="vault_f_owner"></label>
-              <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
-              <datalist id="sec-owner-list"></datalist>
-              <p class="dim small" data-i18n="vault_writeonly"></p>
-              <div class="btn-row">
-                <button class="btn primary" data-i18n="vault_save"></button>
-                <button type="button" id="btn-sec-cancel" class="btn ghost hidden" data-i18n="cancel"></button>
-                <span class="spacer"></span>
-                <button type="button" id="btn-sec-delete" class="btn danger hidden" data-i18n="delete"></button>
-              </div>
-            </form>
-          </div>
+          <p id="vault-empty" class="dim hidden" data-i18n="vault_empty"></p>
         </div>
       </section>
 
@@ -167,51 +139,19 @@
         <header class="view-head">
           <h1 data-i18n="nav_clients"></h1>
           <span class="badge cyan mono" id="cl-url"></span>
+          <button id="btn-ak-new" class="btn primary sm" data-i18n="cl_new"></button>
         </header>
-        <div class="grid-2">
-          <div class="panel">
-            <h3 data-i18n="cl_list_title"></h3>
-            <p class="dim small" data-i18n="cl_list_hint"></p>
-            <table class="tbl" id="cl-table">
-              <thead><tr>
-                <th data-i18n="cl_col_agent"></th><th data-i18n="cl_col_person"></th>
-                <th data-i18n="cl_col_access"></th><th data-i18n="cl_col_created"></th><th></th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
-            <p id="cl-empty" class="dim hidden" data-i18n="cl_empty"></p>
-          </div>
-          <div class="panel accent">
-            <h3 data-i18n="cl_new_title"></h3>
-            <form id="form-agentkey" autocomplete="off">
-              <label data-i18n="cl_f_name"></label>
-              <input id="ak-name" class="inp mono" required data-i18n-ph="cl_ph_name">
-              <label data-i18n="cl_f_person"></label>
-              <input id="ak-person" class="inp mono" required list="ak-person-list" data-i18n-ph="cl_ph_person">
-              <datalist id="ak-person-list"></datalist>
-              <label data-i18n="cl_f_profile"></label>
-              <select id="ak-profile" class="inp">
-                <option value="core" data-i18n="cl_profile_core"></option>
-                <option value="full" data-i18n="cl_profile_full"></option>
-              </select>
-              <label data-i18n="cl_f_scopes"></label>
-              <input id="ak-scopes" class="inp mono" value="all">
-              <label data-i18n="cl_f_ttl"></label>
-              <input id="ak-ttl" class="inp mono" type="number" min="0" value="0">
-              <button class="btn primary" data-i18n="cl_create"></button>
-            </form>
-            <div id="cl-result" class="hidden">
-              <p class="err small" data-i18n="cl_once"></p>
-              <div class="pw-row">
-                <input id="cl-key" class="inp mono" readonly>
-                <button type="button" id="cl-copy-key" class="btn ghost sm" data-i18n="cl_copy"></button>
-              </div>
-              <label data-i18n="cl_f_client"></label>
-              <select id="cl-client" class="inp"></select>
-              <pre id="cl-snippet" class="inp mono small"></pre>
-              <button type="button" id="cl-copy-snippet" class="btn ghost sm" data-i18n="cl_copy"></button>
-            </div>
-          </div>
+        <div class="panel">
+          <h3 data-i18n="cl_list_title"></h3>
+          <p class="dim small" data-i18n="cl_list_hint"></p>
+          <table class="tbl" id="cl-table">
+            <thead><tr>
+              <th data-i18n="cl_col_agent"></th><th data-i18n="cl_col_person"></th>
+              <th data-i18n="cl_col_access"></th><th data-i18n="cl_col_created"></th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <p id="cl-empty" class="dim hidden" data-i18n="cl_empty"></p>
         </div>
       </section>
 
@@ -223,37 +163,7 @@
           <button id="btn-skill-new" class="btn primary sm" data-i18n="sk_new"></button>
         </header>
         <div class="chips" id="sk-cats"></div>
-        <div class="grid-2 skills-layout">
-          <div class="panel scroll" id="sk-list"></div>
-          <div class="panel accent hidden" id="sk-editor">
-            <h3 id="sk-editor-title"></h3>
-            <form id="form-skill" autocomplete="off">
-              <label data-i18n="sk_f_name"></label>
-              <input id="sk-name" class="inp" required>
-              <div class="row-2">
-                <div>
-                  <label data-i18n="sk_f_category"></label>
-                  <input id="sk-category" class="inp" list="sk-cat-list" required>
-                  <datalist id="sk-cat-list"></datalist>
-                </div>
-                <div>
-                  <label data-i18n="sk_f_tags"></label>
-                  <input id="sk-tags" class="inp">
-                </div>
-              </div>
-              <label data-i18n="sk_f_desc"></label>
-              <input id="sk-desc" class="inp" required>
-              <label data-i18n="sk_f_body"></label>
-              <textarea id="sk-body" class="inp mono" rows="14" spellcheck="false"></textarea>
-              <div class="btn-row">
-                <button class="btn primary" data-i18n="save"></button>
-                <button type="button" id="btn-skill-close" class="btn ghost" data-i18n="cancel"></button>
-                <span class="spacer"></span>
-                <button type="button" id="btn-skill-delete" class="btn danger hidden" data-i18n="delete"></button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <div class="panel scroll" id="sk-list"></div>
       </section>
 
       <!-- Notes -->
@@ -273,49 +183,7 @@
             <input id="mem-project" class="inp" list="mem-proj-list" data-i18n-ph="mem_project_ph" aria-label="Project">
             <datalist id="mem-proj-list"></datalist>
           </div>
-          <div class="grid-2 skills-layout">
-            <div class="panel scroll" id="mem-list"></div>
-            <div class="panel accent hidden" id="mem-editor">
-              <h3 id="mem-editor-title"></h3>
-              <form id="form-mem" autocomplete="off">
-                <label for="mem-title" data-i18n="mem_f_title"></label>
-                <input id="mem-title" class="inp" required maxlength="200">
-                <div class="row-2">
-                  <div>
-                    <label for="mem-f-type" data-i18n="mem_f_type"></label>
-                    <select id="mem-f-type" class="inp" required></select>
-                  </div>
-                  <div>
-                    <label for="mem-f-project" data-i18n="mem_f_project"></label>
-                    <input id="mem-f-project" class="inp" list="mem-proj-list" maxlength="80">
-                  </div>
-                </div>
-                <div class="row-2">
-                  <div>
-                    <label for="mem-f-tags" data-i18n="mem_f_tags"></label>
-                    <input id="mem-f-tags" class="inp">
-                  </div>
-                  <div>
-                    <label for="mem-f-review" data-i18n="mem_f_review"></label>
-                    <input id="mem-f-review" class="inp" type="date">
-                  </div>
-                </div>
-                <label for="mem-body" data-i18n="mem_f_body"></label>
-                <textarea id="mem-body" class="inp mono" rows="14" spellcheck="false"></textarea>
-                <p id="mem-meta" class="dim small"></p>
-                <div id="mem-conflict" class="notice hidden">
-                  <span data-i18n="mem_conflict"></span>
-                  <button type="button" id="btn-mem-reload" class="btn sm" data-i18n="mem_reload"></button>
-                </div>
-                <div class="btn-row">
-                  <button class="btn primary" data-i18n="save"></button>
-                  <button type="button" id="btn-mem-close" class="btn ghost" data-i18n="cancel"></button>
-                  <span class="spacer"></span>
-                  <button type="button" id="btn-mem-delete" class="btn danger hidden" data-i18n="delete"></button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <div class="panel scroll" id="mem-list"></div>
         </div>
         <div id="mem-cand" class="hidden">
           <div class="panel scroll" id="mem-cand-list"></div>
@@ -354,56 +222,6 @@
           </div>
           <p id="cron-empty" class="dim hidden" data-i18n="cron_empty"></p>
         </div>
-        <div class="panel accent hidden" id="cron-editor">
-          <h3 id="cron-editor-title"></h3>
-          <form id="form-cron" autocomplete="off">
-            <label for="cron-name" data-i18n="cron_f_name"></label>
-            <input id="cron-name" class="inp" required maxlength="80">
-            <label data-i18n="cron_f_when"></label>
-            <div class="chips" id="cron-presets">
-              <button type="button" class="chip" data-preset="daily" data-i18n="cron_p_daily"></button>
-              <button type="button" class="chip" data-preset="weekdays" data-i18n="cron_p_weekdays"></button>
-              <button type="button" class="chip" data-preset="weekly" data-i18n="cron_p_weekly"></button>
-              <button type="button" class="chip" data-preset="hourly" data-i18n="cron_p_hourly"></button>
-            </div>
-            <div class="row-2">
-              <div>
-                <label for="cron-time" data-i18n="cron_f_time"></label>
-                <input id="cron-time" class="inp" type="time" value="06:30">
-              </div>
-              <div>
-                <label for="cron-dow" data-i18n="cron_f_dow"></label>
-                <select id="cron-dow" class="inp" disabled></select>
-              </div>
-            </div>
-            <label for="cron-expr" data-i18n="cron_f_expr"></label>
-            <input id="cron-expr" class="inp mono" required spellcheck="false">
-            <p id="cron-preview" class="dim small" aria-live="polite"></p>
-            <label for="cron-prompt" data-i18n="cron_f_prompt"></label>
-            <textarea id="cron-prompt" class="inp" rows="6" required></textarea>
-            <div class="row-2">
-              <div>
-                <label for="cron-notify" data-i18n="cron_f_notify"></label>
-                <input id="cron-notify" class="inp" value="user">
-              </div>
-              <div data-admin>
-                <label for="cron-owner" data-i18n="cron_f_owner"></label>
-                <input id="cron-owner" class="inp mono">
-              </div>
-            </div>
-            <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
-            <select id="cron-runner-sel" class="inp"></select>
-            <p class="dim small" data-i18n="cron_runner_hint"></p>
-            <label class="check"><input id="cron-once" type="checkbox"> <span data-i18n="cron_f_once"></span></label>
-            <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
-            <div class="btn-row">
-              <button class="btn primary" data-i18n="save"></button>
-              <button type="button" id="btn-cron-close" class="btn ghost" data-i18n="cancel"></button>
-              <span class="spacer"></span>
-              <button type="button" id="btn-cron-delete" class="btn danger hidden" data-i18n="delete"></button>
-            </div>
-          </form>
-        </div>
       </section>
 
       <!-- Runners -->
@@ -431,68 +249,6 @@
           </div>
           <p id="rn-empty" class="dim hidden" data-i18n="rn_empty"></p>
         </div>
-        <div class="panel accent hidden" id="rn-editor">
-          <h3 id="rn-editor-title"></h3>
-          <form id="form-runner" autocomplete="off">
-            <label for="rn-kind" data-i18n="rn_f_kind"></label>
-            <select id="rn-kind" class="inp"></select>
-            <p id="rn-kind-hint" class="dim small"></p>
-            <label for="rn-name" data-i18n="rn_f_name"></label>
-            <input id="rn-name" class="inp" maxlength="80">
-            <div id="rn-cloud-box" class="hidden">
-              <ol class="rn-steps small">
-                <li data-i18n="rn_cl_step1"></li>
-                <li><span data-i18n="rn_cl_step2"></span>
-                  <span class="copy-row"><code id="rn-cl-sentence" class="mono"></code>
-                  <button type="button" id="btn-rn-cl-copy" class="btn ghost sm" data-i18n="cl_copy"></button></span></li>
-                <li data-i18n="rn_cl_step3"></li>
-              </ol>
-              <label for="rn-trigger" data-i18n="rn_f_trigger"></label>
-              <input id="rn-trigger" class="inp mono" maxlength="300" spellcheck="false">
-              <p class="notice small" data-i18n="rn_cl_rights"></p>
-            </div>
-            <div id="rn-url-box" class="hidden">
-              <label for="rn-url" data-i18n="rn_f_url"></label>
-              <input id="rn-url" class="inp mono" maxlength="300" spellcheck="false" placeholder="http://192.168.1.20:11434/v1">
-              <p class="dim small" data-i18n="rn_url_hint"></p>
-            </div>
-            <div id="rn-model-box">
-              <label for="rn-model" data-i18n="rn_f_model"></label>
-              <input id="rn-model" class="inp mono" maxlength="200" list="rn-models">
-              <datalist id="rn-models"></datalist>
-              <p id="rn-model-hint" class="dim small"></p>
-              <label id="rn-free-box" class="check hidden"><input id="rn-free-only" type="checkbox"> <span data-i18n="rn_f_free_only"></span></label>
-            </div>
-            <div id="rn-key-box">
-              <label for="rn-key-src" id="rn-key-label"></label>
-              <select id="rn-key-src" class="inp"></select>
-              <input id="rn-key" class="inp mono" type="password" autocomplete="new-password" aria-labelledby="rn-key-label">
-              <p id="rn-key-state" class="dim small" aria-live="polite"></p>
-            </div>
-            <div id="rn-chatgpt" class="hidden">
-              <p id="rn-cg-state" class="small" role="status"></p>
-              <div class="btn-row">
-                <button type="button" id="btn-rn-cg-start" class="btn ghost sm" data-i18n="rn_cg_start"></button>
-                <button type="button" id="btn-rn-cg-signout" class="btn ghost sm hidden" data-i18n="rn_cg_signout"></button>
-              </div>
-              <div id="rn-cg-finish" class="hidden">
-                <p class="small" data-i18n="rn_cg_step1"></p>
-                <p class="small"><a id="rn-cg-link" target="_blank" rel="noopener noreferrer" data-i18n="rn_cg_open"></a></p>
-                <p class="small" data-i18n="rn_cg_step2"></p>
-                <label for="rn-cg-url" data-i18n="rn_cg_url"></label>
-                <input id="rn-cg-url" class="inp mono" autocomplete="off" spellcheck="false" maxlength="4096">
-                <div class="btn-row">
-                  <button type="button" id="btn-rn-cg-finish" class="btn primary sm" data-i18n="rn_cg_finish"></button>
-                </div>
-              </div>
-            </div>
-            <label class="check"><input id="rn-enabled" type="checkbox" checked> <span data-i18n="rn_f_enabled"></span></label>
-            <div class="btn-row">
-              <button class="btn primary" data-i18n="save"></button>
-              <button type="button" id="btn-rn-close" class="btn ghost" data-i18n="cancel"></button>
-            </div>
-          </form>
-        </div>
       </section>
 
       <!-- Playbooks -->
@@ -506,26 +262,6 @@
           <button id="pb-tab-lib" class="chip" data-i18n="pb_tab_lib"></button>
         </div>
         <div id="pb-runs">
-          <div class="panel accent hidden" id="pb-start-form">
-            <form id="form-pb-start" autocomplete="off">
-              <div class="row-2">
-                <div>
-                  <label for="pb-f-playbook" data-i18n="pb_f_playbook"></label>
-                  <select id="pb-f-playbook" class="inp" required></select>
-                </div>
-                <div>
-                  <label for="pb-f-project" data-i18n="pb_f_project"></label>
-                  <input id="pb-f-project" class="inp" required maxlength="80">
-                </div>
-              </div>
-              <label for="pb-f-title" data-i18n="pb_f_title"></label>
-              <input id="pb-f-title" class="inp" maxlength="120">
-              <div class="btn-row">
-                <button class="btn primary" data-i18n="pb_go"></button>
-                <button type="button" id="btn-pb-start-close" class="btn ghost" data-i18n="cancel"></button>
-              </div>
-            </form>
-          </div>
           <div class="toolbar">
             <input id="pb-project" class="inp" data-i18n-ph="pb_project_ph" aria-label="Project">
             <select id="pb-status" class="inp" aria-label="Status">
@@ -549,38 +285,6 @@
             <div class="panel scroll" id="pb-lib-list"></div>
             <div class="panel accent hidden" id="pb-def"></div>
           </div>
-          <div class="panel accent hidden" id="pb-def-editor">
-            <h3 id="pb-def-editor-title"></h3>
-            <form id="form-pb-def" autocomplete="off">
-              <div class="row-2">
-                <div>
-                  <label for="pbd-name" data-i18n="pb_f_name"></label>
-                  <input id="pbd-name" class="inp" required maxlength="60">
-                </div>
-                <div>
-                  <label for="pbd-category" data-i18n="pb_f_category"></label>
-                  <input id="pbd-category" class="inp" maxlength="60">
-                </div>
-              </div>
-              <label for="pbd-title" data-i18n="pb_f_title2"></label>
-              <input id="pbd-title" class="inp" required maxlength="120">
-              <label for="pbd-desc" data-i18n="pb_f_desc"></label>
-              <input id="pbd-desc" class="inp" maxlength="600">
-              <label for="pbd-source" data-i18n="pb_f_source"></label>
-              <input id="pbd-source" class="inp" type="url" maxlength="300">
-              <h4 data-i18n="pb_stages"></h4>
-              <div id="pb-stage-forms"></div>
-              <button type="button" id="btn-pb-add-stage" class="btn ghost sm" data-i18n="pb_add_stage"></button>
-              <label for="pbd-plays" data-i18n="pb_f_plays"></label>
-              <textarea id="pbd-plays" class="inp mono" rows="5" spellcheck="false"></textarea>
-              <label for="pbd-guidance" data-i18n="pb_f_guidance"></label>
-              <textarea id="pbd-guidance" class="inp" rows="8"></textarea>
-              <div class="btn-row">
-                <button class="btn primary" data-i18n="save"></button>
-                <button type="button" id="btn-pb-def-close" class="btn ghost" data-i18n="cancel"></button>
-              </div>
-            </form>
-          </div>
         </div>
       </section>
 
@@ -589,65 +293,20 @@
         <header class="view-head">
           <h1 data-i18n="nav_users"></h1>
           <span id="us-enforce" class="badge"></span>
+          <button id="btn-user-new" class="btn primary sm" data-i18n="us_new"></button>
         </header>
-        <div class="grid-2">
-          <div class="panel">
-            <h3 data-i18n="us_list_title"></h3>
-            <p class="dim small" data-i18n="us_list_hint"></p>
-            <table class="tbl" id="us-table">
-              <thead><tr>
-                <th data-i18n="us_col_identity"></th>
-                <th data-i18n="us_col_role"></th>
-                <th data-i18n="us_col_area"></th><th></th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
-            <p id="us-empty" class="dim hidden" data-i18n="us_empty"></p>
-          </div>
-          <div class="panel accent">
-            <h3 id="us-editor-title" data-i18n="us_add_title"></h3>
-            <form id="form-user" autocomplete="off">
-              <label data-i18n="us_f_identity"></label>
-              <input id="us-identity" class="inp mono" required data-i18n-ph="us_ph_identity">
-              <div class="row-2">
-                <div>
-                  <label data-i18n="us_f_role"></label>
-                  <select id="us-role" class="inp">
-                    <option value="default" data-i18n="us_role_default"></option>
-                    <option value="admin">admin</option>
-                    <option value="user">user</option>
-                    <option value="viewer">viewer</option>
-                  </select>
-                </div>
-                <div>
-                  <label data-i18n="us_f_memory"></label>
-                  <select id="us-memory" class="inp">
-                    <option value="">—</option>
-                    <option value="own" data-i18n="us_own"></option>
-                    <option value="all" data-i18n="us_all"></option>
-                  </select>
-                </div>
-              </div>
-              <div class="row-2">
-                <div>
-                  <label data-i18n="us_f_services"></label>
-                  <input id="us-services" class="inp mono" data-i18n-ph="us_ph_access">
-                </div>
-                <div>
-                  <label data-i18n="us_f_skills"></label>
-                  <input id="us-skills" class="inp mono" data-i18n-ph="us_ph_access">
-                </div>
-              </div>
-              <label data-i18n="us_f_devices"></label>
-              <input id="us-devices" class="inp mono" data-i18n-ph="us_ph_devices">
-              <label data-i18n="us_f_note"></label>
-              <input id="us-note" class="inp">
-              <div class="btn-row">
-                <button class="btn primary" data-i18n="save"></button>
-                <button type="button" id="btn-user-clear" class="btn ghost" data-i18n="clear"></button>
-              </div>
-            </form>
-          </div>
+        <div class="panel">
+          <h3 data-i18n="us_list_title"></h3>
+          <p class="dim small" data-i18n="us_list_hint"></p>
+          <table class="tbl" id="us-table">
+            <thead><tr>
+              <th data-i18n="us_col_identity"></th>
+              <th data-i18n="us_col_role"></th>
+              <th data-i18n="us_col_area"></th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <p id="us-empty" class="dim hidden" data-i18n="us_empty"></p>
         </div>
       </section>
 
@@ -674,21 +333,6 @@
           </table>
           </div>
           <p id="sv-empty" class="dim hidden" data-i18n="sv_empty"></p>
-        </div>
-        <div class="panel accent hidden" id="sv-editor">
-          <h3 id="sv-editor-title"></h3>
-          <p id="sv-help" class="dim small"></p>
-          <form id="form-sv" autocomplete="off">
-            <label for="sv-kind" data-i18n="sv_f_kind"></label>
-            <select id="sv-kind" class="inp"></select>
-            <div id="sv-fields" class="form-fields"></div>
-            <div class="btn-row">
-              <button class="btn primary" data-i18n="save"></button>
-              <button type="button" id="btn-sv-close" class="btn ghost" data-i18n="cancel"></button>
-              <span class="spacer"></span>
-              <button type="button" id="btn-sv-delete" class="btn danger hidden" data-i18n="delete"></button>
-            </div>
-          </form>
         </div>
       </section>
 
@@ -720,19 +364,447 @@
     </main>
   </div>
 
-  <!-- confirm modal + toast -->
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-card panel">
-      <p id="modal-text"></p>
-      <div class="btn-row">
-        <button id="modal-ok" class="btn danger" data-i18n="confirm"></button>
-        <button id="modal-cancel" class="btn ghost" data-i18n="cancel"></button>
+  <!-- ── Create/edit dialogs ──────────────────────────────────────────────
+       Native <dialog>s opened with showModal() (dialogs.js): head with title and ×,
+       a body that scrolls, a footer whose Save/Delete row stays in view. They sit
+       outside the views on purpose: a dialog inside a hidden view would never show. -->
+
+  <!-- Vault: add / edit a secret -->
+  <dialog id="vault-editor" class="dlg" aria-labelledby="vault-form-title" data-return="#btn-vault-new">
+    <header class="dlg-head">
+      <h3 id="vault-form-title" data-i18n="vault_add_title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <p id="vault-edit-hint" class="dim small hidden" data-i18n="vault_edit_hint"></p>
+      <form id="form-secret" autocomplete="off">
+        <label data-i18n="vault_f_name"></label>
+        <input id="sec-name" class="inp mono" required
+               pattern="[^/]+" data-i18n-ph="vault_ph_name">
+        <label data-i18n="vault_f_value"></label>
+        <div class="pw-row">
+          <input id="sec-value" class="inp mono" type="password" required
+                 data-i18n-ph="vault_ph_value">
+          <button type="button" id="sec-toggle" class="btn ghost sm" data-i18n-aria="vault_toggle">👁</button>
+        </div>
+        <label data-i18n="vault_f_desc"></label>
+        <input id="sec-desc" class="inp" maxlength="300" data-i18n-ph="vault_ph_desc">
+        <label data-i18n="vault_f_owner"></label>
+        <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
+        <datalist id="sec-owner-list"></datalist>
+        <p class="dim small" data-i18n="vault_writeonly"></p>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-secret" class="btn primary" data-i18n="vault_save"></button>
+      <button type="button" id="btn-sec-cancel" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-sec-delete" class="btn danger hidden" data-i18n="delete"></button>
+    </footer>
+  </dialog>
+
+  <!-- Clients: connect a new agent (the key is shown once, right here) -->
+  <dialog id="cl-editor" class="dlg" aria-labelledby="cl-editor-title" data-return="#btn-ak-new">
+    <header class="dlg-head">
+      <h3 id="cl-editor-title" data-i18n="cl_new_title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-agentkey" autocomplete="off">
+        <label data-i18n="cl_f_name"></label>
+        <input id="ak-name" class="inp mono" required data-i18n-ph="cl_ph_name">
+        <label data-i18n="cl_f_person"></label>
+        <input id="ak-person" class="inp mono" required list="ak-person-list" data-i18n-ph="cl_ph_person">
+        <datalist id="ak-person-list"></datalist>
+        <label data-i18n="cl_f_profile"></label>
+        <select id="ak-profile" class="inp">
+          <option value="core" data-i18n="cl_profile_core"></option>
+          <option value="full" data-i18n="cl_profile_full"></option>
+        </select>
+        <label data-i18n="cl_f_scopes"></label>
+        <input id="ak-scopes" class="inp mono" value="all">
+        <label data-i18n="cl_f_ttl"></label>
+        <input id="ak-ttl" class="inp mono" type="number" min="0" value="0">
+      </form>
+      <div id="cl-result" class="hidden" data-dlg-ignore>
+        <p class="err small" data-i18n="cl_once"></p>
+        <div class="pw-row">
+          <input id="cl-key" class="inp mono" readonly>
+          <button type="button" id="cl-copy-key" class="btn ghost sm" data-i18n="cl_copy"></button>
+        </div>
+        <label data-i18n="cl_f_client"></label>
+        <select id="cl-client" class="inp"></select>
+        <pre id="cl-snippet" class="inp mono small"></pre>
+        <button type="button" id="cl-copy-snippet" class="btn ghost sm" data-i18n="cl_copy"></button>
       </div>
     </div>
-  </div>
-  <div id="toast" class="toast hidden" role="status"></div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-agentkey" id="btn-ak-create" class="btn primary" data-i18n="cl_create"></button>
+      <button type="button" id="btn-ak-cancel" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <button type="button" id="btn-ak-done" class="btn primary hidden" data-dlg-close data-i18n="done"></button>
+    </footer>
+  </dialog>
+
+  <!-- Skills: new / edit -->
+  <dialog id="sk-editor" class="dlg wide" aria-labelledby="sk-editor-title" data-return="#btn-skill-new">
+    <header class="dlg-head">
+      <h3 id="sk-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-skill" autocomplete="off">
+        <label data-i18n="sk_f_name"></label>
+        <input id="sk-name" class="inp" required>
+        <div class="row-2">
+          <div>
+            <label data-i18n="sk_f_category"></label>
+            <input id="sk-category" class="inp" list="sk-cat-list" required>
+            <datalist id="sk-cat-list"></datalist>
+          </div>
+          <div>
+            <label data-i18n="sk_f_tags"></label>
+            <input id="sk-tags" class="inp">
+          </div>
+        </div>
+        <label data-i18n="sk_f_desc"></label>
+        <input id="sk-desc" class="inp" required>
+        <label data-i18n="sk_f_body"></label>
+        <textarea id="sk-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-skill" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-skill-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-skill-delete" class="btn danger hidden" data-i18n="delete"></button>
+    </footer>
+  </dialog>
+
+  <!-- Notes: new / edit -->
+  <dialog id="mem-editor" class="dlg wide" aria-labelledby="mem-editor-title" data-return="#btn-mem-new">
+    <header class="dlg-head">
+      <h3 id="mem-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-mem" autocomplete="off">
+        <label for="mem-title" data-i18n="mem_f_title"></label>
+        <input id="mem-title" class="inp" required maxlength="200">
+        <div class="row-2">
+          <div>
+            <label for="mem-f-type" data-i18n="mem_f_type"></label>
+            <select id="mem-f-type" class="inp" required></select>
+          </div>
+          <div>
+            <label for="mem-f-project" data-i18n="mem_f_project"></label>
+            <input id="mem-f-project" class="inp" list="mem-proj-list" maxlength="80">
+          </div>
+        </div>
+        <div class="row-2">
+          <div>
+            <label for="mem-f-tags" data-i18n="mem_f_tags"></label>
+            <input id="mem-f-tags" class="inp">
+          </div>
+          <div>
+            <label for="mem-f-review" data-i18n="mem_f_review"></label>
+            <input id="mem-f-review" class="inp" type="date">
+          </div>
+        </div>
+        <label for="mem-body" data-i18n="mem_f_body"></label>
+        <textarea id="mem-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+        <p id="mem-meta" class="dim small"></p>
+        <div id="mem-conflict" class="notice hidden">
+          <span data-i18n="mem_conflict"></span>
+          <button type="button" id="btn-mem-reload" class="btn sm" data-i18n="mem_reload"></button>
+        </div>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-mem" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-mem-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-mem-delete" class="btn danger hidden" data-i18n="delete"></button>
+    </footer>
+  </dialog>
+
+  <!-- Scheduled jobs: new / edit -->
+  <dialog id="cron-editor" class="dlg" aria-labelledby="cron-editor-title" data-return="#btn-cron-new">
+    <header class="dlg-head">
+      <h3 id="cron-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-cron" autocomplete="off">
+        <label for="cron-name" data-i18n="cron_f_name"></label>
+        <input id="cron-name" class="inp" required maxlength="80">
+        <label data-i18n="cron_f_when"></label>
+        <div class="chips" id="cron-presets">
+          <button type="button" class="chip" data-preset="daily" data-i18n="cron_p_daily"></button>
+          <button type="button" class="chip" data-preset="weekdays" data-i18n="cron_p_weekdays"></button>
+          <button type="button" class="chip" data-preset="weekly" data-i18n="cron_p_weekly"></button>
+          <button type="button" class="chip" data-preset="hourly" data-i18n="cron_p_hourly"></button>
+        </div>
+        <div class="row-2">
+          <div>
+            <label for="cron-time" data-i18n="cron_f_time"></label>
+            <input id="cron-time" class="inp" type="time" value="06:30">
+          </div>
+          <div>
+            <label for="cron-dow" data-i18n="cron_f_dow"></label>
+            <select id="cron-dow" class="inp" disabled></select>
+          </div>
+        </div>
+        <label for="cron-expr" data-i18n="cron_f_expr"></label>
+        <input id="cron-expr" class="inp mono" required spellcheck="false">
+        <p id="cron-preview" class="dim small" aria-live="polite"></p>
+        <label for="cron-prompt" data-i18n="cron_f_prompt"></label>
+        <textarea id="cron-prompt" class="inp" rows="6" required></textarea>
+        <div class="row-2">
+          <div>
+            <label for="cron-notify" data-i18n="cron_f_notify"></label>
+            <input id="cron-notify" class="inp" value="user">
+          </div>
+          <div data-admin>
+            <label for="cron-owner" data-i18n="cron_f_owner"></label>
+            <input id="cron-owner" class="inp mono">
+          </div>
+        </div>
+        <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
+        <select id="cron-runner-sel" class="inp"></select>
+        <p class="dim small" data-i18n="cron_runner_hint"></p>
+        <label class="check"><input id="cron-once" type="checkbox"> <span data-i18n="cron_f_once"></span></label>
+        <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-cron" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-cron-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-cron-delete" class="btn danger hidden" data-i18n="delete"></button>
+    </footer>
+  </dialog>
+
+  <!-- Runners: new / edit -->
+  <dialog id="rn-editor" class="dlg" aria-labelledby="rn-editor-title" data-return="#btn-rn-new">
+    <header class="dlg-head">
+      <h3 id="rn-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-runner" autocomplete="off">
+        <label for="rn-kind" data-i18n="rn_f_kind"></label>
+        <select id="rn-kind" class="inp"></select>
+        <p id="rn-kind-hint" class="dim small"></p>
+        <label for="rn-name" data-i18n="rn_f_name"></label>
+        <input id="rn-name" class="inp" maxlength="80">
+        <div id="rn-cloud-box" class="hidden">
+          <ol class="rn-steps small">
+            <li data-i18n="rn_cl_step1"></li>
+            <li><span data-i18n="rn_cl_step2"></span>
+              <span class="copy-row"><code id="rn-cl-sentence" class="mono"></code>
+              <button type="button" id="btn-rn-cl-copy" class="btn ghost sm" data-i18n="cl_copy"></button></span></li>
+            <li data-i18n="rn_cl_step3"></li>
+          </ol>
+          <label for="rn-trigger" data-i18n="rn_f_trigger"></label>
+          <input id="rn-trigger" class="inp mono" maxlength="300" spellcheck="false">
+          <p class="notice small" data-i18n="rn_cl_rights"></p>
+        </div>
+        <div id="rn-url-box" class="hidden">
+          <label for="rn-url" data-i18n="rn_f_url"></label>
+          <input id="rn-url" class="inp mono" maxlength="300" spellcheck="false" placeholder="http://192.168.1.20:11434/v1">
+          <p class="dim small" data-i18n="rn_url_hint"></p>
+        </div>
+        <div id="rn-model-box">
+          <label for="rn-model" data-i18n="rn_f_model"></label>
+          <input id="rn-model" class="inp mono" maxlength="200" list="rn-models">
+          <datalist id="rn-models"></datalist>
+          <p id="rn-model-hint" class="dim small"></p>
+          <label id="rn-free-box" class="check hidden"><input id="rn-free-only" type="checkbox"> <span data-i18n="rn_f_free_only"></span></label>
+        </div>
+        <div id="rn-key-box">
+          <label for="rn-key-src" id="rn-key-label"></label>
+          <select id="rn-key-src" class="inp"></select>
+          <input id="rn-key" class="inp mono" type="password" autocomplete="new-password" aria-labelledby="rn-key-label">
+          <p id="rn-key-state" class="dim small" aria-live="polite"></p>
+        </div>
+        <div id="rn-chatgpt" class="hidden">
+          <p id="rn-cg-state" class="small" role="status"></p>
+          <div class="btn-row">
+            <button type="button" id="btn-rn-cg-start" class="btn ghost sm" data-i18n="rn_cg_start"></button>
+            <button type="button" id="btn-rn-cg-signout" class="btn ghost sm hidden" data-i18n="rn_cg_signout"></button>
+          </div>
+          <div id="rn-cg-finish" class="hidden">
+            <p class="small" data-i18n="rn_cg_step1"></p>
+            <p class="small"><a id="rn-cg-link" target="_blank" rel="noopener noreferrer" data-i18n="rn_cg_open"></a></p>
+            <p class="small" data-i18n="rn_cg_step2"></p>
+            <label for="rn-cg-url" data-i18n="rn_cg_url"></label>
+            <input id="rn-cg-url" class="inp mono" autocomplete="off" spellcheck="false" maxlength="4096">
+            <div class="btn-row">
+              <button type="button" id="btn-rn-cg-finish" class="btn primary sm" data-i18n="rn_cg_finish"></button>
+            </div>
+          </div>
+        </div>
+        <label class="check"><input id="rn-enabled" type="checkbox" checked> <span data-i18n="rn_f_enabled"></span></label>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-runner" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-rn-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
+  <!-- Playbooks: start a run -->
+  <dialog id="pb-start-form" class="dlg" aria-labelledby="pb-start-title" data-return="#btn-pb-start">
+    <header class="dlg-head">
+      <h3 id="pb-start-title" data-i18n="pb_start"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-pb-start" autocomplete="off">
+        <div class="row-2">
+          <div>
+            <label for="pb-f-playbook" data-i18n="pb_f_playbook"></label>
+            <select id="pb-f-playbook" class="inp" required></select>
+          </div>
+          <div>
+            <label for="pb-f-project" data-i18n="pb_f_project"></label>
+            <input id="pb-f-project" class="inp" required maxlength="80">
+          </div>
+        </div>
+        <label for="pb-f-title" data-i18n="pb_f_title"></label>
+        <input id="pb-f-title" class="inp" maxlength="120">
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-pb-start" class="btn primary" data-i18n="pb_go"></button>
+      <button type="button" id="btn-pb-start-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
+  <!-- Playbooks: new / edit a playbook -->
+  <dialog id="pb-def-editor" class="dlg wide" aria-labelledby="pb-def-editor-title" data-return="#btn-pb-new">
+    <header class="dlg-head">
+      <h3 id="pb-def-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-pb-def" autocomplete="off">
+        <div class="row-2">
+          <div>
+            <label for="pbd-name" data-i18n="pb_f_name"></label>
+            <input id="pbd-name" class="inp" required maxlength="60">
+          </div>
+          <div>
+            <label for="pbd-category" data-i18n="pb_f_category"></label>
+            <input id="pbd-category" class="inp" maxlength="60">
+          </div>
+        </div>
+        <label for="pbd-title" data-i18n="pb_f_title2"></label>
+        <input id="pbd-title" class="inp" required maxlength="120">
+        <label for="pbd-desc" data-i18n="pb_f_desc"></label>
+        <input id="pbd-desc" class="inp" maxlength="600">
+        <label for="pbd-source" data-i18n="pb_f_source"></label>
+        <input id="pbd-source" class="inp" type="url" maxlength="300">
+        <h4 data-i18n="pb_stages"></h4>
+        <div id="pb-stage-forms"></div>
+        <button type="button" id="btn-pb-add-stage" class="btn ghost sm" data-i18n="pb_add_stage"></button>
+        <label for="pbd-plays" data-i18n="pb_f_plays"></label>
+        <textarea id="pbd-plays" class="inp mono" rows="5" spellcheck="false"></textarea>
+        <label for="pbd-guidance" data-i18n="pb_f_guidance"></label>
+        <textarea id="pbd-guidance" class="inp" rows="8"></textarea>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-pb-def" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-pb-def-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
+  <!-- Users: add / edit -->
+  <dialog id="us-editor" class="dlg" aria-labelledby="us-editor-title" data-return="#btn-user-new">
+    <header class="dlg-head">
+      <h3 id="us-editor-title" data-i18n="us_new_title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-user" autocomplete="off">
+        <label data-i18n="us_f_identity"></label>
+        <input id="us-identity" class="inp mono" required data-i18n-ph="us_ph_identity">
+        <div class="row-2">
+          <div>
+            <label data-i18n="us_f_role"></label>
+            <select id="us-role" class="inp">
+              <option value="default" data-i18n="us_role_default"></option>
+              <option value="admin">admin</option>
+              <option value="user">user</option>
+              <option value="viewer">viewer</option>
+            </select>
+          </div>
+          <div>
+            <label data-i18n="us_f_memory"></label>
+            <select id="us-memory" class="inp">
+              <option value="">—</option>
+              <option value="own" data-i18n="us_own"></option>
+              <option value="all" data-i18n="us_all"></option>
+            </select>
+          </div>
+        </div>
+        <div class="row-2">
+          <div>
+            <label data-i18n="us_f_services"></label>
+            <input id="us-services" class="inp mono" data-i18n-ph="us_ph_access">
+          </div>
+          <div>
+            <label data-i18n="us_f_skills"></label>
+            <input id="us-skills" class="inp mono" data-i18n-ph="us_ph_access">
+          </div>
+        </div>
+        <label data-i18n="us_f_devices"></label>
+        <input id="us-devices" class="inp mono" data-i18n-ph="us_ph_devices">
+        <label data-i18n="us_f_note"></label>
+        <input id="us-note" class="inp">
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-user" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-user-cancel" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
+  <!-- Services & devices: new / edit (fields built from each registry's schema) -->
+  <dialog id="sv-editor" class="dlg" aria-labelledby="sv-editor-title" data-return="#btn-sv-new">
+    <header class="dlg-head">
+      <h3 id="sv-editor-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <p id="sv-help" class="dim small"></p>
+      <form id="form-sv" autocomplete="off">
+        <label for="sv-kind" data-i18n="sv_f_kind"></label>
+        <select id="sv-kind" class="inp"></select>
+        <div id="sv-fields" class="form-fields"></div>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-sv" class="btn primary" data-i18n="save"></button>
+      <button type="button" id="btn-sv-close" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+      <span class="spacer"></span>
+      <button type="button" id="btn-sv-delete" class="btn danger hidden" data-i18n="delete"></button>
+    </footer>
+  </dialog>
+
+  <!-- confirm dialog (stacks above an open form) + toast (top layer, readable above it) -->
+  <dialog id="modal" class="modal-card" role="alertdialog" aria-labelledby="modal-text">
+    <p id="modal-text"></p>
+    <div class="btn-row">
+      <button type="button" id="modal-ok" class="btn danger" data-i18n="confirm"></button>
+      <button type="button" id="modal-cancel" class="btn ghost" data-i18n="cancel"></button>
+    </div>
+  </dialog>
+  <div id="toast" class="toast hidden" role="status" popover="manual"></div>
 
   <script src="/ui/assets/app.js?v={{v}}"></script>
+  <script src="/ui/assets/dialogs.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
   <script src="/ui/assets/view-cron.js?v={{v}}"></script>

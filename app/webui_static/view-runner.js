@@ -267,8 +267,7 @@ async function openRunner(rec) {
   $("#rn-enabled").checked = rec ? !!rec.enabled : true;
   $("#rn-free-only").checked = rec ? !!rec.free_only : true;   // a new runner: free models first
   kindView();
-  $("#rn-editor").classList.remove("hidden");
-  $("#rn-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  openDialog($("#rn-editor"));
 }
 
 async function saveRunner() {
@@ -288,7 +287,7 @@ async function saveRunner() {
   toast(d.ok ? t("toast_rn_saved") : d.message, !!d.ok);
   $("#rn-key").value = "";
   if (!d.ok) return;
-  $("#rn-editor").classList.add("hidden");
+  closeDialog($("#rn-editor"));
   await loadRunners();
 }
 
@@ -301,7 +300,7 @@ async function deleteRunner(rec) {
   if (!(await confirmModal(t("confirm_rn_delete", rec.name)))) return;
   const d = await api("/ui/api/runners/delete", { method: "POST", body: { id: rec.id } });
   toast(d.ok ? t("toast_rn_deleted") : d.message, !!d.ok);
-  $("#rn-editor").classList.add("hidden");
+  closeDialog($("#rn-editor"));
   await loadRunners();
 }
 
@@ -358,7 +357,6 @@ VIEWS.runners = loadRunners;
 document.addEventListener("DOMContentLoaded", () => {
   const fail = (x) => toast(x.message, false);
   $("#btn-rn-new").addEventListener("click", () => openRunner(null).catch(fail));
-  $("#btn-rn-close").addEventListener("click", () => $("#rn-editor").classList.add("hidden"));
   $("#rn-kind").addEventListener("change", kindView);
   $("#rn-key-src").addEventListener("change", keySourceView);
   $("#btn-rn-cl-copy").addEventListener("click", () => copyText($("#rn-cl-sentence").textContent));
@@ -368,6 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-rn-cg-signout").addEventListener("click", () => signoutChatgpt().catch(fail));
   $$("[data-setlang]").forEach((b) => b.addEventListener("click", () => {
     if (!$("#view-runners").classList.contains("hidden")) loadRunners().catch(() => {});
-    if (!$("#rn-editor").classList.contains("hidden")) { fillKinds(rnKind()); kindView(); }
+    if ($("#rn-editor").open) { fillKinds(rnKind()); kindView(); }
   }));
 });

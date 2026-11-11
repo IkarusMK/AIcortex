@@ -107,7 +107,7 @@ body {
 .panel.accent { border-color: rgba(139, 92, 246, .3); }
 .panel h3 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
   color: var(--purple-2); margin-bottom: 10px; }
-.panel h4 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+.panel h4, .dlg h4 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--purple-2); margin: 22px 0 8px; }
 
 .app { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
@@ -224,6 +224,11 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .btn.ghost:hover { color: var(--text); border-color: var(--border-hi); }
 .btn.danger { background: transparent; color: var(--danger); border-color: rgba(248, 113, 113, .4); }
 .btn.danger:hover { background: rgba(248, 113, 113, .12); }
+/* keyboard focus is always visible (inputs have their own ring) */
+.btn:focus-visible, .chip:focus-visible, .linkish:focus-visible, .lang-switch button:focus-visible,
+.dlg-x:focus-visible {
+  outline: 2px solid var(--cyan-2); outline-offset: 2px;
+}
 
 /* ── tables ────────────────────────────────────────────────────────────── */
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .95fr);
@@ -290,15 +295,13 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .sk-item .n .tag { white-space: nowrap; }
 .sk-item .d { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
 
-/* ── modal / toast ─────────────────────────────────────────────────────── */
-.modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
-  background: rgba(3, 4, 12, .7); backdrop-filter: blur(4px); }
-.modal-card { width: min(420px, 92vw); }
-.modal-card p { margin-bottom: 6px; }
-
+/* ── toast ─────────────────────────────────────────────────────────────── */
+/* A manual popover (top layer), so it stays readable above an open dialog; inset and
+   margin override the popover defaults, which would centre it. */
 .toast {
-  position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+  position: fixed; inset: auto auto 26px 50%; margin: 0; transform: translateX(-50%);
   z-index: 60; padding: 11px 20px; border-radius: 11px; font-size: 14px;
+  max-width: calc(100vw - 32px); overflow: visible;
   background: rgba(10, 12, 26, .95); border: 1px solid rgba(52, 211, 153, .5);
   color: var(--ok); box-shadow: 0 8px 30px rgba(0, 0, 0, .5);
 }
@@ -383,8 +386,6 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 /* Runner rows can have up to five actions: keep two per line rather than a tall stack */
 #rn-table td.actions { min-width: 200px; }
 @media (max-width: 1100px) { #rn-table td.actions { min-width: 170px; } }
-/* The vault table needs more room than half a laptop screen: put the form below it */
-@media (max-width: 1400px) { #view-vault .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 
 /* Search tab: one panel per group with hits; tool hits are not links */
 .search-status { margin: 12px 2px 0; }
@@ -393,3 +394,84 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .sk-item.static { cursor: default; }
 .sk-item .sig { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 4px;
   overflow-wrap: anywhere; }
+
+/* ── dialogs ───────────────────────────────────────────────────────────── */
+/* Every create/edit form is a native <dialog> (dialogs.js). Head and footer stay put,
+   only the body scrolls, so Save/Delete never leave the screen. The confirm dialog
+   (.modal-card) shares the surface and stacks above an open form. */
+.dlg, .modal-card {
+  margin: auto;                  /* centred: the global `* { margin: 0 }` reset undoes the UA's */
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(24, 26, 54, .97), rgba(10, 11, 26, .98));
+  border: 1px solid rgba(139, 92, 246, .38);
+  border-radius: var(--radius);
+  box-shadow: 0 30px 90px -20px rgba(0, 0, 0, .85), 0 0 80px -30px rgba(139, 92, 246, .5);
+}
+.dlg {
+  width: 100%; max-width: min(760px, calc(100vw - 32px));
+  max-height: 90vh; max-height: 90dvh;
+  padding: 0; overflow: auto;
+}
+.dlg.wide { max-width: min(960px, calc(100vw - 32px)); }
+.dlg[open] { display: flex; flex-direction: column; }
+/* ::backdrop doesn't see :root variables everywhere yet — literal colours */
+.dlg::backdrop, .modal-card::backdrop {
+  background: rgba(3, 4, 12, .62);
+  backdrop-filter: blur(6px) saturate(.85);
+}
+.dlg-head {
+  position: sticky; top: 0; z-index: 1; flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 16px 14px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--grad) top / 100% 2px no-repeat, rgba(16, 18, 40, .96);
+}
+.dlg-head h3 {
+  flex: 1; min-width: 0; overflow-wrap: anywhere;
+  font-size: 13.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--purple-2);
+}
+.dlg-x {
+  flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
+  border-radius: 9px; border: 1px solid var(--border); background: transparent;
+  color: var(--dim); font-size: 22px; line-height: 1; cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.dlg-x:hover { color: var(--text); border-color: var(--border-hi); background: rgba(139, 92, 246, .1); }
+.dlg-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 6px 22px 22px;
+}
+.dlg-foot {
+  position: sticky; bottom: 0; z-index: 1; flex: none;
+  margin: 0; padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: rgba(8, 9, 22, .94);
+}
+.modal-card { width: min(420px, calc(100vw - 32px)); padding: 22px 24px 18px; }
+.modal-card p { margin-bottom: 6px; }
+#cl-result { margin-top: 4px; }
+
+/* open: a short rise and fade — transform and opacity only */
+.dlg[open], .modal-card[open] { animation: dlg-in .2s cubic-bezier(.16, 1, .3, 1); }
+.dlg[open]::backdrop, .modal-card[open]::backdrop { animation: dlg-fade .2s ease-out; }
+@keyframes dlg-in { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@keyframes dlg-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .dlg[open], .modal-card[open], .dlg[open]::backdrop, .modal-card[open]::backdrop { animation: none; }
+}
+
+/* while a dialog is open the page behind it stays put (class set on <html> by dialogs.js;
+   body's overflow reaches the viewport, the scroll position is kept) */
+html.dlg-lock { scrollbar-gutter: stable; }
+html.dlg-lock body { overflow: hidden; }
+
+/* phones: a full-screen sheet */
+@media (max-width: 639px) {
+  .dlg, .dlg.wide {
+    width: 100%; max-width: 100%; height: 100%; max-height: 100%;
+    margin: 0; border: 0; border-radius: 0;
+  }
+  .dlg-head { padding: 12px 12px 12px 16px; }
+  .dlg-body { padding: 4px 16px 18px; }
+  .dlg-foot { padding: 12px 16px; }
+}
