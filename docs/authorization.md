@@ -86,8 +86,14 @@ replaces the old "every OIDC login is admin" default:
   default (listed under `users` or `roles` without a non-admin role) becomes an
   operator. Nobody loses access; only people who sign in for the first time later
   get `user`.
-- **Fresh install:** the first person to sign in becomes the operator. Sign in
-  yourself right after setting up, then check `operators` in `policy.json`.
+- **Name them up front:** `OPERATORS=<sub>[,<sub>…]` in the environment always
+  makes those identities operators (IdP `sub`, shown on the WebUI's Users page).
+- **Fresh install:** without `OPERATORS`, the first person to sign in within
+  `OPERATOR_BOOTSTRAP_MINUTES` (default 30) of a start with nobody in charge becomes
+  the operator; the start is logged loudly. Sign in yourself right after setting
+  up, then check `operators` in `policy.json`. `OPERATOR_BOOTSTRAP_MINUTES=0` turns
+  this off — then only `OPERATORS` or `policy.json` make an operator.
+- The last operator can't be removed or demoted (WebUI and `tenancy_*` refuse).
 - Operators do **not** make agent keys or scheduled jobs admin: those still use
   only the explicit `roles` entry, else `user`.
 
