@@ -71,9 +71,10 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **Runners** carry the jobs out — AICortex **wakes your Claude** (a Claude Code cloud task on your plan) with the due job, or asks your **ChatGPT plan**, an API key or a local **Ollama**; each person sets up their own in the WebUI and gives each job its runner, no extra container ([how](#autonomy--scheduling))
 
 **🔒 Secure & multi-tenant**
-- Your own **OIDC** login and **roles** (admin / user / viewer) — one switch, `AUTH_ENFORCE`
+- Your own **OIDC** login and **roles** (admin / user / viewer) — one switch, `AUTH_ENFORCE`; only the **operators** you name are admin, everyone else signs in as *user*
 - **Per-user isolation *and* capability areas:** private memory + vault per person, plus **default-deny** service/skill allow-lists an admin assigns — so not everyone may use every tool
-- An **encrypted secret vault**, an **SSRF egress guard**, and capability checks that **fail closed** — end-to-end on your hardware, including a **local model** (Ollama)
+- An **encrypted secret vault** whose tokens only go to the **hosts they're bound to**, an **SSRF egress guard** that pins every hop to a checked address, and capability checks that **fail closed** — end-to-end on your hardware, including a **local model** (Ollama)
+- OAuth with a **redirect allow-list and consent page**, **rate limits** on sign-in, token and webhook endpoints, **HSTS**, and an image that is **scanned before it ships**
 
 ## How it works
 
