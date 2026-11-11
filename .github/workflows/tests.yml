@@ -37,8 +37,18 @@ jobs:
       - name: Run tests (pytest + coverage)
         run: python -m pytest tests/ -q --cov=app --cov-report=term-missing
 
-      - name: Dependency audit (advisory, non-blocking)
-        continue-on-error: true
+      # Blocking supply-chain gate: a known advisory in a dependency fails the run.
+      # An advisory that has no fix and has been assessed goes into
+      # .github/pip-audit-ignore.txt (one ID per line, with the reason as a comment).
+      - name: Dependency audit (blocking)
         run: |
           python -m pip install --quiet pip-audit
-          pip-audit -r app/requirements.txt
+          ignores=$( { grep -vE '^\s*(#|$)' .github/pip-audit-ignore.txt || true; } | awk '{print "--ignore-vuln " $1}' | tr '\n' ' ')
+          pip-audit -r app/requirements.txt ${ignores}
+
+      # Dockerfile lint; fails on errors, reports warnings.
+      - name: Dockerfile lint (hadolint)
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
