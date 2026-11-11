@@ -91,7 +91,10 @@ def http_server(fresh_server):
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     app = fresh_server.mcp.http_app(path="/mcp", middleware=fresh_server.http_middleware())
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    # The uvicorn settings server.py runs with (e.g. no "server" banner), when it has any.
+    extra = getattr(fresh_server, "uvicorn_config", dict)()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning",
+                                           **extra))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     deadline = time.time() + 10

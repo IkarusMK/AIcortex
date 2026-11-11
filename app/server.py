@@ -60,6 +60,8 @@ PORT = int(os.environ.get("MCP_PORT", "8787"))
 def http_middleware():
     """ASGI middleware for the HTTP app, outermost first:
 
+    - HSTS (when BASE_URL is https) and nosniff on every response, including the
+      refusals below (see secheaders.py).
     - the DNS-rebinding guard (see hostguard.py). fastmcp's own host/origin guard is
       off by default and only checks loopback-bound servers, so it never protected
       the NAS — this one does, without turning away native clients on LAN IPs,
@@ -71,7 +73,15 @@ def http_middleware():
 
     import hostguard
     import ratelimit
-    return [Middleware(hostguard.HostGuard), Middleware(ratelimit.RateLimit)]
+    import secheaders
+    return [Middleware(secheaders.SecurityHeaders), Middleware(hostguard.HostGuard),
+            Middleware(ratelimit.RateLimit)]
+
+
+def uvicorn_config():
+    """Extra uvicorn settings for the HTTP transport: no "server: uvicorn" banner
+    telling every client which stack (and version range) answers."""
+    return {"server_header": False}
 
 
 def _client_storage():
@@ -318,7 +328,7 @@ guide.register(mcp)
 profiles.register(mcp)
 
 
-if __name__ == "__main__":
+def main():
     print(f"[AICortex] version {version.__version__} starting")
     # Native (libuv) event loop for faster async I/O — set the policy BEFORE any loop is
     # created. uvicorn also auto-detects uvloop; installing it here makes it explicit and
@@ -349,4 +359,9 @@ if __name__ == "__main__":
     # The runners tick once a minute and stay idle until one is switched on in the
     # WebUI (tab "Runners").
     runner_builtin.start(PORT)
-    mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware())
+    mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware(),
+            uvicorn_config=uvicorn_config())
+
+
+if __name__ == "__main__":
+    main()
