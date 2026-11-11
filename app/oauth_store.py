@@ -3,7 +3,10 @@
 FastMCP's OAuth proxy keeps everything it needs between requests in one key-value
 store: registered clients (the Claude and ChatGPT connectors …), authorization codes,
 refresh-token metadata, upstream tokens. AICortex keeps it under AUTH_STORE_DIR so
-logins survive container restarts, Fernet-encrypted when STORAGE_ENCRYPTION_KEY is set.
+logins survive container restarts, Fernet-encrypted when STORAGE_ENCRYPTION_KEY is set
+(without it the entries are plain JSON: the server warns at startup). Either way the
+folders are owner-only (0700) and the files 0600 — existing ones are tightened at
+startup.
 
 Up to 2.5 that was a DiskStore — diskcache, which unpickles whatever it reads
 (PYSEC-2026-2447 / CVE-2025-69872, no fixed release): a crafted row in the folder
@@ -21,6 +24,7 @@ fails, the old files stay where they are and the next start tries again.
 import asyncio
 import concurrent.futures
 import json
+import os
 import re
 import sqlite3
 import time
@@ -36,13 +40,38 @@ _MODE_RAW, _MODE_TEXT = 1, 3                     # diskcache value modes we acce
 _SEPARATOR = "::"                                # DiskStore's "<collection>::<key>"
 
 
+_DIR_MODE, _FILE_MODE = 0o700, 0o600
+
+
+def _owner_only(directory: Path) -> None:
+    """Make `directory` and everything below it owner-only (folders 0700, files 0600).
+    The store writes its files through mkstemp (0600) but creates folders with the
+    process umask (usually 0755)."""
+    os.chmod(directory, _DIR_MODE)
+    for root, dirs, files in os.walk(directory):
+        for name in dirs:
+            os.chmod(os.path.join(root, name), _DIR_MODE)
+        for name in files:
+            os.chmod(os.path.join(root, name), _FILE_MODE)
+
+
 def _file_store(directory: Path):
     from key_value.aio.stores.filetree import (
         FileTreeStore,
         FileTreeV1CollectionSanitizationStrategy,
         FileTreeV1KeySanitizationStrategy,
     )
-    return FileTreeStore(
+
+    class OwnerOnlyFileTreeStore(FileTreeStore):
+        """FileTreeStore whose collection folders are created owner-only."""
+
+        async def _setup_collection(self, *, collection: str) -> None:
+            await super()._setup_collection(collection=collection)
+            info = self._collection_infos.get(collection)
+            if info is not None:
+                os.chmod(Path(info.directory), _DIR_MODE)
+
+    return OwnerOnlyFileTreeStore(
         data_directory=directory,
         key_sanitization_strategy=FileTreeV1KeySanitizationStrategy(directory),
         collection_sanitization_strategy=FileTreeV1CollectionSanitizationStrategy(directory))
@@ -52,13 +81,23 @@ def build(auth_dir: str, encryption_key: str | None = None):
     """The store for the OAuth proxy, after migrating an old DiskStore if there is one."""
     root = Path(auth_dir)
     directory = root / STORE_SUBDIR
-    directory.mkdir(parents=True, exist_ok=True)
+    directory.mkdir(mode=_DIR_MODE, parents=True, exist_ok=True)
     try:
         migrate(root, directory)
     except Exception as exc:
         print(f"[AICortex] WARNING: OAuth store migration failed ({type(exc).__name__}: "
               f"{exc}); the old store stays in {root} and is tried again on the next start")
+    try:
+        _owner_only(directory)
+    except OSError as exc:
+        print(f"[AICortex] WARNING: could not make {directory} owner-only "
+              f"({type(exc).__name__}); check its permissions")
     store = _file_store(directory)
+    if not encryption_key:
+        print(f"[AICortex] WARNING: STORAGE_ENCRYPTION_KEY is not set — the OAuth store "
+              f"({directory}) keeps sign-in tokens and client registrations as plain JSON "
+              f"(owner-only files). Set STORAGE_ENCRYPTION_KEY to encrypt them; existing "
+              f"entries stay readable.")
     if encryption_key:
         from cryptography.fernet import Fernet
         from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
