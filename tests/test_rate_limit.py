@@ -11,6 +11,7 @@ Groups and defaults (env, ``0`` switches a group off, ``RATE_LIMIT=0`` all of th
   login     /ui/login /ui/callback /ui/mcp-oauth/callback        RATE_LIMIT_LOGIN=30/min
   register  /register                                            RATE_LIMIT_REGISTER=10/hour
   hooks     /hooks/*                                             RATE_LIMIT_HOOKS=60/min
+  ui        /ui/api/*                                            RATE_LIMIT_UI=300/min
 
 The test suite as a whole runs with RATE_LIMIT=0 (conftest) because many tests hit
 these endpoints in quick succession; the tests here switch it back on.
@@ -21,7 +22,8 @@ import pytest
 ACCEPT = "application/json, text/event-stream"
 PING = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
 _LIMIT_ENV = ("RATE_LIMIT", "RATE_LIMIT_AUTH", "RATE_LIMIT_LOGIN", "RATE_LIMIT_REGISTER",
-              "RATE_LIMIT_HOOKS")
+              "RATE_LIMIT_HOOKS", "RATE_LIMIT_UI", "RATE_LIMIT_AUTH_FAILURES",
+              "RATE_LIMIT_FAILURE_COOLDOWN")
 
 
 @pytest.fixture
@@ -95,7 +97,9 @@ def test_paths_map_to_groups(fresh_server):
     assert group("/ui/mcp-oauth/callback") == "login"
     assert group("/register") == "register"
     assert group("/hooks/github") == "hooks"
-    for free in ("/mcp", "/ui", "/ui/api/me", "/api/v1/tools", "/hooks",
+    assert group("/ui/api/me") == group("/ui/api/secrets") == "ui"
+    # /mcp and /api/v1 count credential failures instead (test_sec_rate_limit_failures.py)
+    for free in ("/mcp", "/ui", "/api/v1/tools", "/hooks",
                  "/.well-known/oauth-authorization-server", "/tokens"):
         assert group(free) is None, free
 
@@ -103,12 +107,13 @@ def test_paths_map_to_groups(fresh_server):
 def test_defaults_and_env_overrides(fresh_server, limits):
     rl = _ratelimit()
     assert rl.limits_from_env() == {"auth": (30, 60.0), "login": (30, 60.0),
-                                    "register": (10, 3600.0), "hooks": (60, 60.0)}
+                                    "register": (10, 3600.0), "hooks": (60, 60.0),
+                                    "ui": (300, 60.0)}
     limits.setenv("RATE_LIMIT_HOOKS", "0")
     limits.setenv("RATE_LIMIT_AUTH", "100/min")
     limits.setenv("RATE_LIMIT_REGISTER", "nonsense")         # invalid → default, not off
     assert rl.limits_from_env() == {"auth": (100, 60.0), "login": (30, 60.0),
-                                    "register": (10, 3600.0)}
+                                    "register": (10, 3600.0), "ui": (300, 60.0)}
     limits.setenv("RATE_LIMIT", "0")
     assert rl.limits_from_env() == {}
 
