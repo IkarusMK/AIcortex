@@ -66,9 +66,7 @@ def check_host(host: str):
     if not ips:
         return False, f"no addresses for host '{host}'"
     for ip in ips:
-        if _public(ip):
-            continue
-        if any(ip in net for net in allowed):
+        if _ip_allowed(ip, allowed):
             continue
         return False, (
             f"blocked: {ip} is internal/link-local and not in INTERNAL_ALLOW_CIDRS. "
@@ -127,16 +125,40 @@ def ssl_context(cfg: dict):
     return ctx
 
 
+# IPv6 forms ``is_global`` gets wrong for an egress guard. NAT64 (RFC 6052) carries an
+# IPv4 address that a DNS64/NAT64 gateway connects to — 64:ff9b::7f00:1 is 127.0.0.1 —
+# so it counts as that address. The others are deprecated and never public:
+# IPv4-compatible ::a.b.c.d, site-local fec0::/10, and 6to4 2002::/16 (RFC 7526),
+# which newer Pythons already treat as private and older ones as global.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_NEVER_PUBLIC = tuple(ipaddress.ip_network(n) for n in ("::/96", "fec0::/10", "2002::/16"))
+
+
+def _nat64_v4(ip):
+    """The IPv4 address a NAT64 address stands for, else None."""
+    if ip.version == 6 and ip in _NAT64:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFF_FFFF)
+    return None
+
+
 def _public(ip) -> bool:
     """A public address. is_global is True for some multicast ranges (224.0.0.1,
-    ff02::1), which this guard promises to block — so multicast never counts."""
+    ff02::1), which this guard promises to block — so multicast never counts; nor do
+    the IPv6 forms above, and a NAT64 address is as public as the IPv4 it carries."""
+    v4 = _nat64_v4(ip)
+    if v4 is not None:
+        return _public(v4)
+    if ip.version == 6 and any(ip in n for n in _NEVER_PUBLIC):
+        return False
     return ip.is_global and not ip.is_multicast
 
 
 def _ip_allowed(ip, nets) -> bool:
     """Egress policy for one IP: public is fine; private/link-local/etc only if
-    inside an operator allow-listed CIDR."""
-    return _public(ip) or any(ip in n for n in nets)
+    inside an operator allow-listed CIDR (for NAT64: the IPv4 address it carries)."""
+    v4 = _nat64_v4(ip)
+    return (_public(ip) or any(ip in n for n in nets)
+            or (v4 is not None and any(v4 in n for n in nets)))
 
 
 def _yes(value) -> bool:
