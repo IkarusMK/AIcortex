@@ -1,9 +1,10 @@
 # EXACT pin — the auth stack must never change as a side effect of an image
 # rebuild. fastmcp ≥3.4 forwards the RFC 8707 `resource` parameter to the
-# upstream IdP and adds a /consent interstitial; server.py neutralizes both
-# (forward_resource=False, require_authorization_consent="external") and
-# tests/test_oauth_upstream.py pins that contract, so version bumps arrive
-# ONLY via Dependabot PRs that pass those guards.
+# upstream IdP and adds a /consent interstitial; server.py switches the first off
+# (forward_resource=False) and keeps the consent page, asked once per client and
+# redirect URI and then remembered (require_authorization_consent="remember").
+# tests/test_oauth_upstream.py pins that contract, so version bumps arrive ONLY
+# via Dependabot PRs that pass those guards.
 fastmcp==4.1.4
 # Libraries the app imports DIRECTLY. fastmcp 4 moved to httpx2 and no longer pulls
 # httpx in, so relying on transitive installs broke services/scan/caldav/webdav —
