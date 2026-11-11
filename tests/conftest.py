@@ -21,6 +21,11 @@ _APP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app")
 if _APP not in sys.path:
     sys.path.insert(0, _APP)
 
+# Many tests hit /token, /register, /ui/login and /hooks/* from 127.0.0.1 in quick
+# succession; the per-IP rate limiter (ratelimit.py, on by default in production)
+# would turn them into 429s. tests/test_rate_limit.py switches it back on.
+os.environ["RATE_LIMIT"] = "0"
+
 # Every data path an app module reads from the environment at import time.
 _DATA_ENV = (
     "APIKEY_DIR", "AUTH_STORE_DIR", "CALDAV_DIR", "COORD_DIR", "CRON_DIR", "FTP_DIR",

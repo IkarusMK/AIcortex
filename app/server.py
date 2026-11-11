@@ -58,14 +58,20 @@ PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
 def http_middleware():
-    """ASGI middleware for the HTTP app: the DNS-rebinding guard (see hostguard.py).
-    fastmcp's own host/origin guard is off by default and only checks loopback-bound
-    servers, so it never protected the NAS — this one does, without turning away
-    native clients on LAN IPs, Docker names or VPN names."""
+    """ASGI middleware for the HTTP app, outermost first:
+
+    - the DNS-rebinding guard (see hostguard.py). fastmcp's own host/origin guard is
+      off by default and only checks loopback-bound servers, so it never protected
+      the NAS — this one does, without turning away native clients on LAN IPs,
+      Docker names or VPN names.
+    - per-client-IP rate limits on the auth endpoints and /hooks (see ratelimit.py),
+      so the app is not left to an external CrowdSec alone.
+    """
     from starlette.middleware import Middleware
 
     import hostguard
-    return [Middleware(hostguard.HostGuard)]
+    import ratelimit
+    return [Middleware(hostguard.HostGuard), Middleware(ratelimit.RateLimit)]
 
 
 def _client_storage():
@@ -337,6 +343,9 @@ if __name__ == "__main__":
     if os.environ.get("MCP_ALLOWED_HOSTS"):
         print(f"[AICortex] host guard: strict — only {os.environ['MCP_ALLOWED_HOSTS']} "
               f"(+ BASE_URL host, localhost)")
+    import ratelimit
+    limits = ratelimit.describe(ratelimit.limits_from_env())
+    print(f"[AICortex] rate limits per client IP: {limits}")
     # The runners tick once a minute and stay idle until one is switched on in the
     # WebUI (tab "Runners").
     runner_builtin.start(PORT)
