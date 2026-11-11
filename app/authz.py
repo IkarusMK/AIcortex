@@ -132,21 +132,30 @@ _ENDPOINT_TOOLS = {
 _REST_IDENTITY: contextvars.ContextVar = contextvars.ContextVar("rest_identity", default=None)
 # How a REST-layer call came in: "key" for an agent key on /api/v1, "" for the WebUI.
 _REST_VIA: contextvars.ContextVar = contextvars.ContextVar("rest_via", default="")
+# Which agent key a REST-layer call came with (its keyid), "" otherwise.
+_REST_KEY: contextvars.ContextVar = contextvars.ContextVar("rest_key", default="")
 
 
 @contextlib.contextmanager
-def rest_identity(sub: str, role: str, via: str = ""):
+def rest_identity(sub: str, role: str, via: str = "", key: str = ""):
     """Bind (sub, role) as the effective identity for the current async task, so a
     tool invoked from a REST handler self-scopes (memory/vault/services/skills) as the
     key's owner. Auto-reset on exit; safe under concurrency (contextvar, not global).
     via="key" marks a call made with an agent key (rest_api), not by the person in
-    the WebUI."""
+    the WebUI; `key` is that key's id."""
     token, how = _REST_IDENTITY.set((sub, role)), _REST_VIA.set(via)
+    which = _REST_KEY.set(key if via == "key" else "")
     try:
         yield
     finally:
         _REST_IDENTITY.reset(token)
         _REST_VIA.reset(how)
+        _REST_KEY.reset(which)
+
+
+def rest_key() -> str:
+    """The id of the agent key a REST-layer call came with, or ""."""
+    return _REST_KEY.get() if _REST_IDENTITY.get() and _REST_VIA.get() == "key" else ""
 
 
 def is_agent_key() -> bool:

@@ -35,6 +35,21 @@ def internal_token(name: str) -> str:
     return _INTERNAL.setdefault(name, "rt_" + secrets.token_urlsafe(32))
 
 
+def runner_of(token: str) -> str:
+    """Which runner calls with `token`: a built-in runner's id, EXTERNAL for an own
+    program (RUNNER_TOKEN, or a runner key from 2.1), "" when it is no runner token."""
+    raw = (token or "").encode()
+    if not raw:
+        return ""
+    for name, value in list(_INTERNAL.items()):
+        if hmac.compare_digest(raw, value.encode()):
+            return name
+    runner_token = os.environ.get("RUNNER_TOKEN") or ""
+    if (runner_token and hmac.compare_digest(raw, runner_token.encode())) or token.startswith("ak_"):
+        return "external"
+    return ""
+
+
 def _internal(token: str) -> bool:
     raw = token.encode()
     return any(hmac.compare_digest(raw, t.encode())

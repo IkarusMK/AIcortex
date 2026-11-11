@@ -18,6 +18,11 @@ Two options per server:
   OWN login, renewed on its own, and one rejected token gets one renewal and retry.
 - ``read_only=True``: only tools the server's own listing marks ``readOnlyHint`` can be
   called — a second fence behind the server's own permissions.
+
+On an OAuth server each person also decides which of their channels (apps, runners,
+agent keys) may use their sign-in at all, and whether a tool that changes data first
+waits for their approval in the WebUI (mcp_access, mcp_approvals). Both mcp_tools and
+mcp_call check that before the sign-in is touched.
 """
 import asyncio
 import json
@@ -29,6 +34,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import errtext
+import mcp_access
+import mcp_approvals
 import mcp_oauth
 import netguard
 import secrets_store
@@ -71,6 +78,10 @@ class _HttpMCPError(errtext.Reportable):
 
 class _Refused(Exception):
     """A call AICortex itself refuses (read-only server, tool not marked read-only)."""
+
+
+class _Held(Exception):
+    """A call that changes data and waits for its person's approval."""
 
 
 def _auth_headers(cfg) -> dict:
@@ -290,21 +301,22 @@ def _read_only(t) -> bool:
     return getattr(ann, "readOnlyHint", None) is True
 
 
-async def _headers(server: str, cfg: dict, force: bool = False) -> dict:
-    """Auth headers for one connection: the caller's OAuth login, else the vault token."""
+async def _headers(server: str, cfg: dict, force: bool = False, owner: str = "") -> dict:
+    """Auth headers for one connection: the OAuth login of `owner` (default: the caller,
+    resolved here, in the caller's own context), else the vault token."""
     if not mcp_oauth.is_oauth(cfg):
         return _auth_headers(cfg)
-    owner = mcp_oauth.caller()      # resolved here, in the caller's own context
+    owner = owner or mcp_oauth.caller()
     token = await asyncio.to_thread(mcp_oauth.bearer, server, cfg, owner, force)
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _run(server: str, cfg: dict, work):
+async def _run(server: str, cfg: dict, work, owner: str = ""):
     """Open a connection to `server` and return ``await work(client)``. A token the
     server rejects (401) on an OAuth server is renewed once and the work repeated."""
     host = urlparse(cfg.get("url", "")).hostname or ""
     for attempt in (0, 1):
-        client = _make_client(cfg, await _headers(server, cfg, force=attempt == 1))
+        client = _make_client(cfg, await _headers(server, cfg, force=attempt == 1, owner=owner))
         try:
             with netguard.guard(host):
                 async with client:
@@ -419,18 +431,57 @@ def _tool_lines(tools, read_only: bool) -> str:
     return "\n".join(out)
 
 
-def _call_work(server: str, cfg: dict, tool: str, args):
+def _call_work(server: str, cfg: dict, tool: str, args, hold: bool = False):
     """The work of one mcp_call: on a read-only server, first make sure the server's own
-    listing marks `tool` read-only."""
+    listing marks `tool` read-only; with `hold`, a tool it does not mark read-only is
+    not called but held for its person's approval (_Held)."""
     async def work(client):
-        if _flag(cfg.get("read_only")):
+        read_only = _flag(cfg.get("read_only"))
+        if read_only or hold:
             listed = {_tool_name_desc(t)[0]: t for t in await client.list_tools()}
-            if tool not in listed or not _read_only(listed[tool]):
+            marked = tool in listed and _read_only(listed[tool])
+            if read_only and not marked:
                 raise _Refused(
                     f"Refused: '{tool}' is not marked read-only by '{_slug(server)}', and this "
                     f"server is set to read-only in AICortex (mcp_add read_only).")
+            if hold and not marked:
+                raise _Held(tool)
         return await client.call_tool(tool, args or {})
     return work
+
+
+async def run_approved(server: str, tool: str, args, owner: str) -> str:
+    """Run a call `owner` approved in the WebUI, with their sign-in — exactly once, and
+    still within read_only. Returns the answer as text (an error as text too)."""
+    cfg = _load(server)
+    if not mcp_oauth.is_oauth(cfg):
+        return f"The MCP server '{server}' is gone or no longer uses OAuth; nothing was run."
+    ok, reason = netguard.check_url(cfg.get("url", ""))
+    if not ok:
+        return f"Blocked by network policy — {reason}"
+    try:
+        result = await _run(_slug(server), cfg, _call_work(server, cfg, tool, args), owner=owner)
+        return _format_result(result)
+    except (mcp_oauth.OAuthError, _Refused, secrets_store.Refused) as exc:
+        return str(exc)
+    except Exception as exc:
+        return f"Call failed: {errtext.safe(exc)}"
+
+
+def _held(server: str, tool: str, args, person: str, ch: dict) -> str:
+    """Keep a call that changes data for its person's approval → the answer for the AI."""
+    import authz
+    slug = _slug(server)
+    try:
+        aid = mcp_approvals.create(person, slug, tool, args, mcp_access.tag(ch))
+    except mcp_approvals.Refused as exc:
+        return str(exc)
+    authz.audit(person or "unknown", authz.effective_identity()[1], "mcp_call", "hold",
+                f"'{tool}' on '{slug}' via {mcp_access.tag(ch)} waits for approval {aid}")
+    return (f"Waiting for approval: '{tool}' on '{slug}' may change data, so it runs only "
+            f"after {person} approves it in the AICortex WebUI (Services → Approvals) within "
+            f"{mcp_approvals.TTL // 60} minutes. AICortex then runs it once; fetch the answer "
+            f"with mcp_call(server='{slug}', tool='{tool}', approval_id='{aid}').")
 
 
 def register(mcp):
@@ -516,6 +567,10 @@ def register(mcp):
         ok, reason = netguard.check_url(cfg.get("url", ""))
         if not ok:
             return f"Blocked by network policy — {reason}"
+        if mcp_oauth.is_oauth(cfg):
+            allowed, _, refusal = mcp_access.check(server, cfg, mcp_oauth.caller(), "mcp_tools")
+            if not allowed:
+                return refusal
         async def work(client):
             return await client.list_tools()
         try:
@@ -529,19 +584,42 @@ def register(mcp):
         return _tool_lines(tools, _flag(cfg.get("read_only")))
 
     @mcp.tool
-    async def mcp_call(server: str, tool: str, args: dict = None) -> str:
+    async def mcp_call(server: str, tool: str, args: dict = None, approval_id: str = "") -> str:
         """Call a tool on a registered upstream MCP server. STATE-CHANGING tools
-        on the remote side — confirm with the user before invoking actions."""
+        on the remote side — confirm with the user before invoking actions. On an OAuth
+        server such a tool may wait for the person's approval in the WebUI: the answer
+        then names an approval_id — call again with the same server, tool and that
+        approval_id to get the result once it was approved and run."""
         cfg = _load(server)
         if not cfg:
             return f"Unknown MCP server '{server}'. Use mcp_list / mcp_add."
         ok, reason = netguard.check_url(cfg.get("url", ""))
         if not ok:
             return f"Blocked by network policy — {reason}"
+        hold, person, ch = False, "", {}
+        if mcp_oauth.is_oauth(cfg):
+            person = mcp_oauth.caller()
+            allowed, ch, refusal = mcp_access.check(server, cfg, person, "mcp_call")
+            if not allowed:
+                return refusal
+            if approval_id:
+                try:
+                    return await asyncio.to_thread(mcp_approvals.fetch, person,
+                                                   str(approval_id), _slug(server), tool)
+                except mcp_approvals.Refused as exc:
+                    return str(exc)
+            hold = (ch["kind"] != "webui"
+                    and mcp_access.settings(cfg, person)["approve_writes"])
+        elif approval_id:
+            return "approval_id is only used with OAuth MCP servers."
         try:
-            result = await _run(_slug(server), cfg, _call_work(server, cfg, tool, args))
+            result = await _run(_slug(server), cfg, _call_work(server, cfg, tool, args, hold))
             return _format_result(result)
+        except _Held:
+            return await asyncio.to_thread(_held, server, tool, args, person, ch)
         except (mcp_oauth.OAuthError, _Refused, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
             return f"Call failed: {errtext.safe(exc)}"
+
+    mcp_access.register(mcp)

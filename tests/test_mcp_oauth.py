@@ -49,6 +49,7 @@ class Provider:
         # redirect; "refuse_all" refuses both
         self.register_mode = "open"
         self.web_refusal = {"error": "invalid_redirect_uri", "error_description": WEB_ONLY}
+        self.call_args = []          # the arguments of each tools/call, one entry per call
         self.challenge = True        # 401 carries WWW-Authenticate resource_metadata
         self.prm_extra = {}          # overrides for the protected-resource metadata
         self.meta_extra = {}         # overrides for the authorization-server metadata (None = drop)
@@ -213,6 +214,7 @@ def _handler(p: Provider):
             if method == "tools/call":
                 name = msg["params"]["name"]
                 p.calls.append(name)
+                p.call_args.append(msg["params"].get("arguments") or {})
                 result = {"content": [{"type": "text", "text": f"ok {name}"}]}
             return self._send(200, {"jsonrpc": "2.0", "id": msg.get("id"), "result": result},
                               headers={"Mcp-Session-Id": "s-1"})
@@ -248,6 +250,10 @@ def env(monkeypatch, request, prov):
     ui = httpx.Client(base_url=base, headers={"X-CSRF": "local"})
     e = SimpleNamespace(base=base, prov=prov, ui=ui, mo=sys.modules.get("mcp_oauth"))
     add(prov.base)
+    # The in-process calls below are an unauthenticated local connection. Only the person
+    # in the WebUI may let a channel use their sign-in (test_mcp_access) — once, here.
+    r = ui.post("/ui/api/mcp-oauth/access", json={"server": SERVER, "allow_apps": ["local"]})
+    assert r.status_code == 200, r.text
     yield e
     ui.close()
 

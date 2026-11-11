@@ -209,3 +209,7 @@ def register(mcp, h, ui):
         h.audit(sess, "mcp_oauth_logout", "allow" if done else "deny", f"server={name}")
         return h.json({"ok": done, "message": "Signed out." if done else "You were not signed in."},
                       200 if done else 404)
+
+    # who may use your sign-in, and your waiting approvals
+    import webui_mcp_access
+    webui_mcp_access.register(mcp, h, _person_and_server)
