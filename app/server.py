@@ -218,11 +218,13 @@ auth = _build_auth()
 mcp = FastMCP("AICortex", auth=auth, instructions=guide.INSTRUCTIONS)
 
 
-# Authorization (Welle 3): central, FAIL-OPEN policy gate. OFF unless
-# AUTH_ENFORCE=1; when on, the RUNNER_TOKEN defaults to a non-admin role so
-# admin-only tools (service_add/mcp_add/cron_add/secret_set/…) are blocked for it,
-# while an interactive OIDC operator stays admin. Added first so it gates before
-# any other middleware. Guarded so a middleware issue can never stop boot.
+# Authorization: the central policy gate, on unless AUTH_ENFORCE=0. The
+# RUNNER_TOKEN and agent keys get a non-admin role, so admin-only tools
+# (service_add/mcp_add/secret_set/…) are blocked for them; an interactive login is
+# admin only for an operator (policy.json "operators"), everyone else "user". With
+# sign-in configured, an identity that can't be resolved gets no role at all.
+# Added first so it gates before any other middleware. Guarded so a middleware
+# issue can never stop boot.
 try:
     _authz_mw = authz.build_middleware()
     if _authz_mw is not None:

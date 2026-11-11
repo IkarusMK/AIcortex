@@ -51,7 +51,7 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 
 > **Note for the local-model setup:** with the [LibreChat guide](local-llm-librechat.md)
 > your local model connects **per-person via OAuth**, so it runs with that person's role
-> and areas (an interactive operator is `admin` by default). A static `RUNNER_TOKEN` stays
+> and areas (an operator is `admin`; any other person is `user` unless mapped). A static `RUNNER_TOKEN` stays
 > an option for *headless* clients — that one is a `user`; raise it with `RUNNER_ROLE=admin`.
 
 ## Configure with environment variables
@@ -60,7 +60,7 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 |----------|---------|---------|
 | `AUTH_ENFORCE` | `1` (on) | Set `0` to disable the layer entirely (everyone authenticated gets all tools). |
 | `RUNNER_ROLE` | `user` | Role for the `RUNNER_TOKEN` (`admin`/`user`/`viewer`). |
-| `OIDC_DEFAULT_ROLE` | `admin` | Role for OIDC logins with no explicit mapping. |
+| `OIDC_DEFAULT_ROLE` | _(unset)_ | Role for OIDC logins with no explicit mapping. Unset: operators (see below) are `admin`, everyone else `user`. `admin` restores the pre-2.6 behaviour. |
 | `AUTH_ROLE_CLAIM` | `groups` | Token claim that carries the role/group (see *IdP-driven roles*). |
 | `AUTH_AUDIT_ALL` | `0` | `1` also logs **allowed** calls, not just denials. |
 | `MAIL_ALLOWED_RECIPIENTS` | _(unset)_ | Comma list of allowed `mail_send` recipients (addresses, `@domain`, or `domain`). Unset = unrestricted. |
@@ -74,9 +74,22 @@ Optional. Most specific wins. Example:
   "roles":  { "claude-desktop": "admin", "guest-client": "viewer" },
   "groups": { "AICortex-Admins": "admin", "Readers": "viewer" },
   "runner": "user",
-  "default": "admin"
+  "operators": ["<your-sub>"]
 }
 ```
+
+**Operators (since 2.6.0).** `operators` lists the people who are `admin` when they
+sign in interactively (WebUI, chat apps over OAuth) and have no explicit role. It
+replaces the old "every OIDC login is admin" default:
+
+- **Upgrade:** on the first start of 2.6.0, everyone who was admin through the old
+  default (listed under `users` or `roles` without a non-admin role) becomes an
+  operator. Nobody loses access; only people who sign in for the first time later
+  get `user`.
+- **Fresh install:** the first person to sign in becomes the operator. Sign in
+  yourself right after setting up, then check `operators` in `policy.json`.
+- Operators do **not** make agent keys or scheduled jobs admin: those still use
+  only the explicit `roles` entry, else `user`.
 
 - `roles` — map a specific caller identity (the token's `client_id`) to a role.
 - `groups` — map an **IdP group name** to a role (used with the role claim).
@@ -102,9 +115,9 @@ that group to a role here via `groups` in `policy.json` (or name the group
 > 3. **Map it:** `data/auth/policy.json` → `"groups": {"AICortex-Admins":"admin", …}`.
 > 4. **Verify:** with `AUTH_AUDIT_ALL=1`, one tool call logs your PocketID `sub` as
 >    `identity` and the role derived from your group in `data/auth/audit.log`.
-> 5. **Tighten:** keep `OIDC_DEFAULT_ROLE=admin` until step 4 confirms your group
->    resolves to admin, then set it to `user` (or `viewer`) so non-grouped logins
->    get least privilege.
+> 5. **Least privilege is the default:** without `OIDC_DEFAULT_ROLE`, a login that
+>    is neither an operator nor mapped gets `user`. Keep yourself in `operators`
+>    (or map your group to admin) before you remove yourself from there.
 >
 > The proxy is fail-safe: if the upstream token can't be read it simply omits the
 > claims (behaves like the stock proxy), so the login path is never at risk.
