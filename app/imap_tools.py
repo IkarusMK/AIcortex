@@ -137,7 +137,7 @@ def register(mcp):
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
-                note = f" — set the password: secret_set('{password_env}', <value>)"
+                note = f" — set the password: {secrets_store.set_hint(password_env, host)}"
             return f"Registered IMAP account '{_slug(name)}' ({username} @ {host}).{note}"
         except Exception as exc:
             return f"Could not register account: {exc}"

@@ -7,12 +7,12 @@ mail … entry (or add a new one) at another host while it references an existin
 secret, then call it. Only the bank OAuth records were shielded.
 
 Now every outbound use goes through one check (``secrets_store.use``): the
-destination host must be bound to the secret. The first registered integration binds
-an unbound secret (configs that predate the binding are trusted as found, so existing
-installs keep working); a different host is refused — at registration and at use —
-unless a person makes the change in the WebUI. ``webhook_send`` never binds on its
-own: the host must have been bound explicitly (``secret_set(..., hosts=...)``, which
-needs the value, or the WebUI vault view).
+destination host must be bound to the secret. Only a person binds a secret
+(``secret_set(..., hosts=...)``, which needs the value, or the WebUI); the configs
+that predate the binding are bound once at the upgrade, so existing installs keep
+working (test_sec_secret_first_binding.py covers the first binding). A different
+host is refused — at registration and at use — unless a person makes the change in
+the WebUI. ``webhook_send`` never binds on its own.
 
 Invented data only (example.com/.net hosts, alice/boss).
 """
@@ -77,7 +77,7 @@ def srv(monkeypatch, request):
     wire = _Wire()
     monkeypatch.setattr(httpx, "request", wire.request)
     monkeypatch.setattr(httpx, "post", wire.post)
-    sys.modules["secrets_store"].vault_set("HA_TOKEN", TOKEN)
+    sys.modules["secrets_store"].vault_set("HA_TOKEN", TOKEN, hosts=[HA])   # stored with its host
     server.wire = wire
     return server
 
@@ -177,20 +177,22 @@ def test_the_mcp_gateway_checks_the_binding_before_it_connects(srv):
 
 def test_existing_installs_keep_working_with_one_secret_on_two_hosts(srv):
     vault = sys.modules["secrets_store"]
+    vault.vault_set("LAN_TOKEN", "lan-value")
     folder = sys.modules["services"].SERVICES_DIR
     folder.mkdir(parents=True, exist_ok=True)
     for name, host in (("ha-lan", "ha.example.com"), ("ha-cloud", "ha.example.net")):
         (folder / f"{name}.json").write_text(json.dumps(
-            {"name": name, "base_url": f"https://{host}", "token_env": "HA_TOKEN"}))
-    old = time.time() - 3600       # written before the upgrade introduced the binding
-    import os
-    for p in folder.glob("*.json"):
-        os.utime(p, (old, old))
+            {"name": name, "base_url": f"https://{host}", "token_env": "LAN_TOKEN"}))
+    # The first start of 2.6.0 found these configs: drop the record that the upgrade
+    # step already ran (on the empty test install) and run it as that start does.
+    meta = json.loads(vault.VAULT_META.read_text())
+    vault.VAULT_META.write_text(json.dumps({k: v for k, v in meta.items() if k != "_/prebound"}))
+    assert vault.prebind_existing() == {"LAN_TOKEN": ["ha.example.com", "ha.example.net"]}
     assert _call(srv, "call_service", {"service": "ha-cloud"}).startswith("HTTP 200")
     assert _call(srv, "call_service", {"service": "ha-lan"}).startswith("HTTP 200")
-    assert sorted(e["hosts"] for e in vault.vault_entries() if e["name"] == "HA_TOKEN")[0] == [
+    assert sorted(e["hosts"] for e in vault.vault_entries() if e["name"] == "LAN_TOKEN")[0] == [
         "ha.example.com", "ha.example.net"]
-    assert _register_ha(srv, "third", "ha.example.org").startswith("Refused")
+    assert _register_ha(srv, "third", "ha.example.org", token="LAN_TOKEN").startswith("Refused")
 
 
 def test_a_new_value_keeps_the_binding(srv):
