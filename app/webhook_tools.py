@@ -111,18 +111,18 @@ def _audit(name: str, decision: str, reason: str) -> None:
         pass
 
 
-def _outbound_secret(name: str):
+def _outbound_secret(name: str, url: str):
     """A secret the caller may send to a URL of their choice: an admin (or anyone with
     enforcement off) any secret; everyone else only their own personal one — or any
-    user could read every shared secret by sending it to themselves."""
+    user could read every shared secret by sending it to themselves. Either way only to
+    a host the secret is explicitly bound to (no trust on first use here — the URL is
+    the caller's choice): raises ``secrets_store.Refused`` otherwise."""
     try:
         import authz
         privileged = not authz.enabled() or authz.effective_identity()[1] == "admin"
     except Exception:
         privileged = False
-    if privileged:
-        return secrets_store.get_secret(name)
-    return secrets_store.get_own_secret(name)
+    return secrets_store.use(name, url, registered=False, own_only=not privileged)
 
 
 def register(mcp):
@@ -198,7 +198,10 @@ def register(mcp):
             return f"Blocked by network policy — {reason}"
         headers = {}
         if secret_env:
-            val = _outbound_secret(secret_env)
+            try:
+                val = _outbound_secret(secret_env, url)
+            except secrets_store.Refused as exc:
+                return str(exc)
             if not val:
                 return (f"Secret '{secret_env}' is not available to send. You can send "
                         "only your own personal secrets to a URL you choose; shared "

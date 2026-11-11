@@ -74,11 +74,12 @@ class _Refused(Exception):
 
 def _auth_headers(cfg) -> dict:
     """Build the auth header dict for an upstream server (token resolved
-    server-side from the vault, never stored in the config or returned)."""
+    server-side from the vault, never stored in the config or returned). Raises
+    ``secrets_store.Refused`` when the server's host is not one the token is bound to."""
     headers = {}
     tok_env = cfg.get("token_env")
     if tok_env:
-        token = secrets_store.get_secret(tok_env)
+        token = secrets_store.use(tok_env, cfg.get("url", ""))
         if token:
             header = cfg.get("auth_header") or "Authorization"
             scheme = cfg.get("auth_scheme", "Bearer")
@@ -461,6 +462,9 @@ def register(mcp):
                 "auth": auth,
                 "read_only": bool(read_only),
             }
+            refused = secrets_store.check_registration('mcp', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             if auth == "oauth":
                 return (f"Registered MCP server '{_slug(name)}'. Sign in: AICortex WebUI → "
@@ -515,7 +519,7 @@ def register(mcp):
             return await client.list_tools()
         try:
             tools = await _run(_slug(server), cfg, work)
-        except mcp_oauth.OAuthError as exc:
+        except (mcp_oauth.OAuthError, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
             return f"Could not reach '{server}': {exc}"
@@ -536,7 +540,7 @@ def register(mcp):
         try:
             result = await _run(_slug(server), cfg, _call_work(server, cfg, tool, args))
             return _format_result(result)
-        except (mcp_oauth.OAuthError, _Refused) as exc:
+        except (mcp_oauth.OAuthError, _Refused, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
             return f"Call failed: {exc}"

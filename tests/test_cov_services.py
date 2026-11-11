@@ -191,7 +191,9 @@ def test_the_token_is_injected_as_bearer_or_as_a_raw_custom_header(svc, wire, mo
     assert (wire["method"], wire["url"], wire["json"], wire["params"]) == (
         "POST", "https://ha.example.com/api/states", {"a": 1}, {"q": "x"})
     assert wire["verify"] is True and wire["timeout"] == 30
-    _raw(svc, "plain", token_env="SVC_TOKEN", auth_scheme="", auth_header="X-Api-Key")
+    # same host: the token is bound to ha.example.com since its first use
+    _raw(svc, "plain", base_url="https://ha.example.com", token_env="SVC_TOKEN", auth_scheme="",
+         auth_header="X-Api-Key")
     svc.t["call_service"]("plain")
     assert wire["headers"] == {"X-Api-Key": "test-token"}
 
