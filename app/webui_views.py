@@ -305,6 +305,25 @@ def register(mcp, h):
         h.audit(sess, f"{REGISTRIES[kind][1]}", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
+    # ── vault: the hosts a secret may be sent to (admin) ──────────────────────
+    @mcp.custom_route("/ui/api/secrets/hosts", methods=["POST"])
+    async def _secret_hosts(request):
+        """Set exactly where a secret may be sent. A person here may widen or narrow it;
+        an AI cannot (secrets_store's host binding) — that is the point of the binding."""
+        sess, body = await session_and_body(request, admin=True)
+        if body is None:
+            return sess
+        import secrets_store
+        name, owner = str(body.get("name", "")).strip(), str(body.get("owner", "")).strip()
+        hosts = body.get("hosts")
+        if not isinstance(hosts, list):
+            return h.json({"ok": False, "message": "hosts must be a list"}, 400)
+        msg = secrets_store.vault_set_hosts(name, owner, hosts, by=str(sess.get("sub", "")))
+        ok = msg.startswith("Updated")
+        h.audit(sess, "secret_hosts", "allow" if ok else "deny",
+                f"name={name} owner={owner or 'shared'}")
+        return h.json({"ok": ok, "message": msg}, 200 if ok else 400)
+
     # ── scheduled jobs (own jobs; admins see all) ─────────────────────────────
     @mcp.custom_route("/ui/api/cron", methods=["GET"])
     async def _cron_list(request):
