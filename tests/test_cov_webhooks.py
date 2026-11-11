@@ -102,7 +102,8 @@ def test_hmac_signature_must_match_the_exact_body(http_server, fresh_server):
     _hook(secret_env="", hmac_secret_env="HOOK_HMAC")
     body = b'{"event":"push"}'
     assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body)}).status_code == 202
-    assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body, prefix="")}).status_code == 202
+    bare = b'{"event":"push","n":2}'      # a new delivery: an exact repeat is a duplicate
+    assert _post(http_server, body=bare, **{"X-Hub-Signature-256": _sig(bare, prefix="")}).status_code == 202
     assert _post(http_server, body=body + b" ", **{"X-Hub-Signature-256": _sig(body)}).status_code == 401
     assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body, key="other")}).status_code == 401
     assert _post(http_server, body=body).status_code == 401
