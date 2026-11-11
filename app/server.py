@@ -128,20 +128,42 @@ def _build_auth():
             "scope": os.environ.get("OIDC_SCOPE", "openid profile email"),
         },
     )
-    # fastmcp ≥3.4 rebuilt the authorize flow with two behaviours that regress
-    # IdPs without RFC 8707 support: the `resource` parameter MCP clients send is
-    # now FORWARDED to the upstream authorize request — Pocket ID rejects it with
-    # `invalid_request — "The 'resource' or 'scope' parameter is invalid"` and the
-    # connector login dies at the IdP — and a /consent interstitial appears before
-    # the IdP. Restore the proven behaviour: never send `resource` upstream, and
-    # let the IdP login itself be the consent step ("external"). Signature-checked
-    # so a fastmcp without these kwargs can never break boot.
+    # fastmcp ≥3.4 FORWARDS the `resource` parameter MCP clients send to the upstream
+    # authorize request — Pocket ID rejects it with `invalid_request — "The
+    # 'resource' or 'scope' parameter is invalid"` and the connector login dies at
+    # the IdP. Never send `resource` upstream. Signature-checked so a fastmcp
+    # without the kwarg can never break boot.
     import inspect
     proxy_params = inspect.signature(OIDCProxy.__init__).parameters
     if "forward_resource" in proxy_params:
         kwargs["forward_resource"] = False
+    # Confused deputy: /register is open Dynamic Client Registration, so anyone can
+    # register a client. Two walls keep a person's sign-in from being sent to a
+    # client an attacker controls:
+    # 1. Redirect allow-list — only the callbacks of real MCP clients: the hosted
+    #    apps, plus loopback callbacks of desktop/CLI apps. A loopback pattern without
+    #    a port matches every port (RFC 8252 §7.3; fastmcp redirect_validation).
+    #    MCP_REDIRECT_URIS adds patterns (comma-separated, e.g.
+    #    "https://app.example.com/oauth/*"); the single value "*" restores "allow any"
+    #    for an operator who knowingly wants it. A "*" among other entries is ignored.
+    # 2. The consent page, shown once per client + redirect URI and then remembered
+    #    ("remember"; cross-site navigations are always asked again). Until 2.5.0 it
+    #    was off ("external"), so one click on a crafted link handed over the code.
+    extra = [p.strip() for p in os.environ.get("MCP_REDIRECT_URIS", "").split(",") if p.strip()]
+    if extra == ["*"]:
+        print("[AICortex] WARNING: MCP_REDIRECT_URIS=* — OAuth clients may register ANY "
+              "redirect URI")
+        kwargs["allowed_client_redirect_uris"] = None
+    else:
+        kwargs["allowed_client_redirect_uris"] = [
+            "https://claude.ai/api/mcp/auth_callback",
+            "https://claude.com/api/mcp/auth_callback",
+            "https://chatgpt.com/connector_platform_oauth_redirect",
+            "http://localhost", "http://127.0.0.1", "http://[::1]",
+            *(p for p in extra if p != "*"),
+        ]
     if "require_authorization_consent" in proxy_params:
-        kwargs["require_authorization_consent"] = "external"
+        kwargs["require_authorization_consent"] = "remember"
     storage = _client_storage()
     if storage is not None:
         kwargs["client_storage"] = storage
