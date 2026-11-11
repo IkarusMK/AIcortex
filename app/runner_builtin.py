@@ -126,16 +126,20 @@ async def _body(r, limit: int, cut: bool = False) -> str:
 
 async def _post(url: str, payload: dict, headers: dict, host: str = "") -> dict:
     """One model API request; errors never show the key. With `host` (an address the
-    person chose), the SSRF guard checks every address it connects to."""
+    person chose), the SSRF guard checks every address it connects to: the request
+    goes through netguard's pinned transport (resolved once, checked, connected to the
+    checked address) — the getaddrinfo guard alone does not reach an async client on
+    uvloop."""
     try:
         with netguard.guard(host) if host else contextlib.nullcontext():
-            return await _send(url, payload, headers)
+            return await _send(url, payload, headers, pinned=bool(host))
     except TimeoutError as exc:
         raise RuntimeError(f"the model did not finish within {ANSWER_DEADLINE} s") from exc
 
 
-async def _send(url: str, payload: dict, headers: dict) -> dict:
-    async with asyncio.timeout(ANSWER_DEADLINE), httpx.AsyncClient(timeout=PROVIDER_TIMEOUT) as http:
+async def _send(url: str, payload: dict, headers: dict, pinned: bool = False) -> dict:
+    extra = {"transport": netguard.pinned_async_transport()} if pinned else {}
+    async with asyncio.timeout(ANSWER_DEADLINE), httpx.AsyncClient(timeout=PROVIDER_TIMEOUT, **extra) as http:
         async with http.stream("POST", url, json=payload, headers=headers) as r:
             if r.status_code >= 400:
                 text = await _body(r, MAX_ERROR, cut=True)
