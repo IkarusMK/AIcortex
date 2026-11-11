@@ -605,10 +605,13 @@ def register(mcp):
         sess = _session(request)
         if not sess:      # nothing about the running version for anonymous callers
             return _json({"authenticated": False, "oidc": _oidc_configured()})
+        # operators_configured: is anyone in charge (an operator or an explicit admin)?
+        # A yes/no for the hint a non-admin sees — never who it is.
         return _json({"authenticated": True, "sub": sess.get("sub"),
                       "name": sess.get("name"), "role": sess.get("role"),
                       "csrf": sess.get("csrf"), "mode": sess.get("mode", "oidc"),
-                      "version": version.__version__})
+                      "version": version.__version__,
+                      "operators_configured": bool(authz.in_charge(authz._policy()))})
 
     @mcp.custom_route("/ui/api/overview", methods=["GET"])
     async def _overview(request):

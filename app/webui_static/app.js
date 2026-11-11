@@ -12,6 +12,8 @@ const I18N = {
     login_error: "Anmeldung fehlgeschlagen — bitte erneut versuchen.",
     denied_title: "Kein Zugriff",
     denied_text: "Diese Verwaltungsoberfläche ist nur für Administratoren. Deine Rolle reicht dafür nicht aus.",
+    role_hint_none: "Noch kein Admin eingerichtet. Trage in die .env {0} ein und starte neu.",
+    role_hint_ask: "Bitte einen Admin, dir Rechte zu geben — deine Kennung: {0}",
     logout: "Abmelden",
     logout_all: "Überall abmelden",
     confirm_logout_all: "Alle WebUI-Sitzungen beenden – auch deine? Danach muss sich jeder neu anmelden.",
@@ -112,6 +114,8 @@ const I18N = {
     login_error: "Sign-in failed — please try again.",
     denied_title: "No access",
     denied_text: "This management UI is for administrators only. Your role isn't sufficient.",
+    role_hint_none: "No admin has been set up yet. Add {0} to the .env file and restart.",
+    role_hint_ask: "Ask an admin to give you access — your identity: {0}",
     logout: "Sign out",
     logout_all: "Sign out everywhere",
     confirm_logout_all: "End every WebUI session, including yours? Everyone has to sign in again.",
@@ -745,6 +749,25 @@ function fillUserForm(u) {
   $("#us-identity").focus();
 }
 
+/* Not an admin: show the person their own identity (the IdP 'sub') and how to get
+   admin rights — nothing about anyone else. textContent/text nodes only. */
+function renderRoleHint() {
+  const box = $("#role-hint");
+  const visible = !!(ME && ME.authenticated && ME.sub && !isAdmin());
+  box.classList.toggle("hidden", !visible);
+  if (!visible) return;
+  const nobody = !ME.operators_configured;
+  const value = nobody ? `OPERATORS=${ME.sub}` : ME.sub;
+  const [before, after = ""] = t(nobody ? "role_hint_none" : "role_hint_ask").split("{0}");
+  const code = document.createElement("code");
+  code.className = "mono";
+  code.textContent = value;
+  $("#role-hint-text").replaceChildren(before, code, after);
+  const copy = $("#role-hint-copy");
+  copy.textContent = t("cl_copy");
+  copy.onclick = () => copyText(value);
+}
+
 /* ── wire-up ─────────────────────────────────────────────────────────────── */
 function show(id) {
   ["view-login", "view-denied", "app"].forEach((v) =>
@@ -766,6 +789,7 @@ async function boot() {
   $("#btn-logout-all").classList.toggle("hidden", !(isAdmin() && ME.mode === "oidc"));
   $("#user-name").textContent = ME.name || ME.sub;
   $("#ui-version").textContent = `AICortex v${ME.version}`;
+  renderRoleHint();
   show("app");
   route();
   if (typeof oauthNotice === "function") oauthNotice();
@@ -792,7 +816,7 @@ document.addEventListener("DOMContentLoaded", () => {
     LANG = b.dataset.setlang;
     localStorage.setItem("aicortex-ui-lang", LANG);
     applyI18n();
-    if (!$("#app").classList.contains("hidden")) route();
+    if (!$("#app").classList.contains("hidden")) { renderRoleHint(); route(); }
   }));
 
   window.addEventListener("hashchange", route);

@@ -99,7 +99,9 @@ replaces the old "every OIDC login is admin" default:
   nobody in charge becomes the operator; the start is logged loudly. A chat app or
   agent key calling `/mcp` never takes that place. Sign in yourself right after
   setting up, then check `operators` in `policy.json`. `OPERATOR_BOOTSTRAP_MINUTES=0`
-  turns this off — then only `OPERATORS` or `policy.json` make an operator.
+  turns this off — then only `OPERATORS` or `policy.json` make an operator. A person
+  who is not admin sees their own identity in the WebUI, ready to copy into
+  `OPERATORS=` or to send to an admin.
 - The last operator can't be removed or demoted (WebUI and `tenancy_*` refuse).
 - Operators do **not** make agent keys or scheduled jobs admin: those still use
   only the explicit `roles` entry, else `user`.
