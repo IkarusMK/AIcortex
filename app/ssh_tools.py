@@ -17,6 +17,7 @@ import re
 from io import StringIO
 from pathlib import Path
 
+import errtext
 import netguard
 import secrets_store
 
@@ -107,7 +108,7 @@ def _connect(cfg: dict):
         with netguard.guard(host):
             cli.connect(**kwargs)
     except Exception as exc:
-        return None, f"SSH connect failed: {exc}"
+        return None, f"SSH connect failed: {errtext.safe(exc)}"
     return cli, None
 
 
@@ -181,7 +182,7 @@ def register(mcp):
             se = errs.read().decode("utf-8", "replace")
         except Exception as exc:
             cli.close()
-            return f"Command failed: {exc}"
+            return f"Command failed: {errtext.safe(exc)}"
         cli.close()
         body = so + (("\n[stderr]\n" + se) if se.strip() else "")
         if len(body) > 6000:
@@ -210,7 +211,7 @@ def register(mcp):
             sftp.close()
         except Exception as exc:
             cli.close()
-            return f"Upload failed: {exc}"
+            return f"Upload failed: {errtext.safe(exc)}"
         cli.close()
         return f"Uploaded {src.name} → {dest} ({src.stat().st_size} B)."
 
@@ -232,7 +233,7 @@ def register(mcp):
             sftp.close()
         except Exception as exc:
             cli.close()
-            return f"Download failed: {exc}"
+            return f"Download failed: {errtext.safe(exc)}"
         cli.close()
         return f"Downloaded {path} → {out_path} ({out_path.stat().st_size} B)."
 
@@ -251,7 +252,7 @@ def register(mcp):
             sftp.close()
         except Exception as exc:
             cli.close()
-            return f"List failed: {exc}"
+            return f"List failed: {errtext.safe(exc)}"
         cli.close()
         if not entries:
             return "(empty)"

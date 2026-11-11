@@ -49,6 +49,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import cfgstore
+import errtext
 import netguard
 import secrets_store
 
@@ -353,7 +354,7 @@ def register(mcp):
                 r = httpx.post(url, json=json_body or {}, headers=headers, timeout=30)
             return f"POST {url} → HTTP {r.status_code}."
         except Exception as exc:
-            return f"Send failed: {exc}"
+            return f"Send failed: {errtext.safe(exc)}"
 
     # ── Public inbound receiver (served at /hooks/<name>, outside MCP auth) ──
     from starlette.requests import Request

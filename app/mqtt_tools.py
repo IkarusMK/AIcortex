@@ -20,6 +20,7 @@ import time
 import uuid
 from pathlib import Path
 
+import errtext
 import netguard
 import secrets_store
 
@@ -53,7 +54,7 @@ def _new_client(cfg):
     """
     ok, reason = netguard.check_host(cfg.get("host", ""))
     if not ok:
-        raise ConnectionError(f"Blocked by network policy — {reason}")
+        raise errtext.Reportable(f"Blocked by network policy — {reason}")
 
     import paho.mqtt.client as mqtt
 
@@ -87,11 +88,11 @@ def _new_client(cfg):
     client.loop_start()
     if not connected.wait(timeout=10):
         client.loop_stop()
-        raise TimeoutError("MQTT connect timed out (no CONNACK)")
+        raise errtext.Reportable("MQTT connect timed out (no CONNACK)")
     rc = state["rc"]
     if rc is not None and getattr(rc, "is_failure", False):
         client.loop_stop()
-        raise ConnectionError(f"MQTT connect refused: {rc}")
+        raise errtext.Reportable(f"MQTT connect refused: {rc}")
     return client
 
 
@@ -172,13 +173,13 @@ def register(mcp):
         try:
             client = _new_client(cfg)
         except Exception as exc:
-            return f"Connect failed: {exc}"
+            return f"Connect failed: {errtext.safe(exc)}"
         try:
             info = client.publish(topic, body, qos=int(qos))
             info.wait_for_publish(timeout=10)
             return f"Published to '{topic}' (qos={qos}): {'ok' if info.is_published() else 'NOT confirmed'}"
         except Exception as exc:
-            return f"Publish failed: {exc}"
+            return f"Publish failed: {errtext.safe(exc)}"
         finally:
             client.loop_stop()
             client.disconnect()
@@ -208,7 +209,7 @@ def register(mcp):
         try:
             client = _new_client(cfg)
         except Exception as exc:
-            return f"Connect failed: {exc}"
+            return f"Connect failed: {errtext.safe(exc)}"
         try:
             client.on_message = on_message
             client.subscribe(topic, qos=0)
@@ -230,7 +231,7 @@ def register(mcp):
                 out = out[:6000] + "\n…(truncated)"
             return out
         except Exception as exc:
-            return f"Subscribe failed: {exc}"
+            return f"Subscribe failed: {errtext.safe(exc)}"
         finally:
             client.loop_stop()
             client.disconnect()

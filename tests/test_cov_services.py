@@ -218,7 +218,7 @@ def test_a_service_cannot_be_pointed_at_the_servers_own_settings(svc, wire, monk
 def test_transport_errors_become_a_message(svc, wire):
     _raw(svc, "ha")
     wire["response"] = ConnectionError("connection refused")
-    assert svc.t["call_service"]("ha") == "Request failed: connection refused"
+    assert svc.t["call_service"]("ha") == "Request failed: ConnectionError (could not connect; details in the server log)"
 
 
 def test_long_responses_come_in_pieces_with_the_next_offset(svc, wire):

@@ -226,7 +226,8 @@ def test_login_failure_is_reported_without_the_password(srv, world):
     _add(srv, password_env="IMAP_PW")
     world.login_error = IMAPError("LOGIN failed")
     out = _call(srv, "imap_fetch", {"account": "inbox", "uid": "1"})
-    assert out == "IMAP connect/login failed: LOGIN failed" and "test-password" not in out
+    assert out == ("IMAP connect/login failed: IMAP4.error (the IMAP server refused the request; "
+                   "details in the server log)") and "test-password" not in out
 
 
 def test_unreadable_ca_bundle_never_connects(srv, world, tmp_path):
@@ -301,7 +302,8 @@ def test_search_errors_are_reported_and_the_session_still_closes(srv, world):
     _add(srv)
     world.select_error = IMAPError("no such mailbox")
     world.logout_error = OSError("connection reset")
-    assert _call(srv, "imap_search", {"account": "inbox"}) == "Search failed: no such mailbox"
+    assert _call(srv, "imap_search", {"account": "inbox"}) == ("Search failed: IMAP4.error (the IMAP server refused the request; "
+                                                                "details in the server log)")
     assert world.sessions[0].logged_out  # logout was attempted; its own failure is swallowed
 
 
@@ -335,10 +337,10 @@ def test_fetch_of_a_missing_message_and_fetch_errors(srv, world):
     _add(srv)
     assert _call(srv, "imap_fetch", {"account": "inbox", "uid": "9"}) == "No message with uid 9 in INBOX."
     world.fetch_error = OSError("socket closed")
-    assert _call(srv, "imap_fetch", {"account": "inbox", "uid": "9"}) == "Fetch failed: socket closed"
+    assert _call(srv, "imap_fetch", {"account": "inbox", "uid": "9"}) == "Fetch failed: OSError (details in the server log)"
     assert all(s.logged_out for s in world.sessions)
     world.logout_error = OSError("connection reset")  # a failing logout must not mask the result
-    assert _call(srv, "imap_fetch", {"account": "inbox", "uid": "9"}) == "Fetch failed: socket closed"
+    assert _call(srv, "imap_fetch", {"account": "inbox", "uid": "9"}) == "Fetch failed: OSError (details in the server log)"
 
 
 def test_fetch_truncates_long_bodies_and_decodes_the_charset(srv, world, monkeypatch):

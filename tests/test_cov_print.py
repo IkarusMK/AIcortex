@@ -253,7 +253,7 @@ def test_rejections_are_translated_into_readable_messages(office, status, body, 
 def test_transport_errors_are_returned_with_a_connectivity_hint(office):
     office.http.error = ConnectionError("connection refused")
     out = office.doc()
-    assert out.startswith("Print request failed (ConnectionError: connection refused).")
+    assert out.startswith("Print request failed (ConnectionError (could not connect; details in the server log)).")
     assert f"reachable at {HOST}:631/ipp/print" in out and "INTERNAL_ALLOW_CIDRS" in out
 
 
@@ -286,7 +286,7 @@ def test_connect_time_guard_rejects_a_dns_rebinding_answer(env):
     env.dns.set("rebind.example.net", "192.168.1.60", "10.0.0.9")  # check, then connect
     env.add(host="rebind.example.net")
     out = env.doc()
-    assert out.startswith("Print request failed (gaierror:") and "internal/blocked at connect" in out
+    assert out.startswith("Print request failed (netguard:") and "internal/blocked at connect" in out
     assert env.http.calls == []
 
 

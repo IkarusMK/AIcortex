@@ -35,6 +35,7 @@ except Exception:  # pragma: no cover
 import httpx
 
 import imaging
+import errtext
 import netguard
 import secrets_store
 import services as services_mod
@@ -367,7 +368,7 @@ def register(mcp):
                     tls_failed = True
                     attempts.append(f"{scheme}:{port} → TLS/certificate verification failed")
                 else:
-                    attempts.append(f"{scheme}:{port} → {type(exc).__name__}: {exc}")
+                    attempts.append(f"{scheme}:{port} → {errtext.safe(exc, 'scan')}")
                 continue
             if r.status_code in (200, 201) and r.headers.get("Location"):
                 job_url = r.headers["Location"]
@@ -405,7 +406,7 @@ def register(mcp):
             except Exception as exc:
                 if pages:
                     break  # already have content — don't fail the scan on a late error
-                return f"Scan started but fetching the page failed: {exc}"
+                return f"Scan started but fetching the page failed: {errtext.safe(exc)}"
             if rd.status_code == 200 and rd.content:
                 pages.append(rd.content)
                 continue   # next GET → the following page, or the 404 that ends the job
@@ -466,5 +467,5 @@ def register(mcp):
                         uploaded += 1
                 return result + f" Uploaded {uploaded} page(s) to Paperless ('{paperless}')."
             except Exception as exc:
-                return result + f" Paperless upload failed: {exc}"
+                return result + f" Paperless upload failed: {errtext.safe(exc)}"
         return result
