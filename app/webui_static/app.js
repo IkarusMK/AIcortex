@@ -610,6 +610,19 @@ function renderSvChips() {
     mk(`${k} (${SERVICES.filter((s) => s.kind === k).length})`, k));
 }
 
+/* A URL that wraps only where a reader expects it: after "//", "/", "?" and "&"
+   (<wbr> break points, text nodes only — no innerHTML). The span keeps the column at
+   a readable minimum width; a single overlong piece still wraps (overflow-wrap). */
+function urlText(text) {
+  const span = document.createElement("span");
+  span.className = "url";
+  String(text).split(/(?<=[/?&])/).forEach((part, i) => {
+    if (i) span.append(document.createElement("wbr"));
+    span.append(document.createTextNode(part));
+  });
+  return span;
+}
+
 function renderSvTable() {
   const tbody = $("#sv-table tbody");
   tbody.textContent = "";
@@ -621,13 +634,16 @@ function renderSvTable() {
     const ktag = document.createElement("span"); ktag.className = "tag"; ktag.textContent = s.kind;
     kind.append(ktag);
     const name = document.createElement("td"); name.className = "mono"; name.textContent = s.name;
-    const target = document.createElement("td"); target.className = "mono break"; target.textContent = s.target || "—";
+    const target = document.createElement("td"); target.className = "mono";
+    target.append(urlText(s.target || "—"));
     const sec = document.createElement("td");
     if (s.secret) {
       const stag = document.createElement("span"); stag.className = "tag owner"; stag.textContent = s.secret;
       sec.append(stag);
     } else { sec.textContent = "—"; sec.className = "dim"; }
-    const desc = document.createElement("td"); desc.className = "small dim"; desc.textContent = s.description;
+    const desc = document.createElement("td"); desc.className = "small dim";
+    const dtext = document.createElement("span"); dtext.className = "desc"; dtext.textContent = s.description;
+    desc.append(dtext);
     const act = document.createElement("td"); act.className = "actions";
     [["sv_edit", "ghost", () => openRegistry(s.kind, s.name)],
      ["delete", "danger", () => deleteRegistry(s.kind, s.name)]].forEach(([key, cls, fn]) => {
