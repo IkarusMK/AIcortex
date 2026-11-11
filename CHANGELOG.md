@@ -6,6 +6,21 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-11-11
+The Services & devices list is readable again.
+
+### Fixed
+- **Services & devices:** the target column shrank to a sliver and every address ran
+  letter by letter over a dozen lines (since 1.12.0). Addresses now wrap only after
+  `/`, `?` and `&`, keep a readable minimum width and never split a host name; long
+  descriptions keep a minimum width too, and the edit and delete buttons stack.
+  Wider windows (1280 px and up) need no sideways scrolling.
+- **Logs:** the reason column wraps at spaces instead of letter by letter.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.6.1` and redeploy; `data/` stays as it is. The
+  WebUI loads the new layout by itself.
+
 ## [2.6.0] — 2026-11-11
 A security release: it closes the findings of a full review. Update promptly if your
 WebUI is reachable from the internet.
