@@ -9,10 +9,11 @@ identity binding, a policy decision before each call, and an audit log.
 
 DESIGN SAFETY (so it can't lock a hands-off operator out):
 - ON by default (secure by default); AUTH_ENFORCE=0 disables it entirely.
-- Fail-open on POLICY glitches (degrade, don't brick) — but never on IDENTITY once
-  sign-in is configured: with OIDC every /mcp caller carries a token, so a caller
-  whose identity can't be resolved ("unknown"/empty) gets NO role and is denied
-  (audited). Without OIDC, "unknown" is the local operator, exactly as before.
+- Fail-CLOSED once sign-in is configured: with OIDC every /mcp caller carries a
+  token, so a caller whose identity can't be resolved ("unknown"/empty) gets NO role
+  and is denied, and an error inside the policy check denies the call (audited) —
+  see ``_fail_closed``. Without OIDC, "unknown" is the local operator and a policy
+  glitch degrades open (with an audit line), exactly as before.
 - Roles can come from the IdP: if the token carries a role/group claim
   (AUTH_ROLE_CLAIM, default "groups", e.g. PocketID groups), it drives the role.
 - Secure defaults WHEN enabled: the RUNNER_TOKEN (headless/autonomy) becomes a
@@ -177,6 +178,14 @@ def auth_configured() -> bool:
 
 def _unresolved(identity) -> bool:
     return not identity or identity == "unknown"
+
+
+def _fail_closed() -> bool:
+    """Does an error in the policy check itself deny the call? Under enforcement with
+    sign-in configured: yes — whoever can make the identity, policy or area lookup
+    throw must not get an unchecked call. Only the local mode without sign-in keeps
+    degrading open (it has no identities to check)."""
+    return enabled() and auth_configured()
 
 
 def _identity_required() -> bool:
@@ -728,8 +737,13 @@ def enforce_rest(identity: str, role: str, tool: str, args) -> tuple[bool, str]:
                     return False, (f"{kind} endpoint '{args.get(arg, '')}' is not in your "
                                    f"allowed set (an admin grants it with tenancy_set)")
     except Exception as exc:
-        # Fail-open like the middleware, but LEAVE A TRACE (a silent degrade-to-allow
-        # is exactly what an attacker would want to pass unnoticed).
+        if _fail_closed():
+            audit(identity or "unknown", role or "?", tool or "?", "deny",
+                  f"rest authz error, refused: {type(exc).__name__}: {exc}")
+            return False, ("the authorization check failed, so the call was refused "
+                           "(details in the audit log)")
+        # Local mode: degrade open like the middleware, but LEAVE A TRACE (a silent
+        # degrade-to-allow is exactly what an attacker would want to pass unnoticed).
         audit(identity or "unknown", role or "?", tool or "?", "fail-open",
               f"rest authz error, allowed without full scoping: {type(exc).__name__}: {exc}")
     return True, "ok"
@@ -759,6 +773,10 @@ def build_middleware():
                 _, role = effective_identity()
                 return [t for t in tools if decide(role, t.name)[0]]
             except Exception as exc:
+                if _fail_closed():
+                    audit("unknown", "?", "tools/list", "deny",
+                          f"list filter error, nothing shown: {type(exc).__name__}: {exc}")
+                    return []
                 audit("unknown", "?", "tools/list", "fail-open",
                       f"list filter error, full list shown: {type(exc).__name__}: {exc}")
                 return tools
@@ -796,7 +814,8 @@ def build_middleware():
                     # confine a non-admin caller's memory_* calls to their OWN scope
                     # so two people on one brain don't read/overwrite each other. Under
                     # act-as, `identity`/`role` are already the OWNER, so a job's memory
-                    # lands in the owner's scope. Fail-open: a glitch leaves scope as-is.
+                    # lands in the owner's scope. A glitch denies the call once sign-in is
+                    # configured (below); only the local mode leaves the scope as-is.
                     if isinstance(args, dict):
                         try:
                             import tenancy
@@ -804,7 +823,8 @@ def build_middleware():
                                 args["scope"] = tenancy.confine_memory_scope(
                                     identity, role, args.get("scope", "shared"))
                         except Exception:
-                            pass
+                            if _fail_closed():
+                                raise
                     # Per-user DEVICE/ENDPOINT areas (H1): confine a non-admin's use of
                     # caldav/imap/webdav/ssh/mail/… to the endpoints an admin assigned.
                     # endpoint_allowed is itself fail-closed under enforce / open in
@@ -822,9 +842,16 @@ def build_middleware():
             except Exception as exc:
                 if exc.__class__ is ToolError or isinstance(exc, ToolError):
                     raise  # a real policy denial must propagate
-                # anything else (identity/policy resolution) → fail-open, but
-                # LEAVE A TRACE: a silent degrade-to-allow is exactly what an
-                # attacker would want to go unnoticed, so record it.
+                if _fail_closed():
+                    # Sign-in is configured: an error in the check itself denies.
+                    audit("unknown", "?", tool or "?", "deny",
+                          f"authz error, refused: {type(exc).__name__}: {exc}")
+                    raise ToolError(
+                        f"Denied: the authorization check failed, so '{tool}' was not "
+                        f"called. Try again; if it persists, the operator finds the "
+                        f"cause in the audit log.") from None
+                # Local mode without sign-in: degrade open, but LEAVE A TRACE — a
+                # silent degrade-to-allow is exactly what an attacker would want.
                 audit("unknown", "?", tool or "?", "fail-open",
                       f"authz error, allowed without check: {type(exc).__name__}: {exc}")
             return await call_next(context)
