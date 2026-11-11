@@ -250,7 +250,19 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .tag.ok { border-color: rgba(52, 211, 153, .45); color: var(--ok); }
 .tag.bad { border-color: rgba(248, 113, 113, .45); color: var(--danger); }
 .tag.warn { border-color: rgba(251, 191, 36, .45); color: #fbbf24; }
-.break { word-break: break-all; }
+/* Prose that may contain a long token: wrap at spaces, split a token only when it
+   alone would overflow. (break-all let a cell shrink to one character, so tables
+   squeezed the column down to a sliver.) */
+.break { overflow-wrap: break-word; }
+/* Addresses in tables: readable minimum width, wrap at the <wbr> points urlText()
+   inserts (after "/", "?", "&"), never letter by letter. break-word keeps a host
+   name whole (it sets the column's minimum) and only splits a piece longer than
+   the cap. */
+.url { display: inline-block; min-width: 22ch; max-width: 40ch;
+  overflow-wrap: break-word; }
+/* Long descriptions: a readable minimum width; a long path inside may wrap so it
+   doesn't force the table wider than its panel. */
+.tbl .desc { display: block; min-width: 18ch; overflow-wrap: anywhere; }
 .log-bar { display: flex; gap: 10px; margin: 12px 0 4px; }
 .log-bar .inp { flex: 1; }
 
@@ -326,6 +338,8 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .tbl td.actions { white-space: nowrap; text-align: right; }
 .tbl td.actions .btn { white-space: nowrap; margin: 2px 0 2px 6px; }
 #vault-table td.actions, #rn-table td.actions { white-space: normal; }
+/* Services: edit/delete stack, so the address and description columns keep room. */
+#sv-table td.actions { white-space: normal; }
 @media (max-width: 1279px) { .tbl td.actions { white-space: normal; } }
 /* wide tables scroll inside their panel instead of widening the page */
 .tbl-scroll { overflow-x: auto; max-width: 100%; }
