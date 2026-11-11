@@ -85,8 +85,13 @@ def _connect(cfg: dict):
     kwargs = dict(hostname=host, port=int(cfg.get("port", 22)),
                   username=cfg.get("username"), timeout=30,
                   allow_agent=False, look_for_keys=False)
+    try:   # a credential only goes to a host it is bound to
+        key = secrets_store.use(cfg["key_env"], host) if cfg.get("key_env") else None
+        pw = (secrets_store.use(cfg["password_env"], host)
+              if cfg.get("password_env") and not cfg.get("key_env") else None)
+    except secrets_store.Refused as exc:
+        return None, str(exc)
     if cfg.get("key_env"):
-        key = secrets_store.get_secret(cfg["key_env"])
         if not key:
             return None, f"Needs secret '{cfg['key_env']}' (private key). Use secret_set."
         pkey = _load_key(key)
@@ -94,7 +99,6 @@ def _connect(cfg: dict):
             return None, "Could not parse the private key (Ed25519/RSA/ECDSA, unencrypted)."
         kwargs["pkey"] = pkey
     elif cfg.get("password_env"):
-        pw = secrets_store.get_secret(cfg["password_env"])
         if not pw:
             return None, f"Needs secret '{cfg['password_env']}'. Use secret_set."
         kwargs["password"] = pw
@@ -126,6 +130,9 @@ def register(mcp):
             SSH_DIR.mkdir(parents=True, exist_ok=True)
             cfg = {"name": name, "host": host, "port": int(port), "username": username,
                    "password_env": password_env, "key_env": key_env, "description": description}
+            refused = secrets_store.check_registration('ssh', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             need = key_env or password_env
             note = f" — set the credential: secret_set('{need}', <value>)" if need and not secrets_store.get_secret(need) else ""

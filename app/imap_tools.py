@@ -72,7 +72,10 @@ def _open(cfg):
         return None, f"Blocked by network policy — {reason}"
     pw = ""
     if cfg.get("password_env"):
-        pw = secrets_store.get_secret(cfg["password_env"])
+        try:   # only to a host the password is bound to
+            pw = secrets_store.use(cfg["password_env"], host)
+        except secrets_store.Refused as exc:
+            return None, str(exc)
         if not pw:
             return None, f"Account needs secret '{cfg['password_env']}'. Use secret_set."
     try:
@@ -128,6 +131,9 @@ def register(mcp):
                    "password_env": password_env, "tls_insecure": bool(tls_insecure),
                    "ca_bundle": ca_bundle.strip(),
                    "security": (security or "ssl").lower(), "description": description}
+            refused = secrets_store.check_registration('imap', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):

@@ -206,7 +206,7 @@ def test_unknown_server_is_refused_without_a_client(env, tool, extra):
     ({"token_env": "UP_TOKEN", "auth_scheme": "Token"}, {"Authorization": f"Token {TOKEN}"}),
     ({"token_env": "UNSET_TOKEN"}, {})])
 def test_auth_headers_are_built_from_the_vault_secret(env, cfg, expected):
-    assert env.mod._auth_headers(cfg) == expected
+    assert env.mod._auth_headers({"url": URL, **cfg}) == expected
 
 
 def test_token_goes_upstream_in_the_configured_header_and_never_to_the_model(fc):
@@ -308,8 +308,8 @@ def test_sse_failures_are_reported_and_blocked_targets_never_reach_the_client(en
     assert env.call("mcp_call", server="forecast", tool="t") == "Call failed: stream closed"
     assert env.call("mcp_tools", server="forecast") == "Could not reach 'forecast': stream closed"
     env.dns.set("lan.example.net", "10.0.0.5")
-    env.add(url="https://lan.example.net/sse")
-    assert env.call("mcp_tools", server="forecast").startswith("Blocked by network policy")
+    env.add("lan", url="https://lan.example.net/sse", token_env="")   # UP_TOKEN is bound to HOST
+    assert env.call("mcp_tools", server="lan").startswith("Blocked by network policy")
     assert len(env.sse.transports) == 2  # the blocked call built no transport
 
 

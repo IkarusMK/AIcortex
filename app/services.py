@@ -111,6 +111,9 @@ def register(mcp):
                 "ca_bundle": ca_bundle.strip(),
                 "username": username.strip(),
             }
+            refused = secrets_store.check_registration('service', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
@@ -198,7 +201,10 @@ def register(mcp):
         headers = {}
         tok_env = cfg.get("token_env")
         if tok_env:
-            token = secrets_store.get_secret(tok_env)
+            try:
+                token = secrets_store.use(tok_env, url)   # only to a host the token is bound to
+            except secrets_store.Refused as exc:
+                return str(exc)
             if not token:
                 return f"Service '{service}' needs secret '{tok_env}'. Store it via the secret_set tool first (do not edit .env)."
             header_name = cfg.get("auth_header") or "Authorization"

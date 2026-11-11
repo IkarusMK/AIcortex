@@ -113,6 +113,10 @@ def test_user_cannot_send_another_persons_secret_by_its_path(outbox, enforced):
 
 
 def test_user_can_still_send_their_own_secret_and_admin_a_shared_one(outbox, enforced):
+    # webhook_send only sends a secret to a host it is explicitly bound to (host binding)
+    vault = sys.modules["secrets_store"]
+    vault.vault_set_hosts("BOB_HOOK", "bob", ["hooks.example.net"])
+    vault.vault_set_hosts("HA_TOKEN", "", ["hooks.example.net"])
     _send(enforced, "bob", "user", "BOB_HOOK")
     _send(enforced, "boss", "admin", "HA_TOKEN")
     assert [h.get("X-Key") for h in outbox] == ["BOB-VALUE", "SHARED-VALUE"]

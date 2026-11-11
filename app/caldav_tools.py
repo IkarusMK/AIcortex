@@ -68,7 +68,10 @@ def _client(cfg: dict):
     user = cfg.get("username")
     if user:
         pw_env = cfg.get("password_env")
-        pw = secrets_store.get_secret(pw_env) if pw_env else ""
+        try:   # only to a host the password is bound to
+            pw = secrets_store.use(pw_env, base) if pw_env else ""
+        except secrets_store.Refused as exc:
+            return None, str(exc)
         if pw_env and not pw:
             return None, f"Endpoint needs secret '{pw_env}'. Store it with secret_set."
         auth = (user, pw or "")
@@ -131,6 +134,9 @@ def register(mcp):
                    "username": username, "password_env": password_env,
                    "tls_insecure": bool(tls_insecure), "ca_bundle": ca_bundle,
                    "description": description}
+            refused = secrets_store.check_registration('caldav', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):

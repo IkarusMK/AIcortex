@@ -425,11 +425,12 @@ def test_a_login_can_not_be_sent_out_by_a_webhook_either(env):
     direct_sign_in("alice")
     authz, store = sys.modules["authz"], sys.modules["secrets_store"]
     hooks = sys.modules["webhook_tools"]
+    url = "https://hooks.example.net/x"
     with authz.rest_identity("alice", "user"):
         assert store.get_own_secret(SECRET) is None
-        assert hooks._outbound_secret(SECRET) is None
+        assert hooks._outbound_secret(SECRET, url) is None
     with authz.rest_identity("alice", "admin"):
-        assert hooks._outbound_secret(SECRET) is None
+        assert hooks._outbound_secret(SECRET, url) is None
     assert call("mcp_call", {"server": SERVER, "tool": "get_items"}, who="alice") == "ok get_items"
 
 
