@@ -18,9 +18,11 @@ This is the whole path after the container runs behind your proxy, in the WebUI 
 no terminal needed except for the keychain in step 4.
 
 1. **Sign in.** Open `https://<your-host>/ui` (the bare host name shows `404`; the
-   WebUI lives under `/ui`) and sign in through your IdP. Everyone who signs in via
-   OIDC is **admin** unless a role is set for them (`OIDC_DEFAULT_ROLE`, default
-   `admin`) — so point AICortex at an IdP only your own people can use.
+   WebUI lives under `/ui`) and sign in through your IdP. The first person to sign
+   in becomes the **operator** (admin); everyone after that is **user** unless you
+   give them a role (`OIDC_DEFAULT_ROLE` changes that default). Still point
+   AICortex at an IdP only your own people can use, and limit the OIDC client to
+   your group there.
 2. **Connect your chat apps** (Claude, ChatGPT): add `https://<your-host>/mcp` as a
    custom connector (sections below) and sign in once. Their notes go to the
    **shared** memory, because an admin isn't confined to a personal area.

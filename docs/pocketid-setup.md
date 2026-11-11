@@ -119,9 +119,10 @@ You should see a line whose `identity` is your **Pocket ID `sub`** (a UUID) — 
 `runner` or `unknown`. That confirms the Pocket ID-aware proxy is forwarding your
 identity, so roles and isolation key off the real person.
 
-> **Staged rollout (no lockout):** keep `OIDC_DEFAULT_ROLE=admin` (the default)
-> until the audit log confirms your group resolves to `admin`. Only then tighten it
-> to `user`/`viewer` so non-grouped logins get least privilege.
+> **No lockout:** you stay admin as an operator (`operators` in `policy.json`,
+> filled on the first sign-in or the upgrade to 2.6.0). Other logins get `user`
+> unless their group maps to a role. Also restrict the OIDC client to your group in
+> Pocket ID (*Allowed User Groups*), so only your people reach AICortex at all.
 
 ---
 
