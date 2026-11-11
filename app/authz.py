@@ -23,8 +23,9 @@ DESIGN SAFETY (so it can't lock a hands-off operator out):
   else the IdP lets in starts as "user". OPERATORS (env) names operators outright;
   otherwise the first person to sign in to an install nobody is in charge of becomes
   the operator — only within OPERATOR_BOOTSTRAP_MINUTES of the start — and an upgrade
-  keeps today's admins as operators (see ``migrate_operators``), so the human isn't
-  locked out. The last person in charge can't be removed (``last_operator_refusal``).
+  keeps the earlier admins as operators (see ``migrate_operators``), so the human
+  isn't locked out. The last person in charge can't be removed
+  (``last_operator_refusal``).
 - Policy is DATA: optional /data/auth/policy.json maps identities → roles.
 
 Roles:
@@ -439,40 +440,152 @@ def _bootstrap_operator(identity: str) -> bool:
     return True
 
 
-def migrate_operators():
-    """Upgrade step, run once at startup (server._build_auth, sign-in configured).
+# The upgrade migration runs once per install; policy.json records that it ran.
+OPERATORS_MIGRATION = "2.7.0"
+_MIGRATED_KEY = "operators_migrated"
+_AUDIT_LINE_MAX = 64 * 1024     # a longer audit line is no record of a sign-in
+_IDENTITY_MAX = 256
+_NOT_A_PERSON = frozenset({"unknown", "?", "-", "system", "local-operator"})
+_SIGNIN_REASON = re.compile(r"browser login, role=(\w+)")       # webui._callback
+_USER_SET_REASON = re.compile(r"identity=(.+) role=(\S+)", re.S)  # webui._users_set
 
-    Up to 2.5.0 every interactive identity nobody configured was admin. Keep exactly
-    those people admin by listing them as operators: everyone in policy "users" or
-    "roles" without an explicit non-admin role. Only NEW identities then start as
-    "user". Skipped when the policy already has "operators" or a default role is
-    configured (OIDC_DEFAULT_ROLE / policy "default" keep deciding as before), and
-    when nobody is listed (a fresh install bootstraps at the first sign-in instead).
-    Returns the recorded list, or None when nothing was written. Never raises."""
+
+def _audit_generations() -> list:
+    """The audit log's files, oldest first: audit.log.N … audit.log.1, audit.log
+    (the rotation of ``_rotate_audit``). Other names next to it are not read."""
+    rotated = []
+    for path in AUDIT_FILE.parent.glob(f"{AUDIT_FILE.name}.*"):
+        suffix = path.name[len(AUDIT_FILE.name) + 1:]
+        if suffix.isascii() and suffix.isdigit():
+            rotated.append((int(suffix), path))
+    return [path for _, path in sorted(rotated, reverse=True)] + [AUDIT_FILE]
+
+
+def _webui_records(path):
+    """The WebUI's records ("ui:…") in one audit file. Torn, garbled, over-long or
+    non-object lines are skipped; a file that exists but can't be read raises (the
+    migration then waits for the next start instead of deciding without it)."""
+    if not path.is_file():
+        return
+    with open(path, "rb") as f:
+        while True:
+            line = f.readline(_AUDIT_LINE_MAX)
+            if not line:
+                return
+            if len(line) >= _AUDIT_LINE_MAX and not line.endswith(b"\n"):
+                while line and not line.endswith(b"\n"):     # skip the rest of it
+                    line = f.readline(_AUDIT_LINE_MAX)
+                continue
+            if b'"ui:' not in line:
+                continue
+            try:
+                rec = json.loads(line.decode("utf-8", "replace"))
+            except ValueError:
+                continue
+            if isinstance(rec, dict):
+                yield rec
+
+
+def _person(value) -> str:
+    """``value`` as a plausible sign-in identity (an IdP 'sub'), else ""."""
+    if not isinstance(value, str):
+        return ""
+    ident = value.strip()
+    if not ident or len(ident) > _IDENTITY_MAX or ident in _NOT_A_PERSON:
+        return ""
+    return ident if ident.isprintable() else ""
+
+
+def webui_admins() -> frozenset:
+    """The people who signed in to the WebUI as admin, from the audit log and its
+    rotated files — minus anyone an admin removed in the users view afterwards, or
+    whose role they set to user/viewer/default there afterwards (the newest entry
+    wins). Unreadable or garbled lines are ignored."""
+    admin = {}
+    for path in _audit_generations():
+        for rec in _webui_records(path):
+            tool, reason = rec.get("tool"), rec.get("reason")
+            if rec.get("decision") != "allow" or not isinstance(reason, str):
+                continue
+            if tool == "ui:login":
+                match, ident = _SIGNIN_REASON.fullmatch(reason), _person(rec.get("identity"))
+                if ident and match and match.group(1) == "admin" and rec.get("role") == "admin":
+                    admin[ident] = True
+            elif tool == "ui:user_delete" and reason.startswith("identity="):
+                ident = _person(reason[len("identity="):])
+                if ident:
+                    admin[ident] = False
+            elif tool == "ui:user_set":
+                match = _USER_SET_REASON.fullmatch(reason)
+                ident = _person(match.group(1)) if match else ""
+                if ident and match.group(2) in ("user", "viewer", "default"):
+                    admin[ident] = False
+    return frozenset(i for i, was_admin in admin.items() if was_admin)
+
+
+def _policy_listed(pol) -> set:
+    listed = set()
+    for key in ("users", "roles"):
+        section = pol.get(key)
+        if isinstance(section, dict):
+            listed |= {str(k).strip() for k in section if str(k).strip()}
+    return listed
+
+
+def migrate_operators():
+    """Upgrade step, run once per install at startup (server._build_auth, sign-in
+    configured).
+
+    Up to 2.5.x every interactive identity nobody configured was admin. Keep those
+    people admin by listing them as operators:
+    - everyone policy "users"/"roles" names — only while the policy has no
+      "operators" yet (2.6.0's step; once operators exist, a person listed there
+      without a role is an ordinary user);
+    - everyone who signed in to the WebUI as admin (``webui_admins``, the audit log
+      and its rotated files) — also when "operators" exists: a single-user install
+      names nobody in the policy, and on 2.6.x an app could take the first-come slot,
+      so its owner was no longer admin. Added to the operators, nobody is removed.
+    Never someone with an explicit non-admin role. Skipped when a default role is
+    configured (OIDC_DEFAULT_ROLE / policy "default" keep deciding as before).
+    Policy "operators_migrated" records that it ran, so no later start promotes
+    anyone (a later admin sign-in, a person added to "users").
+
+    Returns {"kept": [...], "restored": [...]}: who was added from the policy and
+    from the WebUI's sign-ins; None when it did not run. Never raises."""
     try:
         import store
         import tenancy
+        before = _policy()
+        if _MIGRATED_KEY in before or _configured_default(before):
+            return None                             # cheap: no audit read when decided
+        signed_in = webui_admins()                  # read before the lock: append-only
         with store.locked(POLICY_FILE):
             pol = _policy_strict()
-            if "operators" in pol or _configured_default(pol):
+            if _MIGRATED_KEY in pol or _configured_default(pol):
                 return None
-            listed = set()
-            for key in ("users", "roles"):
-                section = pol.get(key)
-                if isinstance(section, dict):
-                    listed |= {str(k).strip() for k in section if str(k).strip()}
+            existing = pol.get("operators", [])
+            if not isinstance(existing, list):
+                raise ValueError('"operators" in policy.json is not a list')
             roles = pol.get("roles") if isinstance(pol.get("roles"), dict) else {}
-            admins = sorted(i for i in listed if roles.get(i) not in ("user", "viewer"))
-            if not admins:
-                return None
-            tenancy._write_policy({**pol, "operators": admins})
+            demoted = {str(i).strip() for i, r in roles.items() if r in ("user", "viewer")}
+            current = _policy_operators(pol)
+            kept = (set() if "operators" in pol else _policy_listed(pol)) - demoted
+            restored = set(signed_in) - demoted - current - kept
+            added = sorted(kept | restored)
+            new = {**pol, _MIGRATED_KEY: OPERATORS_MIGRATION}
+            if added:
+                new = {**new, "operators": [*existing, *added]}
+            tenancy._write_policy(new)
     except Exception as exc:
         audit("system", "-", "migrate_operators", "deny",
               f"operators not migrated: {type(exc).__name__}: {exc}")
         return None
+    result = {"kept": sorted(kept), "restored": sorted(restored)}
     audit("system", "-", "migrate_operators", "allow",
-          f"today's admins kept as operators: {', '.join(admins)}")
-    return admins
+          f"operators migrated ({OPERATORS_MIGRATION}): kept from the policy: "
+          f"{', '.join(result['kept']) or '-'}; restored from WebUI sign-ins: "
+          f"{', '.join(result['restored']) or '-'}")
+    return result
 
 
 def role_for(identity: str, is_runner: bool, claims=None) -> str:

@@ -208,11 +208,15 @@ def _build_auth():
         oidc = OIDCProxy(**kwargs)
 
     # Interactive sign-in is on, and only operators are admin by default. An
-    # upgrade keeps today's admins (everyone the policy names without a non-admin
-    # role) as operators — once, before anyone signs in. See authz.migrate_operators.
-    migrated = authz.migrate_operators()
-    if migrated:
-        print(f"[AICortex] auth: kept {len(migrated)} existing admin(s) as operators")
+    # upgrade keeps the earlier admins (everyone the policy names without a non-admin
+    # role, and whoever signed in to the WebUI as admin) as operators — once, before
+    # anyone signs in. See authz.migrate_operators.
+    migrated = authz.migrate_operators() or {}
+    if migrated.get("kept"):
+        print(f"[AICortex] auth: kept {len(migrated['kept'])} existing admin(s) as operators")
+    if migrated.get("restored"):
+        print(f"[AICortex] auth: restored {len(migrated['restored'])} admin(s) from earlier "
+              f"WebUI sign-ins as operators")
     named = authz.env_operators()
     if named:
         print(f"[AICortex] auth: operators from OPERATORS: {', '.join(sorted(named))}")

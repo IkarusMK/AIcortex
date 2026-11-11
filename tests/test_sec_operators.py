@@ -13,7 +13,8 @@ management plane. Now:
   install doesn't lock its owner out);
 - upgrade: once, at startup, the identities that are admin today (listed in policy
   ``users``/``roles`` without an explicit non-admin role) become operators — today's
-  admins stay admin, only NEW identities start as "user";
+  admins stay admin, only NEW identities start as "user" (the WebUI's admins from the
+  audit log too: test_sec_operators_restore.py);
 - agent keys and cron act-as never take this path: an operator's key and jobs stay
   "user" unless an explicit role says otherwise.
 """
@@ -133,9 +134,10 @@ def test_an_operators_agent_key_and_jobs_stay_user(az):
 def test_the_upgrade_turns_todays_admins_into_operators(az):
     _write(az, {"users": {"alice": {"memory": "all"}, "bob": {"memory": "own"}},
                 "roles": {"bob": "user", "carol": "admin", "vera": "viewer", "odd": "god"}})
-    assert az.migrate_operators() == ["alice", "carol", "odd"]
+    assert az.migrate_operators() == {"kept": ["alice", "carol", "odd"], "restored": []}
     pol = _read(az)
     assert pol["operators"] == ["alice", "carol", "odd"]
+    assert pol["operators_migrated"] == az.OPERATORS_MIGRATION
     assert pol["roles"]["bob"] == "user" and pol["users"]["bob"] == {"memory": "own"}
     assert az.role_for("alice", False) == "admin" and az.role_for("bob", False) == "user"
     assert az.role_for("newcomer", False) == "user"
@@ -143,7 +145,6 @@ def test_the_upgrade_turns_todays_admins_into_operators(az):
 
 
 @pytest.mark.parametrize("policy, env", [
-    ({"users": {"alice": {}}, "operators": []}, None),                # already decided
     ({"users": {"alice": {}}, "default": "admin"}, None),             # default kept by policy
     ({"users": {"alice": {}}}, "admin"),                              # … or by the env
 ])
@@ -155,9 +156,18 @@ def test_the_upgrade_leaves_a_decided_policy_alone(az, monkeypatch, policy, env)
     assert _read(az) == policy
 
 
-def test_the_upgrade_does_nothing_on_a_fresh_install(az):
+def test_once_operators_exist_the_people_listed_are_not_promoted(az):
+    _write(az, {"users": {"alice": {}}, "operators": []})             # already decided
+    assert az.migrate_operators() == {"kept": [], "restored": []}
+    assert _read(az) == {"users": {"alice": {}}, "operators": [],
+                         "operators_migrated": az.OPERATORS_MIGRATION}
+    assert az.session_role("alice") == "user"
+
+
+def test_the_upgrade_only_records_that_it_ran_on_a_fresh_install(az):
+    assert az.migrate_operators() == {"kept": [], "restored": []}
+    assert _read(az) == {"operators_migrated": az.OPERATORS_MIGRATION}  # bootstrap handles it
     assert az.migrate_operators() is None
-    assert not az.POLICY_FILE.exists()                               # bootstrap will handle it
 
 
 @pytest.mark.oidc

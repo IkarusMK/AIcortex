@@ -86,6 +86,12 @@ replaces the old "every OIDC login is admin" default:
   default (listed under `users` or `roles` without a non-admin role) becomes an
   operator. Nobody loses access; only people who sign in for the first time later
   get `user`.
+- **Upgrade to 2.7.0:** once, also everyone who signed in to the WebUI as admin
+  (`audit.log` and its rotated files) becomes an operator — also when `operators`
+  already exists (added, nobody removed). That repairs a single-user install that
+  2.6.x left without its admin. Not for an explicit non-admin role, not for someone
+  later removed or demoted in the Users view, and not when `OIDC_DEFAULT_ROLE` or
+  policy `default` is set. `operators_migrated` in `policy.json` records that it ran.
 - **Name them up front:** `OPERATORS=<sub>[,<sub>…]` in the environment always
   makes those identities operators (IdP `sub`, shown on the WebUI's Users page).
 - **Fresh install:** without `OPERATORS`, the first person to sign in within

@@ -67,7 +67,7 @@ def test_operators_from_the_environment_are_always_admin(oidc_env, request, caps
     assert az.role_for("bob", False) == "admin"
     assert az.role_for("alice", False) == "admin"
     assert az.role_for("dave", False) == "user"                  # nobody bootstraps
-    assert not az.POLICY_FILE.exists()                           # nothing was recorded
+    assert "operators" not in _policy(az)                        # nothing was recorded
     _write(az, {"operators": ["carol"]})                         # the policy names others …
     assert az.role_for("alice", False) == "admin"                # … OPERATORS still count
     oidc_env.setenv("OIDC_DEFAULT_ROLE", "viewer")               # a default for strangers …
@@ -86,7 +86,7 @@ def test_the_first_sign_in_wins_only_within_the_window(oidc_env, request, capsys
     later = real() + 31 * 60
     oidc_env.setattr(az, "_clock", lambda: later, raising=False)
     assert az.role_for("dave", False) == "user"                  # too late: no admin by luck
-    assert not az.POLICY_FILE.exists()
+    assert "operators" not in _policy(az)
     assert az.default_role() == "user"
 
 
@@ -108,7 +108,7 @@ def test_zero_minutes_switches_the_bootstrap_off(oidc_env, request, capsys):
     az, out = _start(request, capsys)
     assert "OPERATORS" in out
     assert az.role_for("dave", False) == "user"
-    assert not az.POLICY_FILE.exists()
+    assert "operators" not in _policy(az)
 
 
 @pytest.mark.oidc
