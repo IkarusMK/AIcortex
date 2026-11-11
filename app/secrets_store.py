@@ -175,7 +175,7 @@ def missing_references() -> list:
     """Secret names a config refers to that neither the vault nor the environment has."""
     stored = {k.rsplit("/", 1)[-1] for k in _read_all()}
     return sorted(n for n in secret_references()
-                  if n not in stored and not os.environ.get(n))
+                  if n not in stored and not env_value(n))
 
 
 def _owner_prefix(owner: str) -> str:
@@ -203,8 +203,12 @@ _INTERNAL_ENV = frozenset({
     "FS_MAX_WRITE_BYTES", "FS_VIEW_CEILING_BYTES", "FS_WORKSPACE_QUOTA_BYTES",
     "IMAP_MAX_ATTACH_BYTES", "IMAP_MAX_BODY_BYTES", "MAIL_MAX_ATTACH_BYTES",
     "PRINT_MAX_BYTES", "WEBHOOK_MAX_BODY_BYTES", "WEBHOOK_REPLAY_TTL", "FTP_CURL_MAX_TIME",
+    # 2.6.0 settings
+    "OPERATORS", "OPERATOR_BOOTSTRAP_MINUTES", "FORWARDED_ALLOW_IPS", "HSTS",
+    "AUDIT_MAX_BYTES", "AUDIT_KEEP", "MCP_REDIRECT_URIS", "TOOL_PROFILE_DEFAULT",
     # generic process environment
-    "PATH", "HOME", "HOSTNAME", "PWD", "USER", "LANG", "TZ", "PUID", "PGID",
+    "PATH", "HOME", "HOSTNAME", "PWD", "OLDPWD", "USER", "LANG", "TZ", "PUID", "PGID",
+    "TERM", "SHLVL", "GPG_KEY",
 })
 # RUNNER_: the runners' own keys (RUNNER_KEY_<id>, runners.py) — never a service's.
 # MCP_OAUTH_: a person's OAuth sign-in to an upstream MCP server (mcp_oauth.py), read
@@ -212,16 +216,32 @@ _INTERNAL_ENV = frozenset({
 # webhook or runner, never set or edited by hand.
 LOGIN_PREFIX = "MCP_OAUTH_"
 _INTERNAL_PREFIXES = ("OIDC_", "FASTMCP_", "AUTH_", "PYTHON", "STORAGE_ENCRYPTION_", "RUNNER_",
-                      LOGIN_PREFIX)
+                      "RATE_LIMIT", LOGIN_PREFIX)
 _RESERVED = (f"Refused: secret names starting with {LOGIN_PREFIX} are reserved for OAuth "
              f"sign-ins — sign in in the AICortex WebUI (Services → Sign in) instead.")
 _INTERNAL_SUFFIXES = ("_DIR",)
+# Never read from the ENVIRONMENT: the prefixes of the server's settings and of the
+# image's runtime variables. The container's environment holds them, and get_secret
+# reads the environment before the vault — so without this any such variable could
+# be named as an integration's secret. A VAULT secret of such a name (API_KEY,
+# WEBHOOK_SECRET …) still works; other names (HA_TOKEN …) still come from .env.
+# (PYTHON* — the image's PYTHON_VERSION, PYTHON_SHA256 … — is internal outright.)
+_SETTINGS_PREFIXES = ("RATE_LIMIT", "AUDIT_", "HSTS", "MCP_", "FORWARDED_", "WEBHOOK_",
+                      "OPERATOR", "UI_", "API_", "GPG_KEY")
 
 
 def is_internal_env(name: str) -> bool:
     """True for names that belong to the server itself, never to an integration."""
     return (name in _INTERNAL_ENV or name.startswith(_INTERNAL_PREFIXES)
             or name.endswith(_INTERNAL_SUFFIXES))
+
+
+def env_value(name: str):
+    """`name` from the environment, unless it is one of the server's settings or the
+    image's runtime variables (``_SETTINGS_PREFIXES``, ``is_internal_env``)."""
+    if not name or is_internal_env(name) or name.startswith(_SETTINGS_PREFIXES):
+        return None
+    return os.environ.get(name) or None
 
 
 def get_secret(name: str):
@@ -249,7 +269,7 @@ def _resolve(name: str, own_only: bool = False):
         key = f"{ns}/{name}" if ns else ""
         value = _read_all().get(key) if key else None
         return (key, value) if value is not None else ("", None)
-    env = os.environ.get(name)
+    env = env_value(name)
     if env:
         return name, env
     data = _read_all()
@@ -532,7 +552,7 @@ def use(name: str, dest: str, registered: bool = True, own_only: bool = False):
 def _keys_of(name: str, data=None) -> list:
     """Every storage key that holds a value for `name`: shared/env and everyone's own."""
     data = _read_all() if data is None else data
-    keys = [name] if (os.environ.get(name) or name in data) else []
+    keys = [name] if (env_value(name) or name in data) else []
     return keys + sorted(k for k in data if k.startswith("users/") and k.split("/", 2)[-1] == name)
 
 
@@ -779,7 +799,7 @@ def vault_entries() -> list:
                     "description": m.get("description", ""), "updated": m.get("updated", ""),
                     "updated_by": m.get("updated_by", ""), "used_by": refs.get(name, []),
                     "hosts": hosts,   # None = not bound yet (a person binds it: here or secret_set hosts=)
-                    "env_override": bool(os.environ.get(name)) and not is_internal_env(name)})
+                    "env_override": bool(env_value(name))})
     return out
 
 
