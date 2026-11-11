@@ -24,39 +24,51 @@ WebUI is reachable from the internet.
   loopback addresses of desktop and CLI apps; more via `MCP_REDIRECT_URIS`), and
   FastMCP's consent page is shown once per client.
 - **Not every login is admin any more.** Without `OIDC_DEFAULT_ROLE`, everyone the
-  identity provider let in was admin. Now only operators (`policy.json`
-  `"operators"`) are admin; everyone else is `user`. Agent keys and scheduled jobs
-  keep their own, lower role.
-- **Unresolved identities get no role.** With sign-in configured, a caller whose
-  identity can't be resolved is refused instead of falling back to admin, and is
-  never treated as unconfined.
-- **Secrets are bound to their hosts.** A token is only sent to the hosts it was
-  first used with. Pointing an integration at a new host, or sending a secret with
-  `webhook_send`, needs a person (WebUI → Vault → allowed hosts, or
-  `secret_set(..., hosts=...)`). A prompt-injected session can no longer send the
-  vault's tokens to an address of its choosing.
+  identity provider let in was admin. Now only operators are admin (`OPERATORS` in
+  the environment, or `"operators"` in `policy.json`); everyone else is `user`.
+  Agent keys and scheduled jobs keep their own, lower role. A first operator is only
+  taken from the first sign-in within `OPERATOR_BOOTSTRAP_MINUTES` (default 30) of a
+  start with nobody in charge, and the last operator can't be removed or demoted.
+  All writes to `policy.json` share one lock.
+- **Unresolved identities and failing checks are refused.** With sign-in
+  configured, a caller whose identity can't be resolved gets no role, and an error
+  inside the policy check now denies instead of allowing.
+- **Secrets are bound to their hosts.** A token is only sent to the hosts it is
+  bound to, and only a person creates or widens a binding: saving an integration in
+  the WebUI, the vault's allowed-hosts list, or `secret_set(name, value, hosts=...)`
+  (which needs the value). An integration added over MCP or REST with an unbound
+  secret is refused. A prompt-injected session can no longer send the vault's tokens
+  to an address of its choosing. Server settings and runtime variables (`RATE_LIMIT*`,
+  `AUDIT_*`, `HSTS`, `MCP_*`, `FORWARDED_*`, `WEBHOOK_*`, `OPERATOR*`, `UI_*`,
+  `API_*`, `GPG_KEY`, …) are never read from the environment as a secret.
 - **Outbound requests are pinned to checked addresses.** Under uvloop the async
   clients (MCP gateway, built-in runner) bypassed the DNS filter, and redirects to
   internal addresses were followed. Every hop is now resolved once, checked and
   connected to that address; the gateway only follows redirects on the server's
-  own origin. The DNS filter applies only to the call that set it up.
+  own origin. The DNS filter applies only to the call that set it up. NAT64
+  addresses are judged by the IPv4 they carry; IPv4-compatible (`::/96`),
+  site-local (`fec0::/10`) and 6to4 (`2002::/16`) addresses are blocked.
 - **Inbound webhooks:** hook names are checked first, the body limit is enforced
   while reading, unknown-hook log lines are capped, an exact repeat of a delivery
   is acknowledged but not delivered again, and an optional `X-Webhook-Timestamp`
-  (signed with HMAC hooks) must be within five minutes.
-- **Rate limits** per client IP on sign-in, token, client-registration and webhook
-  endpoints (`RATE_LIMIT_*`, `RATE_LIMIT=0` turns them off).
+  (signed with HMAC hooks) must be within five minutes. Refusals are logged at most
+  once per hook, reason and minute.
+- **Rate limits** per client IP on sign-in, token, client-registration, webhook and
+  WebUI API endpoints, and a cooldown after repeated rejected credentials on `/mcp`
+  and `/api/v1` (`RATE_LIMIT_*`, `RATE_LIMIT=0` turns them off).
 - **Client IP behind a proxy:** the compose default for `FORWARDED_ALLOW_IPS` is
   loopback plus the private networks instead of `"*"`, with which a client could
   forge its address. The server warns at startup if `"*"` is still set.
-- **HSTS** and `nosniff` on every response when `BASE_URL` is https; no `server`
-  header.
+- **HSTS** (this host only; `HSTS` changes it) and `nosniff` on every response
+  when `BASE_URL` is https; no `server` header.
 - **OAuth client store without diskcache:** diskcache unpickles what it reads
   (CVE-2025-69872). The store moved to an encrypted file store; existing clients
-  and tokens are migrated once.
+  and tokens are migrated once. Its folders and files are owner-only, and the server
+  warns when `STORAGE_ENCRYPTION_KEY` is missing.
 - WebUI sessions follow role changes immediately and can be revoked for everyone
   ("Sign out everywhere"); logout is CSRF-checked; the version is no longer shown
-  before sign-in. REST errors answer a reference id instead of the exception text.
+  before sign-in. REST errors answer a reference id instead of the exception text,
+  and outbound tools report the error type, with the details in the server log.
   The audit log rotates by size (`AUDIT_MAX_BYTES`, `AUDIT_KEEP`).
 - Image and CI: Debian security updates are applied at build time and pip is
   removed from the runtime image (its vendored urllib3, msgpack and setuptools had
@@ -68,16 +80,22 @@ WebUI is reachable from the internet.
 - Everyone is signed out of the WebUI once. Sign in again.
 - **Roles:** on the first start, everyone who was admin through the old default
   becomes an operator — nobody loses access. Check `operators` in
-  `data/auth/policy.json`. People who sign in for the first time later are `user`;
-  `OIDC_DEFAULT_ROLE=admin` restores the old behaviour. On a fresh install the
-  first person to sign in becomes the operator.
+  `data/auth/policy.json`, or name yourself in `OPERATORS`. People who sign in for
+  the first time later are `user`; `OIDC_DEFAULT_ROLE=admin` restores the old
+  behaviour. On an install without any user entries, sign in within 30 minutes of
+  the update (or set `OPERATORS`); if you miss it, restart and sign in again.
 - **Proxy:** if your env sets `FORWARDED_ALLOW_IPS="*"`, set it to your proxy's
   source, e.g. `127.0.0.1,172.16.0.0/12` for a proxy on the Docker host.
 - **OAuth apps:** each app shows FastMCP's consent page once. Apps whose callback is
   not built in (for example `vscode://` or `cursor://` schemes) need an https
   pattern in `MCP_REDIRECT_URIS` or can't sign in.
-- **Secrets:** existing integrations keep working; each secret is bound to its host
-  on first use. `webhook_send` with `secret_env` is refused until the host is bound.
+- **Secrets:** on the first start, every secret an existing integration refers to is
+  bound to that integration's hosts, once — existing integrations keep working.
+  Secrets no integration refers to stay unbound until you bind them (WebUI → Vault →
+  allowed hosts). New integrations from an assistant need
+  `secret_set(name, value, hosts=...)` first. `webhook_send` with `secret_env` needs a
+  bound host. Tokens kept in environment variables with one of the reserved
+  prefixes above must move into the vault.
 - The OAuth store is migrated on the first start; the old files move to
   `data/auth/diskstore.migrated-2.6.0/` and can be deleted once your apps work.
   After a downgrade to 2.5, apps have to sign in again.

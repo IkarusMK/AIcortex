@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -100,17 +101,30 @@ def login(base):
 def authorize(base, meta, client_id):
     verifier = b64u(os.urandom(32))
     challenge = b64u(hashlib.sha256(verifier.encode()).digest())
-    r = httpx.get(meta["authorization_endpoint"], params={
+    # One browser (cookies kept) walks the redirects. Since 2.6.0 FastMCP shows its
+    # consent page once per client before the IdP; approve it like a person would.
+    # 2.5.0 has no consent step, so the same walk works for both versions.
+    browser = httpx.Client(timeout=30)
+    r = browser.get(meta["authorization_endpoint"], params={
         "response_type": "code", "client_id": client_id, "redirect_uri": CB,
         "code_challenge": challenge, "code_challenge_method": "S256", "state": "st1",
         "resource": f"{base}/mcp"})
     loc = ""
-    for _ in range(8):
+    for _ in range(10):
         assert r.status_code in (302, 303, 307), (r.status_code, r.text[:400])
         loc = r.headers["location"]
         if loc.startswith(CB):
             break
-        r = httpx.get(loc)
+        if "/consent?" in loc:
+            target = loc if loc.startswith("http") else f"{base}{loc}"
+            page = browser.get(target)
+            csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
+            txn = parse_qs(urlparse(target).query)["txn_id"][0]
+            r = browser.post(f"{base}/consent", data={
+                "action": "approve", "txn_id": txn, "csrf_token": csrf, "submit": "true"})
+            continue
+        r = browser.get(loc if loc.startswith("http") else f"{base}{loc}")
+    browser.close()
     code = parse_qs(urlparse(loc).query)["code"][0]
     tok = httpx.post(meta["token_endpoint"], data={
         "grant_type": "authorization_code", "code": code, "redirect_uri": CB,
