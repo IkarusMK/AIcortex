@@ -110,7 +110,7 @@ def test_oidc_mode_requires_session(monkeypatch, tmp_path):
 def test_non_admin_session_is_forbidden(monkeypatch, tmp_path):
     webui, mcp = _webui(monkeypatch, tmp_path, oidc=True)
     cookie = {"aicortex_ui": webui._sign(
-        {"sub": "kid", "role": "user", "csrf": "c", "exp": time.time() + 300})}
+        {"sub": "kid", "role": "user", "claim_role": "user", "csrf": "c", "exp": time.time() + 300})}
     status, body = _call(mcp, "/ui/api/secrets", cookies=cookie)
     assert status == 403 and "admin" in body["detail"]
 

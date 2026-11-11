@@ -56,7 +56,7 @@ class Ui:
         if csrf is not None:
             hdr.setdefault("x-csrf", csrf)
         cookies = {} if who is None else {self.webui.SESSION_COOKIE: self.webui._sign(
-            {"sub": who, "name": who, "role": role, "csrf": "tok", "exp": time.time() + 600})}
+            {"sub": who, "name": who, "role": role, "claim_role": role, "csrf": "tok", "exp": time.time() + 600})}
         raw = body if isinstance(body, bytes) else b"" if body is None else json.dumps(body).encode()
         req = SimpleNamespace(
             client=SimpleNamespace(host="192.0.2.10"), headers={k.lower(): v for k, v in hdr.items()},

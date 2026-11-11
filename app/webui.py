@@ -11,8 +11,12 @@ AUTH — the browser flow mirrors the server's own model:
 - OIDC configured (OIDC_CONFIG_URL + OIDC_CLIENT_ID): a standard authorization-
   code flow WITH PKCE against the same IdP (e.g. Pocket ID). The IdP needs ONE
   extra redirect URI: ``<BASE_URL>/ui/callback``. The resulting session is a
-  signed, HttpOnly cookie; the role comes from ``authz.role_for`` (policy.json /
-  group claim / default) and every management endpoint requires **admin**.
+  signed, HttpOnly cookie of kind "session" (every WebUI cookie carries its kind,
+  so a login state is never a session). It records the IdP's role claim; the role
+  itself is recomputed on every request (``authz.session_role``: policy.json /
+  claim / default / operators), and every management endpoint requires **admin**.
+  An admin can end every session at once ("sign out everywhere", a server-side
+  epoch in ``<AUTH_STORE_DIR>/ui_sessions.json``).
 - No OIDC (local testing): the server already binds to 127.0.0.1 in that mode;
   the UI is open as a local admin. Mutations still demand the custom CSRF header,
   which forces a CORS preflight for any cross-origin page → a malicious website
@@ -22,6 +26,7 @@ SECRETS: names only, ever. The write endpoint accepts a value and hands it to
 ``secrets_store.vault_set`` — it is never echoed, logged, or audited.
 """
 import base64
+import functools
 import hashlib
 import hmac
 import json
@@ -118,14 +123,20 @@ def _unb64(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
-def _sign(payload: dict) -> str:
-    body = _b64(json.dumps(payload, separators=(",", ":")).encode())
+def _sign(payload: dict, typ: str = "session") -> str:
+    """Sign ``payload`` as a cookie of kind ``typ``. Every WebUI cookie shares one
+    key, so the kind is part of the signed payload: "session" (a signed-in person),
+    "login" (the state of a sign-in in flight, handed to ANYONE by /ui/login) and
+    "mcp_oauth" (an upstream MCP sign-in in flight). Without it, the login-state
+    cookie replayed as a session made an anonymous caller a signed-in user."""
+    body = _b64(json.dumps({**payload, "typ": typ}, separators=(",", ":")).encode())
     mac = _b64(hmac.new(_ui_key(), body.encode(), hashlib.sha256).digest())
     return f"{body}.{mac}"
 
 
-def _verify(token: str):
-    """Signed-payload check + expiry. Returns the payload dict or None."""
+def _verify(token: str, typ: str = "session"):
+    """Signature + expiry + kind check. Returns the payload dict, or None when the
+    token is forged, expired or a cookie of another kind than ``typ``."""
     try:
         body, mac = token.split(".", 1)
         want = _b64(hmac.new(_ui_key(), body.encode(), hashlib.sha256).digest())
@@ -134,9 +145,56 @@ def _verify(token: str):
         payload = json.loads(_unb64(body))
         if float(payload.get("exp", 0)) < time.time():
             return None
+        if payload.get("typ") != typ:
+            return None
         return payload
     except Exception:
         return None
+
+
+# ── server-side session revocation ("sign out everywhere") ───────────────────
+# Sessions are stateless signed cookies, so a stolen or stale one used to live for
+# its full 12 hours. Every session now carries the epoch it was issued in; bumping
+# the epoch (an admin's "sign out everywhere") ends all of them at once.
+def _epoch_file() -> Path:
+    return authz.AUTH_DIR / "ui_sessions.json"
+
+
+def _session_epoch() -> int:
+    """The current session epoch: 0 until the first revocation. A file that exists
+    but can't be read counts as -1 — no issued session (epoch ≥ 0) matches it, so a
+    damaged file signs everyone out instead of keeping revoked sessions alive."""
+    path = _epoch_file()
+    if not path.exists():
+        return 0
+    try:
+        epoch = json.loads(path.read_text(encoding="utf-8")).get("epoch")
+        return epoch if isinstance(epoch, int) and epoch >= 0 else -1
+    except Exception:
+        return -1
+
+
+def _bump_session_epoch(by: str) -> int:
+    """End every WebUI session issued so far; returns the new epoch."""
+    import store
+    with store.locked(_epoch_file()):
+        epoch = max(_session_epoch(), 0) + 1
+        store.write_text_atomic(_epoch_file(), json.dumps({
+            "epoch": epoch, "by": by,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+    return epoch
+
+
+def _valid_session(sess) -> bool:
+    """A session names a person, holds a valid role and a CSRF token, and was issued
+    in the current epoch. (An empty CSRF token would match a missing header.)"""
+    if not isinstance(sess, dict):
+        return False
+    sub, csrf, epoch = sess.get("sub"), sess.get("csrf"), sess.get("epoch", 0)
+    return (isinstance(sub, str) and bool(sub.strip())
+            and sess.get("role") in authz._VALID_ROLES
+            and isinstance(csrf, str) and bool(csrf)
+            and isinstance(epoch, int) and epoch == _session_epoch())
 
 
 def _is_local_request(request) -> bool:
@@ -159,21 +217,36 @@ def _is_local_request(request) -> bool:
 def _session(request):
     """The caller's UI session, or None. Without OIDC there is no login, so only
     the local operator (a direct request on this machine) gets the synthetic admin
-    session — the server may listen on the LAN for bearer-token agents."""
+    session — the server may listen on the LAN for bearer-token agents.
+
+    With OIDC: a valid, current session cookie (see _valid_session). Its role is
+    recomputed on EVERY request from the current policy plus the IdP claim recorded
+    at sign-in (authz.session_role), so a demotion or a policy change takes effect
+    at once instead of being frozen for the session's 12 hours."""
     if not _oidc_configured():
         if not (_is_local_request(request) or os.environ.get("ALLOW_INSECURE") == "1"):
             return None
         return {"sub": "local-operator", "name": "Local operator",
                 "role": "admin", "csrf": "local", "mode": "open"}
     tok = request.cookies.get(SESSION_COOKIE, "")
-    return _verify(tok) if tok else None
+    sess = _verify(tok) if tok else None
+    if not _valid_session(sess):
+        return None
+    claim = sess.get("claim_role")
+    role = authz.session_role(sess["sub"], claim if isinstance(claim, str) else "")
+    return {**sess, "role": role} if role in authz._VALID_ROLES else None
 
 
 def _mutation_ok(request, sess) -> bool:
     """CSRF gate for state-changing calls: the custom header must echo the
     session's token (its mere presence already forces a CORS preflight, which
-    this server never approves), and a present Origin must match our own host."""
-    if request.headers.get("x-csrf", "") != sess.get("csrf", ""):
+    this server never approves), and a present Origin must match our own host.
+    A session without a token never passes (an empty token would equal a missing
+    header)."""
+    want = sess.get("csrf") if isinstance(sess, dict) else None
+    got = request.headers.get("x-csrf", "")
+    if not (isinstance(want, str) and want
+            and hmac.compare_digest(got.encode("utf-8"), want.encode("utf-8"))):
         return False
     origin = request.headers.get("origin", "")
     if origin:
@@ -429,7 +502,7 @@ def register(mcp):
             f"{doc['authorization_endpoint']}?{urlencode(params)}", status_code=302)
         _cookie(resp, OAUTH_COOKIE,
                 _sign({"state": state, "verifier": verifier,
-                       "exp": time.time() + _OAUTH_TTL}),
+                       "exp": time.time() + _OAUTH_TTL}, typ="login"),
                 request, _OAUTH_TTL)
         return resp
 
@@ -441,7 +514,7 @@ def register(mcp):
         def _fail(msg: str):
             return RedirectResponse(f"/ui?login_error={msg}", status_code=302)
 
-        pending = _verify(request.cookies.get(OAUTH_COOKIE, ""))
+        pending = _verify(request.cookies.get(OAUTH_COOKIE, ""), typ="login")
         state = request.query_params.get("state", "")
         code = request.query_params.get("code", "")
         # Compare bytes: compare_digest raises on a non-ASCII str (→ 500, not a refusal).
@@ -473,10 +546,13 @@ def register(mcp):
         sub = str(claims.get("sub", "")).strip()
         if not sub:
             return _fail("claims")
+        # The IdP's own role claim is recorded with the session; the role itself is
+        # recomputed from it and the current policy on every request (_session).
+        claim_role = authz._role_from_claims(claims)
         role = authz.role_for(sub, is_runner=False, claims=claims)
         sess = {"sub": sub, "name": _display_name(claims), "role": role,
-                "csrf": pysecrets.token_urlsafe(16),
-                "exp": time.time() + SESSION_TTL}
+                "claim_role": claim_role, "csrf": pysecrets.token_urlsafe(16),
+                "epoch": _session_epoch(), "exp": time.time() + SESSION_TTL}
         _audit(sess, "login", "allow", f"browser login, role={role}")
         resp = RedirectResponse("/ui", status_code=302)
         _cookie(resp, SESSION_COOKIE, _sign(sess), request, SESSION_TTL)
@@ -485,7 +561,36 @@ def register(mcp):
 
     @mcp.custom_route("/ui/logout", methods=["POST"])
     async def _logout(request):
+        # A live session is only ended by the person's own page (CSRF/Origin gate):
+        # a foreign site must not be able to sign them out. Without a valid session
+        # there is nothing to protect — the stale cookie is simply cleared.
+        sess = _session(request) if _enabled() else None
+        if sess:
+            denied = _gate_mutation(request, sess)
+            if denied:
+                return denied
         resp = _json({"ok": True})
+        _cookie(resp, SESSION_COOKIE, "", request, 0)
+        return resp
+
+    @mcp.custom_route("/ui/api/sessions/revoke", methods=["POST"])
+    async def _sessions_revoke(request):
+        """Sign out everywhere: end every WebUI session issued so far (the admin's
+        own included) — after a lost device, a leaked cookie or a role change that
+        must not wait for the next request."""
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        try:
+            epoch = _bump_session_epoch(str(sess.get("sub", "")))
+        except Exception as exc:
+            _audit(sess, "sessions_revoke", "deny", f"could not store: {type(exc).__name__}")
+            return _json({"ok": False, "message": "Could not end the sessions."}, 500)
+        _audit(sess, "sessions_revoke", "allow", f"every WebUI session ended (epoch {epoch})")
+        resp = _json({"ok": True, "message": "Every WebUI session has been ended."})
         _cookie(resp, SESSION_COOKIE, "", request, 0)
         return resp
 
@@ -495,9 +600,8 @@ def register(mcp):
         if not _enabled():
             return _json({"error": "ui disabled"}, 404)
         sess = _session(request)
-        if not sess:
-            return _json({"authenticated": False, "oidc": _oidc_configured(),
-                          "version": version.__version__})
+        if not sess:      # nothing about the running version for anonymous callers
+            return _json({"authenticated": False, "oidc": _oidc_configured()})
         return _json({"authenticated": True, "sub": sess.get("sub"),
                       "name": sess.get("name"), "role": sess.get("role"),
                       "csrf": sess.get("csrf"), "mode": sess.get("mode", "oidc"),
@@ -903,7 +1007,11 @@ def register(mcp):
         body=_body, gate=_gate_mutation, audit=_audit)
     webui_views.register(mcp, helpers)
     webui_runner.register(mcp, helpers)
+    # The MCP sign-in cookie is its own kind ("mcp_oauth"): bound here, so that module
+    # can neither mint nor accept a session or a login state.
     webui_mcp_oauth.register(mcp, helpers, types.SimpleNamespace(
-        sign=_sign, verify=_verify, base_url=_base_url, cookie=_cookie, session=_session))
+        sign=functools.partial(_sign, typ="mcp_oauth"),
+        verify=functools.partial(_verify, typ="mcp_oauth"),
+        base_url=_base_url, cookie=_cookie, session=_session))
     webui_search.register(mcp, helpers, types.SimpleNamespace(
         skills=_skill_rows, services=_service_rows, users=lambda: _user_rows()["users"]))
