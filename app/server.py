@@ -58,31 +58,40 @@ PORT = int(os.environ.get("MCP_PORT", "8787"))
 
 
 def http_middleware():
-    """ASGI middleware for the HTTP app: the DNS-rebinding guard (see hostguard.py).
-    fastmcp's own host/origin guard is off by default and only checks loopback-bound
-    servers, so it never protected the NAS — this one does, without turning away
-    native clients on LAN IPs, Docker names or VPN names."""
+    """ASGI middleware for the HTTP app, outermost first:
+
+    - HSTS (when BASE_URL is https) and nosniff on every response, including the
+      refusals below (see secheaders.py).
+    - the DNS-rebinding guard (see hostguard.py). fastmcp's own host/origin guard is
+      off by default and only checks loopback-bound servers, so it never protected
+      the NAS — this one does, without turning away native clients on LAN IPs,
+      Docker names or VPN names.
+    - per-client-IP rate limits on the auth endpoints and /hooks (see ratelimit.py),
+      so the app is not left to an external CrowdSec alone.
+    """
     from starlette.middleware import Middleware
 
     import hostguard
-    return [Middleware(hostguard.HostGuard)]
+    import ratelimit
+    import secheaders
+    return [Middleware(secheaders.SecurityHeaders), Middleware(hostguard.HostGuard),
+            Middleware(ratelimit.RateLimit)]
+
+
+def uvicorn_config():
+    """Extra uvicorn settings for the HTTP transport: no "server: uvicorn" banner
+    telling every client which stack (and version range) answers."""
+    return {"server_header": False}
 
 
 def _client_storage():
-    """Persistent (optionally encrypted) disk store for OAuth client
-    registrations, so they survive container restarts."""
+    """Persistent (optionally encrypted) file store for OAuth client registrations
+    and tokens, so they survive container restarts. A pre-2.6.0 DiskStore (diskcache,
+    unsafe pickle) is migrated into it once — see oauth_store.py."""
     auth_dir = os.environ.get("AUTH_STORE_DIR", "/data/auth")
     try:
-        from key_value.aio.stores.disk import DiskStore
-
-        store = DiskStore(directory=auth_dir)
-        enc_key = os.environ.get("STORAGE_ENCRYPTION_KEY")
-        if enc_key:
-            from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
-            from cryptography.fernet import Fernet
-
-            store = FernetEncryptionWrapper(key_value=store, fernet=Fernet(enc_key))
-        return store
+        import oauth_store
+        return oauth_store.build(auth_dir, os.environ.get("STORAGE_ENCRYPTION_KEY"))
     except Exception as exc:  # fall back to the (ephemeral) default
         print(f"[AICortex] WARNING: disk client_storage unavailable ({exc}); using default")
         return None
@@ -312,7 +321,7 @@ guide.register(mcp)
 profiles.register(mcp)
 
 
-if __name__ == "__main__":
+def main():
     print(f"[AICortex] version {version.__version__} starting")
     # Native (libuv) event loop for faster async I/O — set the policy BEFORE any loop is
     # created. uvicorn also auto-detects uvloop; installing it here makes it explicit and
@@ -337,7 +346,15 @@ if __name__ == "__main__":
     if os.environ.get("MCP_ALLOWED_HOSTS"):
         print(f"[AICortex] host guard: strict — only {os.environ['MCP_ALLOWED_HOSTS']} "
               f"(+ BASE_URL host, localhost)")
+    import ratelimit
+    limits = ratelimit.describe(ratelimit.limits_from_env())
+    print(f"[AICortex] rate limits per client IP: {limits}")
     # The runners tick once a minute and stay idle until one is switched on in the
     # WebUI (tab "Runners").
     runner_builtin.start(PORT)
-    mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware())
+    mcp.run(transport="http", host=bind_host, port=PORT, middleware=http_middleware(),
+            uvicorn_config=uvicorn_config())
+
+
+if __name__ == "__main__":
+    main()
