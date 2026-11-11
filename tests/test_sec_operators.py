@@ -9,7 +9,8 @@ management plane. Now:
   OIDC_DEFAULT_ROLE → policy ``default`` → listed in ``operators`` → admin, else
   "user";
 - bootstrap: with no operator and no explicit admin, the FIRST interactive identity
-  is recorded as operator (so a fresh install doesn't lock its owner out);
+  (within the bootstrap window after the start) is recorded as operator (so a fresh
+  install doesn't lock its owner out);
 - upgrade: once, at startup, the identities that are admin today (listed in policy
   ``users``/``roles`` without an explicit non-admin role) become operators — today's
   admins stay admin, only NEW identities start as "user";
@@ -28,9 +29,13 @@ pytestmark = pytest.mark.secure_default_role
 @pytest.fixture
 def az(monkeypatch, fresh_server):
     monkeypatch.setenv("AUTH_ENFORCE", "1")
-    for var in ("AUTH_ROLE_CLAIM", "RUNNER_ROLE"):
+    for var in ("AUTH_ROLE_CLAIM", "RUNNER_ROLE", "OPERATORS", "OPERATOR_BOOTSTRAP_MINUTES"):
         monkeypatch.delenv(var, raising=False)
-    return sys.modules["authz"]
+    az = sys.modules["authz"]
+    # As a start with sign-in configured does: nobody is in charge yet, so the
+    # first-come bootstrap window opens (test_sec_operators_bootstrap.py covers it).
+    az.start_bootstrap_window()
+    return az
 
 
 def _write(az, obj):

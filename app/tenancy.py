@@ -353,6 +353,47 @@ _AREA_VALUES = ("own", "all")
 _POLICY_BAK = AUTH_DIR / "policy.json.bak"
 
 
+class PolicyRefused(Exception):
+    """A policy change that must not happen (the message says why)."""
+
+
+def _policy_strict() -> dict:
+    """policy.json for a read-modify-write: {} when absent; an unreadable or non-object
+    file RAISES — rewriting it from {} would wipe everyone's roles and operators."""
+    if not POLICY_FILE.exists():
+        return {}
+    obj = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError("policy.json is not an object")
+    return obj
+
+
+def update_policy(change):
+    """Read-modify-write policy.json under the policy lock — the lock the operator
+    bootstrap and the upgrade migration (authz) take, so concurrent writers can't lose
+    each other's update. ``change(policy)`` returns the new policy and must not modify
+    its argument. Returns (old, new); writes only when they differ.
+
+    Raises ``PolicyRefused`` when the change would remove the last operator (see
+    authz.last_operator_refusal), and ValueError when policy.json can't be read — it
+    is then left exactly as it is."""
+    import authz
+    import store
+    with store.locked(POLICY_FILE):
+        try:
+            old = _policy_strict()
+        except (ValueError, OSError) as exc:
+            raise ValueError("policy.json can't be read; fix or restore it "
+                             "(policy.json.bak) first — nothing was changed") from exc
+        new = change(old)
+        if new != old:
+            refusal = authz.last_operator_refusal(old, new)
+            if refusal:
+                raise PolicyRefused(refusal)
+            _write_policy(new)
+        return old, new
+
+
 def _write_policy(obj: dict) -> None:
     """Atomic write of policy.json with a one-generation backup (so a crash or a
     bad edit can't leave a truncated policy that would silently change everyone's
@@ -410,6 +451,11 @@ def _describe_area(identity: str) -> str:
             f"skills={skls}{dev} → memory scope: {scope}{extra}")
 
 
+def _refused(exc) -> str:
+    text = str(exc)
+    return text if text.startswith("Refused") else f"Refused: {text}"
+
+
 def register(mcp):
     """Register the tenancy_* admin tools (per-user data areas)."""
 
@@ -460,19 +506,15 @@ def register(mcp):
             if val and val.strip().lower() not in _AREA_VALUES:
                 return (f"Refused: {label} must be one of {_AREA_VALUES} "
                         f"(or empty to keep current). Got '{val}'.")
-        pol = _policy()
-        users = pol.get("users")
-        if not isinstance(users, dict):
-            users = {}
-        entry = dict(users.get(identity, {}))
+        changes = {}
         if memory.strip():
-            entry["memory"] = memory.strip().lower()
+            changes["memory"] = memory.strip().lower()
         if vault.strip():
-            entry["vault"] = vault.strip().lower()
+            changes["vault"] = vault.strip().lower()
         # services/skills: 'all'/'none' verbatim, else a normalized list.
         for label, val in (("services", services), ("skills", skills)):
             if val.strip():
-                entry[label] = _norm_access(val)
+                changes[label] = _norm_access(val)
         # grant: per-device-class access, "kind=spec; kind=spec".
         for part in re.split(r"[;\n]+", grant or ""):
             if "=" not in part:
@@ -482,13 +524,19 @@ def register(mcp):
             if kind not in _DEVICE_KINDS:
                 return (f"Refused: unknown grant kind '{kind}'. Valid: "
                         f"{', '.join(_DEVICE_KINDS)}.")
-            entry[kind] = _norm_access(spec)
+            changes[kind] = _norm_access(spec)
         if note.strip():
-            entry["note"] = note.strip()
-        entry.setdefault("memory", "own")  # meaningful default for a new user
-        users[identity] = entry
-        pol["users"] = users
-        _write_policy(pol)
+            changes["note"] = note.strip()
+
+        def change(pol):
+            users = pol.get("users") if isinstance(pol.get("users"), dict) else {}
+            old = users.get(identity)
+            entry = {"memory": "own", **(old if isinstance(old, dict) else {}), **changes}
+            return {**pol, "users": {**users, identity: entry}}
+        try:
+            update_policy(change)
+        except (PolicyRefused, ValueError) as exc:
+            return _refused(exc)
         warn = "" if isolation_enabled() else (
             "\n⚠ AUTH_ENFORCE is OFF, so this area is stored but NOT enforced yet — "
             "set AUTH_ENFORCE=1 in .env and restart to activate.")
@@ -519,12 +567,17 @@ def register(mcp):
         """Remove a user's per-user area override (they revert to the default).
         (Admin-only.)"""
         identity = (identity or "").strip()
-        pol = _policy()
-        users = pol.get("users")
-        if not isinstance(users, dict) or identity not in users:
+
+        def change(pol):
+            users = pol.get("users")
+            if not isinstance(users, dict) or identity not in users:
+                return pol
+            return {**pol, "users": {k: v for k, v in users.items() if k != identity}}
+        try:
+            old, new = update_policy(change)
+        except (PolicyRefused, ValueError) as exc:
+            return _refused(exc)
+        if new == old:
             return f"No per-user area for '{identity}' — nothing to remove."
-        del users[identity]
-        pol["users"] = users
-        _write_policy(pol)
         return (f"Removed area for '{identity}'. They now follow the default "
                 f"(confined to their own scope when isolation is on).")
