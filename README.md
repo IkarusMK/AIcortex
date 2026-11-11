@@ -165,6 +165,11 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 > vault, services, tasks, sessions and API keys carry over. What changes is listed in
 > [CHANGELOG.md](CHANGELOG.md#upgrading-from-1x).
 
+> 🔐 **Updating to 2.6.0 (security release)?** Pull and restart as usual — your data
+> stays. But read **[Upgrading to 2.6.0](#upgrading-to-260--what-you-need-to-do)**
+> first: one setting may need a change, everyone signs in once more, and each app
+> asks for consent once.
+
 **Expose it & add the connector:**
 
 1. Point a subdomain (e.g. `agent.example.com`) at your reverse proxy.
@@ -216,7 +221,118 @@ AUTH_ROLE_CLAIM=groups                  # map Pocket ID groups → roles
 ```
 `AUTH_ENFORCE=1` is the **one switch** — "enforce means enforce". It turns on roles (admin / user / viewer), per-user isolation, and per-user capability areas together. Roles are driven by your IdP groups (mapped in `data/auth/policy.json`, or managed live with the `tenancy_*` admin tools). Each non-admin is confined to their **own memory scope and private vault namespace** — two people never read or overwrite each other's data — and reaches only the **services & skills an admin assigns** (default-deny); an admin provisions per-user secrets (`secret_set owner=…`) and areas (`tenancy_set services=… skills=…`). Admins keep full access.
 
-Both modes run the same image. **Private data** (memory, vault) fails **open** so a glitch never strands the operator; **shared capabilities** (services, skills) fail **closed** under enforce. **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+Both modes run the same image. **Who is admin:** only the **operators** you name (`OPERATORS=<your IdP sub>`, or the first person who signs in after a fresh start — see [below](#who-is-admin)); everyone else who signs in is `user`. With sign-in configured, a caller whose identity can't be resolved, or a policy check that fails, is **refused** (fail closed). **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+
+## Upgrading to 2.6.0 — what you need to do
+
+2.6.0 closes the findings of a full security review, among them a way into the
+WebUI **without signing in** (present since 1.12.0). If your WebUI is reachable from
+the internet, update now. Nothing in `data/` has to be migrated by hand.
+
+### Checklist
+
+1. **Check one setting first.** If your `.env` or compose file sets
+   `FORWARDED_ALLOW_IPS=*`, change it to your reverse proxy's source address. For a
+   proxy on the same host: `FORWARDED_ALLOW_IPS=127.0.0.1,172.16.0.0/12`. With `*` a
+   client can fake its IP address and get around the new login rate limits.
+2. **Update:** `docker compose pull && docker compose up -d --force-recreate`.
+3. **Read the startup log once** (`docker compose logs aicortex`). You should see:
+   - `auth: kept N existing admin(s) as operators` — the people who were admin
+     before stay admin (or `operators from OPERATORS: …` if you set that).
+   - `OAuth store: migrated N entries …` — your connected apps stay signed in.
+   - `vault: bound N secret(s) of existing integrations to their hosts` — your
+     services keep working.
+   - No `WARNING` about `FORWARDED_ALLOW_IPS`.
+   - If you see `WARNING: nobody is operator (admin) yet`, sign in to the WebUI
+     **within 30 minutes** — the first person to sign in becomes the operator. Or set
+     `OPERATORS=<your sub>` and restart (see [Who is admin](#who-is-admin)).
+4. **Sign in to the WebUI again** (`https://<your-host>/ui`). Old WebUI cookies are no
+   longer valid. Under **Users**, you should be marked **operator**.
+5. **Reconnect your apps when they ask.** Claude, ChatGPT and others show an
+   AICortex **consent page** once per app ("… wants to access AICortex"). Allow it.
+   If that page ever pops up out of the blue from a link, **deny it** — that is
+   exactly the attack it exists to stop.
+6. **Recommended:** in your identity provider, allow only your own group to use the
+   AICortex client (Pocket ID: OIDC client → *Allowed User Groups*).
+7. **Was the hole used?** If your WebUI was public before the update, look through
+   **WebUI → Logs** (the audit log) for entries without a person (empty identity), especially
+   `memory_write`, `memory_delete` and `cron`, and check your scheduled jobs.
+
+### How it works now
+
+#### Who is admin
+
+- **Operators** are admin when they sign in to the WebUI or connect an app. Name them
+  with `OPERATORS=<sub>[,<sub>…]` (your IdP's `sub`, shown on the WebUI's Users page),
+  or keep the ones the upgrade recorded in `data/auth/policy.json` → `"operators"`.
+- **Everyone else** who signs in is `user`: their own notes and vault area, no
+  registration or secret tools. Give someone more in **WebUI → Users**.
+- **Fresh install without `OPERATORS`:** the first person to sign in within
+  `OPERATOR_BOOTSTRAP_MINUTES` (default 30) after a start becomes the operator. Sign in
+  right after setting up. Missed it? Restart and sign in again, or set `OPERATORS`.
+- The **last operator** can't be removed or demoted, so you can't lock yourself out.
+- **Agent keys** and **scheduled jobs** never become admin through this; they use the
+  role set for them explicitly, else `user`.
+- Want the old behaviour (everyone your IdP lets in is admin)? `OIDC_DEFAULT_ROLE=admin`
+  — only if your IdP admits nobody but you.
+
+#### Connecting apps
+
+- Built-in callbacks: Claude (claude.ai / claude.com), ChatGPT, and loopback addresses
+  on any port (Claude Code, desktop and CLI clients). Other apps answer
+  *"invalid redirect uri"*; allow them with an https pattern, e.g.
+  `MCP_REDIRECT_URIS=https://app.example.com/oauth/*`. Custom schemes such as
+  `vscode://` can't be matched.
+- Each app shows the consent page once. Allow it for apps you connected yourself.
+- Never set `MCP_REDIRECT_URIS=*`: then anyone can register an app that sends your
+  login to their own server.
+
+#### Secrets and where they may go
+
+- Every vault secret is **bound to the hosts** it may be sent to. A request to any
+  other host is refused, so a manipulated assistant can't send your tokens elsewhere.
+- **Existing integrations** were bound automatically at the upgrade.
+- **New integration, set up by an assistant:** store the secret together with its
+  host — `secret_set("MY_TOKEN", "<value>", hosts="api.example.com")` — then add the
+  service. Without the host, the assistant gets a refusal that says exactly this.
+- **New integration in the WebUI:** just save it; saving binds the secret.
+- **Moving a service to a new host** or sending a secret with `webhook_send`: add the
+  host in **WebUI → Vault → allowed hosts** for that secret.
+- Settings of the server itself (`RATE_LIMIT*`, `HSTS`, `MCP_*`, `FORWARDED_*`,
+  `OPERATOR*`, `UI_*`, `API_*`, …) are never read from the environment as a secret. A
+  token you kept in such an environment variable must move into the vault.
+
+#### Behind a reverse proxy
+
+- `FORWARDED_ALLOW_IPS` names who may tell AICortex the real client IP. The default
+  in `docker-compose.yml` is loopback plus private networks. **Never `*`.**
+- **Rate limits** per client IP (all configurable, `0` switches one off, `RATE_LIMIT=0`
+  all of them):
+
+  | Setting | Default | Covers |
+  |---|---|---|
+  | `RATE_LIMIT_AUTH` | 30/min | `/authorize`, `/token`, `/consent`, `/revoke`, `/auth/callback` |
+  | `RATE_LIMIT_LOGIN` | 30/min | WebUI sign-in |
+  | `RATE_LIMIT_REGISTER` | 10/hour | app registration (`/register`) |
+  | `RATE_LIMIT_HOOKS` | 60/min | inbound webhooks |
+  | `RATE_LIMIT_UI` | 300/min | WebUI API |
+  | `RATE_LIMIT_AUTH_FAILURES` | 20/min | rejected credentials on `/mcp` and `/api/v1` → `429` for `RATE_LIMIT_FAILURE_COOLDOWN` (300 s) |
+
+- **HSTS** is sent automatically when `BASE_URL` starts with `https://` (this host
+  only; `HSTS=<value>` changes it, `HSTS=off` switches it off).
+
+#### Webhook senders
+
+- Existing senders keep working unchanged.
+- A delivery that is repeated byte for byte within 10 minutes is answered with
+  `{"ok": true, "duplicate": true}` and not delivered again (`WEBHOOK_REPLAY_TTL`).
+- Optional replay protection: send `X-Webhook-Timestamp: <unix seconds>`. It must be
+  within ±5 minutes, and HMAC hooks then sign `"<timestamp>." + body`.
+
+#### REST API
+
+- Errors no longer contain the exception text; they carry an `error_id` that you find
+  again in the server log and the audit log.
 
 ## Capabilities
 
@@ -347,11 +463,14 @@ For a public/cloud LLM client, yes — the endpoint must be reachable over HTTPS
 ## Security
 
 - **Auth fails closed.** Without OIDC, `/mcp` accepts only bearer tokens (`RUNNER_TOKEN` or a per-agent key); `ALLOW_INSECURE=1` runs it open for local development only. Enable OIDC **before** exposing the proxy for Claude or ChatGPT.
+- **Sign-in hardened (2.6.0).** WebUI cookies are typed and bound to a person, a role and a CSRF token; sessions follow role changes at once and can be revoked for everyone (*Sign out everywhere*). App sign-in only returns to known callbacks and shows a consent page per app. Only operators are admin. Sign-in, token, registration, webhook and WebUI endpoints are rate-limited per client IP.
 - **DNS rebinding blocked.** Browser requests (and the WebUI) must come from an IP address, localhost, a name without a dot, a private-use name or the `BASE_URL` host; native clients are unaffected. `MCP_ALLOWED_HOSTS` makes the host check strict.
-- **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are model-callable, so the registered-target list isn't a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only). Set it to the LAN/VPN ranges you actually use.
+- **SSRF guard.** `service_add` / `mqtt_add` / `ftp_add` are model-callable, so the registered-target list isn't a trust boundary by itself. Every outbound host is resolved and **private / loopback / link-local / cloud-metadata addresses are blocked** unless they fall inside `INTERNAL_ALLOW_CIDRS` (operator-only). Set it to the LAN/VPN ranges you actually use. Every request and every redirect hop is resolved once and connected to the checked address, so DNS tricks can't swap the target in between.
 - **Encrypted vault, enforced.** Secrets go in the vault via `secret_set` (encrypted at rest, referenced by name, never returned). `secret_set` **refuses plaintext** unless `STORAGE_ENCRYPTION_KEY` is set. `.env` is only for bootstrap config.
-- **Inbound webhooks authenticate themselves.** `POST /hooks/<name>` is served alongside `/mcp/` but *not* behind the MCP OAuth (external senders can't do OAuth) — instead each hook validates a **shared secret token** (the `X-Webhook-Token` header only — never a URL query, so it can't leak into logs) **and/or an HMAC signature** (constant-time). Unknown hooks and bad/unsigned requests both return a uniform `401` (no hook-name enumeration), the body size is capped, and it only ever deposits into the inbox — it never reaches the tool surface. **Expose only `/hooks/*` past your reverse proxy's auth, never `/mcp`.** Don't want any public receiver? Leave webhooks unregistered (opt-in) or keep the `/hooks` path LAN-only.
+- **Secrets only go where they belong.** Each secret is bound to its hosts; only a person (WebUI, or `secret_set` with the value) can add a host. See [Secrets and where they may go](#secrets-and-where-they-may-go).
+- **Inbound webhooks authenticate themselves.** `POST /hooks/<name>` is served alongside `/mcp/` but *not* behind the MCP OAuth (external senders can't do OAuth) — instead each hook validates a **shared secret token** (the `X-Webhook-Token` header only — never a URL query, so it can't leak into logs) **and/or an HMAC signature** (constant-time). Unknown hooks and bad/unsigned requests both return a uniform `401` (no hook-name enumeration), the body size is capped while reading, repeated deliveries are dropped, and it only ever deposits into the inbox — it never reaches the tool surface. **Expose only `/hooks/*` past your reverse proxy's auth, never `/mcp`.** Don't want any public receiver? Leave webhooks unregistered (opt-in) or keep the `/hooks` path LAN-only.
 - **TLS verified by default** for FTP / MQTT / WebDAV / scanning; self-signed LAN devices opt out per-endpoint via the admin-only registration tools (`tls_insecure` / `ca_bundle`).
+- **HSTS, no server banner**, and a container image that is **scanned with Trivy** before it is published (dependency audits block the build).
 - `.env` and `data/` contents are git-ignored — never commit secrets.
 
 AICortex has been through external security review (fail-closed vault, SSH host-key pinning, connect-time DNS-rebinding protection, resource limits, the authorization layer and per-user isolation). **Full status & reporting: [SECURITY.md](SECURITY.md).**
@@ -538,6 +657,11 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | Connector won't connect; proxy returns a login **web page** | Reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer. |
 | After setting **`BIND_ADDR=127.0.0.1`** the connector goes unreachable / the client says *"registration with the sign-in service failed"* (OAuth) | The published port now listens on **loopback only**, but your reverse proxy still forwards to the host's **LAN IP** (`<nas-ip>:8787`), so it can't reach the container. Point the proxy's **upstream/origin at `127.0.0.1:8787`** (plain HTTP — a host-network proxy shares the host loopback and reaches it fine). **Order matters to avoid downtime:** change the upstream to loopback **first** (still works while the port is bound to `0.0.0.0`, which covers loopback), verify `/mcp` → `401`, **then** flip `BIND_ADDR`. If your proxy is a **separate bridge-network container** it can't reach the host loopback at all — keep `BIND_ADDR=0.0.0.0` (OIDC still gates `/mcp`) or put both on a shared Docker network. |
 | REST call `POST /api/v1/tools/<name>` returns **401** with a valid-looking key | The key is disabled/expired, or `/api/*` isn't reaching the app. Check `apikey_list` (status/expiry); confirm the proxy forwards `/api/*` to the container **without** OIDC (like `/hooks/*`). A **403** instead means the tool is outside the key's `scopes` or the identity's role — re-mint with wider `scopes` or grant the device area with `tenancy_set`. |
+| App sign-in fails with **`invalid redirect uri`** (since 2.6.0) | The app's callback isn't in the built-in list. Add an https pattern for it to **`MCP_REDIRECT_URIS`** and restart. Custom schemes (`vscode://`, `cursor://`) can't be matched. |
+| A tool call is refused with **`secret '…' may only be sent to …`** or **`… is not bound to any host yet`** | The secret may only go to the hosts it is bound to. Add the new host in **WebUI → Vault → allowed hosts**, or store the secret again with `secret_set(name, value, hosts="host")`. |
+| **`429 Too Many Requests`** on sign-in, `/mcp` or `/api/v1` | A rate limit per client IP. Wait for `Retry-After`. If everyone behind your proxy is affected at once, `FORWARDED_ALLOW_IPS` doesn't trust your proxy — set it to the proxy's source. |
+| Log: **`WARNING: nobody is operator (admin) yet`**, WebUI shows no admin pages | Nobody is operator. Sign in within 30 minutes of a start, or set **`OPERATORS=<your sub>`** and restart. |
+| Log: **`WARNING: FORWARDED_ALLOW_IPS="*"`** or **`… is not set`** | Set `FORWARDED_ALLOW_IPS` to your proxy's source, e.g. `127.0.0.1,172.16.0.0/12` for a proxy on the Docker host. |
 | REST call returns **404 `{"error":"REST API disabled"}`** | `API_ENABLED=0`. Set it to `1` (the default) and `docker compose up -d --force-recreate`. |
 | IdP consent button spins forever; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` carried **no `scope`** (some IdP UIs crash on `scope=null`). Already sent via `extra_authorize_params`; override with `OIDC_SCOPE`. |
 | `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** and restart. |
