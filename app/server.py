@@ -157,6 +157,13 @@ def _build_auth():
         print(f"[AICortex] PocketIDProxy unavailable ({exc}); using stock OIDCProxy")
         oidc = OIDCProxy(**kwargs)
 
+    # Interactive sign-in is on, and only operators are admin by default. An
+    # upgrade keeps today's admins (everyone the policy names without a non-admin
+    # role) as operators — once, before anyone signs in. See authz.migrate_operators.
+    migrated = authz.migrate_operators()
+    if migrated:
+        print(f"[AICortex] auth: kept {len(migrated)} existing admin(s) as operators")
+
     # ALSO accept static bearer tokens for headless clients (per-agent keys and
     # RUNNER_TOKEN). Interactive apps keep using OIDC unchanged; MultiAuth tries
     # the OAuth proxy first and the token verifier second.

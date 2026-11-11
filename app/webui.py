@@ -294,10 +294,16 @@ def _audit_tail(limit: int, q: str) -> list:
 
 
 def _user_rows() -> dict:
+    """Everyone the policy names (roles, areas, operators). ``effective_role`` is what
+    the person gets when signing in without an IdP role claim; ``operator`` marks the
+    people who are admin by being listed in "operators". ``default_role`` is what a
+    NEW identity gets right now (authz.default_role), not just the env setting."""
     pol = tenancy._policy()
+    pol = pol if isinstance(pol, dict) else {}
     roles = pol.get("roles", {}) if isinstance(pol.get("roles"), dict) else {}
     areas = pol.get("users", {}) if isinstance(pol.get("users"), dict) else {}
-    identities = sorted(set(roles) | set(areas))
+    ops = authz.operators(pol)
+    identities = sorted(set(roles) | set(areas) | ops)
     out = []
     for ident in identities:
         cfg = areas.get(ident, {}) if isinstance(areas.get(ident), dict) else {}
@@ -306,6 +312,8 @@ def _user_rows() -> dict:
         out.append({
             "identity": ident,
             "role": roles.get(ident, ""),
+            "effective_role": authz.session_role(ident, "", pol),
+            "operator": ident in ops,
             "memory": str(cfg.get("memory", "own")),
             "vault": str(cfg.get("vault", "own")),
             "services": tenancy._fmt_access(cfg.get("services", "all")),
@@ -314,7 +322,7 @@ def _user_rows() -> dict:
             "note": str(cfg.get("note", "")),
         })
     return {"users": out, "enforce": authz.enabled(),
-            "default_role": os.environ.get("OIDC_DEFAULT_ROLE", "admin"),
+            "default_role": authz.default_role(pol),
             "device_kinds": list(tenancy._DEVICE_KINDS)}
 
 
@@ -868,16 +876,18 @@ def register(mcp):
             return _json({"error": "invalid body"}, 400)
         identity = str(body.get("identity", "")).strip()
         pol = tenancy._policy()
-        found = False
+        updated = dict(pol)
         for key in ("roles", "users"):
             section = pol.get(key)
             if isinstance(section, dict) and identity in section:
-                del section[identity]
-                found = True
-        if not found:
+                updated[key] = {k: v for k, v in section.items() if k != identity}
+        if identity and identity in authz.operators(pol):
+            updated["operators"] = [o for o in pol["operators"]
+                                    if not (isinstance(o, str) and o.strip() == identity)]
+        if updated == pol:
             return _json({"ok": False,
                           "message": f"No entry for '{identity}'."}, 404)
-        tenancy._write_policy(pol)
+        tenancy._write_policy(updated)
         _audit(sess, "user_delete", "allow", f"identity={identity}")
         return _json({"ok": True, "message": f"Removed '{identity}'."})
 

@@ -97,6 +97,8 @@ const I18N = {
     us_f_devices: "Geräte-Freigaben", us_ph_devices: "z. B. ssh=all; caldav=nextcloud-cal",
     us_f_note: "Notiz",
     confirm_del_user: "Eintrag für „{0}“ entfernen?",
+    us_operator: "Operator",
+    us_operator_hint: "Operator: Admin bei der Anmeldung (policy.json „operators“)",
     save: "Speichern", cancel: "Abbrechen", delete: "Löschen",
     clear: "Leeren", confirm: "Ja, löschen",
     toast_error: "Fehler: {0}",
@@ -193,6 +195,8 @@ const I18N = {
     us_f_devices: "Device grants", us_ph_devices: "e.g. ssh=all; caldav=nextcloud-cal",
     us_f_note: "Note",
     confirm_del_user: "Remove the entry for “{0}”?",
+    us_operator: "operator",
+    us_operator_hint: "Operator: admin when signing in (policy.json “operators”)",
     save: "Save", cancel: "Cancel", delete: "Delete",
     clear: "Clear", confirm: "Yes, delete",
     toast_error: "Error: {0}",
@@ -671,10 +675,20 @@ async function loadUsers() {
     const id = document.createElement("td"); id.className = "mono"; id.textContent = u.identity;
     const role = document.createElement("td");
     const rtag = document.createElement("span");
-    const r = u.role || d.default_role;
+    // No explicit role: show what the person really gets (operator → admin, else the
+    // default), marked with * — not the bare env default.
+    const r = u.role || u.effective_role || d.default_role;
     rtag.className = "tag" + (r === "admin" ? " role-admin" : r === "viewer" ? " role-viewer" : "");
-    rtag.textContent = u.role || `${d.default_role}*`;
+    rtag.textContent = u.role || `${r}*`;
     role.append(rtag);
+    if (u.operator) {
+      const op = document.createElement("span");
+      op.className = "tag";
+      op.style.marginLeft = "6px";
+      op.textContent = t("us_operator");
+      op.title = t("us_operator_hint");
+      role.append(op);
+    }
     const area = document.createElement("td");
     area.className = "small";
     const devs = Object.entries(u.devices).map(([k, v]) => `${k}=${v}`).join("; ");

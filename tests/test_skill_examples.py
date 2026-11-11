@@ -27,7 +27,7 @@ def ui(monkeypatch, request, fake_idp):
     webui = sys.modules["webui"]
 
     def client(sub, role):
-        cookie = webui._sign({"sub": sub, "name": sub, "role": role, "csrf": "tok",
+        cookie = webui._sign({"sub": sub, "name": sub, "role": role, "claim_role": role, "csrf": "tok",
                               "exp": time.time() + 600})
         return httpx.Client(base_url=base, cookies={webui.SESSION_COOKIE: cookie},
                             headers={"X-CSRF": "tok"}, timeout=30)
@@ -57,7 +57,11 @@ def test_an_admin_adds_them_once_and_edits_survive(ui):
     skills = sys.modules["skills"]
     page = skills.SKILLS_DIR / "home-assistant-rest" / "SKILL.md"
     assert page.is_file()
-    assert any(n == "home-assistant-rest" for _, n, _ in skills.search("home assistant"))
+    # searched as the admin: with sign-in configured a caller without an identity
+    # sees no skills at all (authz: an unresolved identity is never the operator)
+    with sys.modules["authz"].rest_identity("boss", "admin"):
+        found = skills.search("home assistant")
+    assert any(n == "home-assistant-rest" for _, n, _ in found)
 
     page.write_text(page.read_text(encoding="utf-8") + "\nLocal note.\n", encoding="utf-8")
     again = boss.post("/ui/api/skills/examples", json={}).json()
