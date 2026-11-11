@@ -193,8 +193,11 @@ def _archive_old_files(root: Path) -> Path:
     while archive.exists():
         n += 1
         archive = root / f"{ARCHIVE_NAME}.{n}"
-    archive.mkdir()
+    archive.mkdir(mode=_DIR_MODE)
     for item in root.iterdir():
         if item.name in _OLD_DB_FILES or (item.is_dir() and _OLD_VALUE_DIR.match(item.name)):
             item.rename(archive / item.name)
+    # The archive still holds the old tokens until the operator deletes it — keep it
+    # as private as the new store (a NAS share may grant "others" read access).
+    _owner_only(archive)
     return archive
