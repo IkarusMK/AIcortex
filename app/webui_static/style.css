@@ -295,6 +295,10 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
   background: rgba(3, 4, 12, .7); backdrop-filter: blur(4px); }
 .modal-card { width: min(420px, 92vw); }
 .modal-card p { margin-bottom: 6px; }
+/* MCP OAuth paste step: a native <dialog> with the confirm modal's look */
+.oa-dialog { width: min(560px, 92vw); margin: auto; color: var(--text); }
+.oa-dialog::backdrop { background: rgba(3, 4, 12, .7); backdrop-filter: blur(4px); }
+.oa-dialog a { color: var(--purple-2); }
 
 .toast {
   position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);

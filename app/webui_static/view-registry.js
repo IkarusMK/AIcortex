@@ -161,6 +161,11 @@ Object.assign(I18N.de, {
   oa_exchange: "Der Anbieter hat kein Token ausgestellt.",
   oa_vault: "Kein Verschlüsselungsschlüssel gesetzt — die Anmeldung wurde nicht gespeichert.",
   oa_error: "Anmeldung fehlgeschlagen.",
+  oa_paste_title: "Anmeldung abschließen",
+  oa_paste_text: "Melde dich im neuen Tab an. Danach zeigt der Browser eine Fehlerseite mit einer Adresse, die mit {0} beginnt — das ist richtig so. Kopiere die komplette Adresse aus der Adresszeile hier hinein.",
+  oa_paste_open: "Anmeldeseite erneut öffnen ↗", oa_paste_url: "Adresse nach der Anmeldung",
+  oa_paste_finish: "Abschließen",
+  oa_address: "Das ist nicht die Adresse nach der Anmeldung — kopiere die komplette Adresse aus der Adresszeile (sie beginnt mit {0}).",
 });
 Object.assign(I18N.en, {
   oa_signin: "Sign in", oa_signout: "Sign out",
@@ -176,6 +181,11 @@ Object.assign(I18N.en, {
   oa_exchange: "The provider did not issue a token.",
   oa_vault: "No encryption key is set — the sign-in was not stored.",
   oa_error: "Sign-in failed.",
+  oa_paste_title: "Finish signing in",
+  oa_paste_text: "Sign in in the new tab. Your browser then shows an error page whose address starts with {0} — that's expected. Copy the whole address from the address bar into this field.",
+  oa_paste_open: "Open the sign-in page again ↗", oa_paste_url: "Address after signing in",
+  oa_paste_finish: "Finish",
+  oa_address: "That isn't the address after signing in — copy the whole address from the address bar (it starts with {0}).",
 });
 
 let OAUTH = {};
@@ -214,8 +224,51 @@ async function oauthSignIn(name) {
   if (!d.ok) { toast(d.message, false); return; }
   // Say where the sign-in happens before leaving: the provider's host and the server.
   if (!(await confirmModal(t("oa_confirm", d.login_host, d.server_url)))) return;
+  if (d.mode === "paste") { oauthPaste(name, d); return; }   // no way back to this page
   location.assign(d.url);      // the provider's login page (https, checked by the server)
 }
+
+/* Paste mode: the provider takes AICortex only as a desktop app (loopback redirect), so
+   its answer can't come back here by itself. The login opens in a new tab; afterwards
+   the browser shows an error page at 127.0.0.1 and the person pastes its address here. */
+function oauthPaste(name, d) {
+  window.open(d.url, "_blank", "noopener,noreferrer");
+  const dlg = $("#oa-paste");
+  dlg.dataset.server = name;
+  dlg.dataset.prefix = d.redirect_prefix;
+  $("#oa-paste-text").textContent = t("oa_paste_text", d.redirect_prefix);
+  $("#oa-paste-open").href = d.url;           // in case the new tab was blocked
+  const input = $("#oa-paste-url");
+  input.value = "";
+  input.placeholder = `${d.redirect_prefix}?code=…`;
+  dlg.showModal();
+  input.focus();
+}
+
+async function oauthPasteFinish(ev) {
+  ev.preventDefault();
+  const dlg = $("#oa-paste");
+  const d = await api("/ui/api/mcp-oauth/finish",
+    { method: "POST", body: { url: $("#oa-paste-url").value.trim() } });
+  if (d.ok) {
+    dlg.close();
+    toast(t("oa_ok", d.server || dlg.dataset.server || ""));
+    await loadServices();
+    return;
+  }
+  const key = "oa_" + d.code;
+  toast(d.code === "address" ? t("oa_address", dlg.dataset.prefix || "")
+    : (I18N.en[key] ? t(key) : (d.message || t("oa_error"))), false);
+  if (d.code !== "address") dlg.close();      // this sign-in is spent: start again
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const dlg = $("#oa-paste");
+  if (!dlg) return;
+  $("#form-oa-paste").addEventListener("submit",
+    (e) => oauthPasteFinish(e).catch((x) => toast(x.message, false)));
+  $("#oa-paste-cancel").addEventListener("click", () => dlg.close());
+});
 
 async function oauthSignOut(name) {
   const d = await api("/ui/api/mcp-oauth/logout", { method: "POST", body: { server: name } });

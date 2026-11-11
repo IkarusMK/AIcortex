@@ -732,6 +732,21 @@
   </div>
   <div id="toast" class="toast hidden" role="status"></div>
 
+  <!-- MCP OAuth paste step (view-registry.js oauthPaste) -->
+  <dialog id="oa-paste" class="modal-card panel oa-dialog" aria-labelledby="oa-paste-title">
+    <form id="form-oa-paste">
+      <h3 id="oa-paste-title" data-i18n="oa_paste_title"></h3>
+      <p id="oa-paste-text"></p>
+      <a id="oa-paste-open" class="small" target="_blank" rel="noopener noreferrer" data-i18n="oa_paste_open"></a>
+      <label for="oa-paste-url" data-i18n="oa_paste_url"></label>
+      <input id="oa-paste-url" class="inp mono" autocomplete="off" spellcheck="false" required>
+      <div class="btn-row">
+        <button type="submit" class="btn" data-i18n="oa_paste_finish"></button>
+        <button type="button" id="oa-paste-cancel" class="btn ghost" data-i18n="cancel"></button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/ui/assets/app.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>

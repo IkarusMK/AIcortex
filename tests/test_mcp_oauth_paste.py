@@ -308,3 +308,27 @@ def test_only_the_person_who_started_can_paste_the_address(monkeypatch, request,
     assert prov.token_hits == [] and vault_keys() == []
     for c in (alice, bob, nobody):
         c.close()
+
+
+# ── the WebUI and the guide ──────────────────────────────────────────────────
+def test_the_paste_step_is_wired_into_the_webui(env):
+    js = env.ui.get("/ui/assets/view-registry.js").text
+    for needle in ("/ui/api/mcp-oauth/finish", "oauthPaste", "window.open", "noopener",
+                   "showModal", "redirect_prefix", "oa_paste_text"):
+        assert needle in js, needle
+    assert "innerHTML" not in js
+    assert "Abschließen" in js and "Finish" in js
+    assert "127.0.0.1:8765/callback" not in js       # the address comes from the server
+    html = env.ui.get("/ui").text
+    start = html.index('<dialog id="oa-paste"')
+    dialog = html[start:html.index("</dialog>", start)]
+    assert 'id="oa-paste-url"' in dialog and "style=" not in dialog
+    css = env.ui.get("/ui/assets/style.css").text
+    assert ".oa-dialog" in css and "::backdrop" in css
+
+
+def test_the_guide_mentions_the_paste_step(env):
+    text = __import__("guide").GUIDE
+    de, en = text[:text.index("Other MCP servers")], text[text.index("Other MCP servers"):]
+    assert "127.0.0.1" in de and "einfügen" in de
+    assert "127.0.0.1" in en and "paste" in en
