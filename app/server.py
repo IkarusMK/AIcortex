@@ -85,20 +85,13 @@ def uvicorn_config():
 
 
 def _client_storage():
-    """Persistent (optionally encrypted) disk store for OAuth client
-    registrations, so they survive container restarts."""
+    """Persistent (optionally encrypted) file store for OAuth client registrations
+    and tokens, so they survive container restarts. A pre-2.6.0 DiskStore (diskcache,
+    unsafe pickle) is migrated into it once — see oauth_store.py."""
     auth_dir = os.environ.get("AUTH_STORE_DIR", "/data/auth")
     try:
-        from key_value.aio.stores.disk import DiskStore
-
-        store = DiskStore(directory=auth_dir)
-        enc_key = os.environ.get("STORAGE_ENCRYPTION_KEY")
-        if enc_key:
-            from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
-            from cryptography.fernet import Fernet
-
-            store = FernetEncryptionWrapper(key_value=store, fernet=Fernet(enc_key))
-        return store
+        import oauth_store
+        return oauth_store.build(auth_dir, os.environ.get("STORAGE_ENCRYPTION_KEY"))
     except Exception as exc:  # fall back to the (ephemeral) default
         print(f"[AICortex] WARNING: disk client_storage unavailable ({exc}); using default")
         return None
