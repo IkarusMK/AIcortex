@@ -18,6 +18,7 @@ The old stores in these tests are built exactly the way 2.5.0's
 by FastMCP's own OAuthProxy.
 """
 import asyncio
+import stat
 import os
 import subprocess
 import sys
@@ -214,3 +215,16 @@ def test_fresh_install_needs_no_migration(auth_env):
     assert not (auth_dir / ARCHIVE).exists()
     asyncio.run(_proxy(store).register_client(_client("client-c")))
     assert asyncio.run(_proxy(server._client_storage()).get_client("client-c")) is not None
+
+
+def test_the_archive_of_the_old_store_is_owner_only(auth_env):
+    # The archive keeps the old tokens until the operator deletes it — on a NAS share
+    # with "others" read access it must not be readable by anyone else.
+    server, auth_dir = auth_env
+    _write_old_store(auth_dir, KEY)
+    server._client_storage()
+    archive = auth_dir / ARCHIVE
+    assert stat.S_IMODE(archive.stat().st_mode) == 0o700
+    for path in archive.rglob("*"):
+        want = 0o700 if path.is_dir() else 0o600
+        assert stat.S_IMODE(path.stat().st_mode) == want, path.name
