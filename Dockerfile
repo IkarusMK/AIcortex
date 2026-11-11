@@ -7,7 +7,10 @@ LABEL io.modelcontextprotocol.server.name="io.github.IkarusMK/aicortex"
 # gosu lets the entrypoint drop privileges to PUID:PGID at runtime.
 # curl is the FTPS upload engine for ftp_tools: it does TLS session reuse on the
 # data channel, which devices like Bambu Lab printers require and ftplib can't do.
+# `apt-get upgrade` pulls Debian's security fixes into every build, so a release
+# doesn't wait for the next python base-image refresh (Trivy gates this in CI).
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends gosu curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,7 +18,11 @@ WORKDIR /app
 
 # Dependencies (baked into the image at build time → fast, reproducible startup)
 COPY app/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# pip is only needed to build the image. Removing it afterwards takes its vendored
+# copies of urllib3, msgpack and setuptools (pip/_vendor) out of the runtime image —
+# a package manager has no business in the final container anyway.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y pip
 
 # Application code
 COPY app/ ./

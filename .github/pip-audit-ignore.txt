@@ -1,0 +1,3 @@
+# Advisories pip-audit may skip — only ones that were assessed and have no fix.
+# One ID per line, first column; everything after it is the reason.
+# Keep this list short and re-check it on every release.
