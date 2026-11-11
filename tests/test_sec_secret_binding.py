@@ -246,8 +246,10 @@ def ui(monkeypatch, request, fake_idp):
     webui.register(mcp)
 
     def call(route, method="GET", body=None, role="admin"):
-        cookie = webui._sign({"sub": "boss", "name": "boss", "role": role, "csrf": "tok",
-                              "exp": time.time() + 600})
+        # A session as the sign-in mints it: the role is recomputed on every request
+        # (authz.session_role), so a non-admin is one whose IdP claim says so.
+        cookie = webui._sign({"sub": "boss", "name": "boss", "role": role, "claim_role": role,
+                              "csrf": "tok", "exp": time.time() + 600})
 
         async def raw():
             return json.dumps(body).encode() if body is not None else b""
