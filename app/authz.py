@@ -249,9 +249,45 @@ def decide(role: str, tool: str) -> tuple[bool, str]:
     return False, f"unknown role '{role}'"
 
 
+_AUDIT_MAX_BYTES = 5_000_000   # rotate the audit log at this size (AUDIT_MAX_BYTES; 0 = never)
+_AUDIT_KEEP = 3                # rotated generations kept: audit.log.1 … .3 (AUDIT_KEEP)
+
+
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return value if value >= minimum else default
+
+
+def _rotate_audit() -> None:
+    """Size-based rotation: audit.log → audit.log.1 → … → audit.log.<AUDIT_KEEP>, the
+    oldest dropped. Unauthenticated callers can cause audit lines (refused /hooks
+    deliveries), so an unbounded file could fill the data volume. Checked before each
+    write; the lock + re-check keep two writers from rotating twice. Never raises."""
+    try:
+        limit = _env_int("AUDIT_MAX_BYTES", _AUDIT_MAX_BYTES, 0)
+        if not limit or AUDIT_FILE.stat().st_size < limit:
+            return
+        keep = _env_int("AUDIT_KEEP", _AUDIT_KEEP, 1)
+        import store
+        with store.locked(AUDIT_FILE.with_name("audit-rotate")):
+            if AUDIT_FILE.stat().st_size < limit:
+                return                    # another writer rotated while we waited
+            for n in range(keep - 1, 0, -1):
+                older = AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.{n}")
+                if older.exists():
+                    os.replace(older, AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.{n + 1}"))
+            os.replace(AUDIT_FILE, AUDIT_FILE.with_name(f"{AUDIT_FILE.name}.1"))
+    except Exception:
+        pass  # a full or read-only volume must not stop auditing (or the call)
+
+
 def audit(identity: str, role: str, tool: str, decision: str, reason: str) -> None:
     try:
         AUTH_DIR.mkdir(parents=True, exist_ok=True)
+        _rotate_audit()
         rec = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "identity": identity or "unknown", "role": role,
