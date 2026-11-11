@@ -40,7 +40,8 @@ class Ui:
         webui.register(self.mcp)
 
     def call(self, route, method=GET, *, who="boss", body=None, query=None):
-        cookie = self.webui._sign({"sub": who, "name": who, "role": "admin", "csrf": "tok",
+        cookie = self.webui._sign({"sub": who, "name": who, "role": "admin", "claim_role": "admin",
+                                   "csrf": "tok",
                                    "exp": time.time() + 600})
         raw = body if isinstance(body, bytes) else b"" if body is None else json.dumps(body).encode()
 

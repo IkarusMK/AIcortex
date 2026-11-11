@@ -147,7 +147,8 @@ def test_login_redirects_to_idp_with_state_and_pkce(stack):
     cookie = _cookies(r)[stack.webui.OAUTH_COOKIE]
     assert cookie["httponly"] and cookie["path"] == "/ui" and cookie["max-age"] == "600"
     assert cookie["samesite"].lower() == "lax" and not cookie["secure"]   # plain http here
-    parked = stack.webui._verify(cookie.value)
+    parked = stack.webui._verify(cookie.value, typ="login")
+    assert stack.webui._verify(cookie.value) is None            # a login state is no session
     assert parked["state"] == q["state"]
     assert _s256(parked["verifier"]) == q["code_challenge"]
     assert 0 < parked["exp"] - time.time() <= 600
@@ -261,9 +262,10 @@ def test_callback_refuses_an_expired_or_tampered_login_cookie(stack):
     _, q = _login(stack)
     webui = stack.webui
     stack.c.cookies.set(webui.OAUTH_COOKIE, webui._sign(
-        {"state": q["state"], "verifier": "v", "exp": time.time() - 1}), path="/ui")
+        {"state": q["state"], "verifier": "v", "exp": time.time() - 1}, typ="login"), path="/ui")
     _refused(stack, _callback(stack, q), "state")
-    body, mac = webui._sign({"state": "evil", "verifier": "v", "exp": time.time() + 99}).split(".")
+    body, mac = webui._sign({"state": "evil", "verifier": "v", "exp": time.time() + 99},
+                            typ="login").split(".")
     stack.c.cookies.set(webui.OAUTH_COOKIE, f"{body}.{mac[::-1]}", path="/ui")
     _refused(stack, _callback(stack, q, state="evil"), "state")
 
@@ -329,3 +331,61 @@ def test_expired_forged_and_tampered_sessions_are_not_signed_in(stack):
     stack.c.cookies.clear()
     stack.c.cookies.set(webui.SESSION_COOKIE, webui._sign(live), path="/ui")
     assert stack.c.get("/ui/api/me").json()["sub"] == "alice"
+
+
+# ── typed cookies, live roles, revocation (security audit) ───────────────────
+def test_a_cookie_of_another_kind_is_no_login_state(stack):
+    """The login state must be the one /ui/login parked — not any other signed cookie
+    (a session, an MCP sign-in) that happens to carry the same fields."""
+    _, q = _login(stack)
+    webui = stack.webui
+    for typ in ("session", "mcp_oauth"):
+        stack.c.cookies.set(webui.OAUTH_COOKIE, webui._sign(
+            {"state": q["state"], "verifier": "v", "exp": time.time() + 99}, typ=typ), path="/ui")
+        _refused(stack, _callback(stack, q), "state")
+
+
+def test_the_session_records_the_idp_claim_and_the_revocation_epoch(stack):
+    stack.idp.claims = {"sub": "carol", "groups": ["viewer"]}
+    _, q = _login(stack)
+    sess = stack.webui._verify(_cookies(_callback(stack, q))[stack.webui.SESSION_COOKIE].value)
+    assert (sess["typ"], sess["role"], sess["claim_role"]) == ("session", "viewer", "viewer")
+    assert sess["epoch"] == stack.webui._session_epoch()
+
+
+def test_a_role_change_after_sign_in_applies_to_the_open_session(stack):
+    _, q = _login(stack)
+    assert _callback(stack, q).headers["location"] == "/ui"
+    assert stack.c.get("/ui/api/secrets").status_code == 200
+    sys.modules["tenancy"]._write_policy({"roles": {"alice": "user"}})
+    assert stack.c.get("/ui/api/secrets").status_code == 403
+    assert stack.c.get("/ui/api/me").json()["role"] == "user"
+
+
+def test_after_sign_out_everywhere_a_new_sign_in_works(stack):
+    _, q = _login(stack)
+    _callback(stack, q)
+    csrf = stack.c.get("/ui/api/me").json()["csrf"]
+    assert stack.c.post("/ui/api/sessions/revoke", headers={"X-CSRF": csrf}).status_code == 200
+    assert stack.c.get("/ui/api/me").json()["authenticated"] is False
+    _, q = _login(stack)
+    assert _callback(stack, q).headers["location"] == "/ui"
+    assert stack.c.get("/ui/api/me").json()["authenticated"] is True
+
+
+@pytest.mark.secure_default_role
+def test_the_first_person_to_sign_in_becomes_the_operator(stack):
+    """Fresh install, nobody configured: the first interactive sign-in is recorded as
+    operator (admin); everyone after that starts as an ordinary user."""
+    stack.idp.claims = {"sub": "dave"}
+    _, q = _login(stack)
+    _callback(stack, q)
+    assert stack.c.get("/ui/api/me").json()["role"] == "admin"
+    assert sys.modules["tenancy"]._policy()["operators"] == ["dave"]
+    stack.c.cookies.clear()
+    stack.idp.claims = {"sub": "erin"}
+    _, q = _login(stack)
+    _callback(stack, q)
+    assert stack.c.get("/ui/api/me").json()["role"] == "user"
+    assert stack.c.get("/ui/api/secrets").status_code == 403
+    assert sys.modules["tenancy"]._policy()["operators"] == ["dave"]

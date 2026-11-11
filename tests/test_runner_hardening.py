@@ -270,7 +270,9 @@ def test_others_see_only_name_kind_and_switch_of_the_standard(ui):
                if r["id"] == std)
     assert (row["owner"], row["model"], row["state"]["detail"]) == ("", "", "")
     assert row["state"]["state"] == "ran" and row["kind"] == "openrouter"
-    assert ui.call("/ui/api/runners", "POST", who="dora", role="guest", body={"kind": "openai"})[0] == 403
+    assert ui.call("/ui/api/runners", "POST", who="dora", role="viewer", body={"kind": "openai"})[0] == 403
+    # a session whose role is not a role at all is no session (401), not a weak one
+    assert ui.call("/ui/api/runners", "POST", who="dora", role="guest", body={"kind": "openai"})[0] == 401
 
 
 # ── many long cloud jobs ─────────────────────────────────────────────────────

@@ -53,7 +53,9 @@ def _may_use(sess, server: str, quiet: bool = False) -> bool:
 
 def register(mcp, h, ui):
     """`h`: the WebUI helpers (json, require_session, body, gate, audit). `ui`: sign,
-    verify, base_url, cookie and session from webui.py."""
+    verify, base_url, cookie and session from webui.py — ``ui.sign``/``ui.verify``
+    are bound to the cookie kind "mcp_oauth", so the pending cookie can never pass as
+    a WebUI session or login state (nor the other way round)."""
     from starlette.responses import JSONResponse, RedirectResponse
 
     async def _person_and_server(request, check_use: bool = True):

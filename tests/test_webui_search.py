@@ -33,7 +33,7 @@ def ui(monkeypatch, request, fake_idp):
     def client(sub="boss", role="admin", signed_in=True):
         cookies = {}
         if signed_in:
-            cookies[webui.SESSION_COOKIE] = webui._sign({"sub": sub, "name": sub, "role": role,
+            cookies[webui.SESSION_COOKIE] = webui._sign({"sub": sub, "name": sub, "role": role, "claim_role": role,
                                                          "csrf": "tok", "exp": time.time() + 600})
         return httpx.Client(base_url=base, cookies=cookies, headers={"X-CSRF": "tok"})
     return client

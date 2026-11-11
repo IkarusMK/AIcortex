@@ -28,7 +28,7 @@ def ui(monkeypatch, request, fake_idp):
     webui = sys.modules["webui"]
 
     def client(sub, role):
-        cookie = webui._sign({"sub": sub, "name": sub, "role": role, "csrf": "tok",
+        cookie = webui._sign({"sub": sub, "name": sub, "role": role, "claim_role": role, "csrf": "tok",
                               "exp": time.time() + 600})
         return httpx.Client(base_url=base, cookies={webui.SESSION_COOKIE: cookie},
                             headers={"X-CSRF": "tok"}, timeout=30)
