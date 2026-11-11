@@ -6,8 +6,9 @@ the table), the skill and note editors next to their lists, the cron, runner, se
 user and playbook editors under their tables. Opening one meant scrolling to find it.
 Now each one is a native <dialog> opened with showModal() — focus trap, Esc, top layer:
 its title names it, × / Esc / Cancel close it (after "Discard changes?" when it was
-edited) and a click on the backdrop does not. The form scrolls inside the dialog while
-the title and the Save/Delete row stay in view; under 640 px it is a full-screen sheet.
+edited) and a click on the backdrop does not. The dialog is compact (540 px, 780 px for
+long texts, height by content up to 85vh); the form scrolls inside it while the title
+and the Save/Delete row stay in view; short fields pair up; on phones a bottom sheet.
 
 Static guard over index.html, the scripts and style.css (no browser needed).
 """
@@ -132,6 +133,8 @@ def test_lists_that_had_an_open_side_form_get_a_new_button():
         head = next(a for a in node.ancestors() if a.tag == "header")
         assert "view-head" in head.classes() and IDS[view] in head.ancestors(), button
         assert f'$("#{button}").addEventListener("click"' in ALL_JS, button
+    # the extra button must not push a view head past a phone's width (Clients did: 455 px)
+    assert "flex-wrap: wrap" in _rule(".view-head")
     # and the forms left their views: no form in any view section any more
     for section in (n for n in TREE.iter() if n.tag == "section"):
         assert not [n for n in section.iter() if n.tag == "form"], section.attrs.get("id")
@@ -227,25 +230,57 @@ def _blocks(at_rule: str) -> list:
     return out
 
 
-def test_the_dialog_is_sized_and_its_form_scrolls_inside():
-    # centred: the global `* { margin: 0 }` reset would pin a dialog to the top-left corner
+def _px(prop: str, body: str) -> int:
+    match = re.search(prop + r":\s*min\((\d+)px", body)
+    assert match, f"no {prop}: min(…px, …)"
+    return int(match.group(1))
+
+
+def test_the_dialog_is_compact_and_its_form_scrolls_inside():
+    # Compact, not page-sized (owner feedback on the first version: 760/960 px wide and
+    # up to 90vh tall was "as big as the whole page"). Height follows the content.
+    # Centred: the global `* { margin: 0 }` reset would pin a dialog to the top-left.
     assert "margin: auto" in _rule(".dlg, .modal-card")
     dlg = _rule(".dlg")
-    assert re.search(r"max-width:\s*min\(760px", dlg) and re.search(r"max-height:\s*90vh", dlg)
-    assert "960px" in _rule(".dlg.wide")
+    assert 520 <= _px("max-width", dlg) <= 560 and re.search(r"max-height:\s*85vh", dlg)
+    assert not re.search(r"(?<![-\w])(min-)?height:", dlg)                # no fixed or minimum height
+    assert 760 <= _px("max-width", _rule(".dlg.wide")) <= 800              # skills, notes, playbooks
     opened = _rule(".dlg[open]")
     assert "display: flex" in opened and "flex-direction: column" in opened
     body = _rule(".dlg-body")
     assert "overflow-y: auto" in body and "min-height: 0" in body
+    assert "container-type: inline-size" in body                           # columns follow the dialog
     head, foot = _rule(".dlg-head"), _rule(".dlg-foot")
     assert "position: sticky" in head and "top: 0" in head
     assert "position: sticky" in foot and "bottom: 0" in foot              # Save/Delete stay visible
 
 
-def test_a_full_screen_sheet_on_phones():
+def test_fields_are_compact_and_short_ones_sit_side_by_side():
+    label = re.search(r"margin:\s*(\d+)px 0 (\d+)px", _rule(".dlg label"))
+    assert label and int(label.group(1)) < 13 and int(label.group(2)) <= 5   # tighter than the page
+    assert "min-height: 0" in _rule(".dlg textarea.inp")                   # rows decide, not 130px
+    dialogs = [n for n in TREE.iter() if n.tag == "dialog"]
+    areas = [a for d in dialogs for a in d.iter() if a.tag == "textarea"]
+    assert areas and all(int(a.attrs.get("rows", "0")) in (3, 4) for a in areas), \
+        [(a.attrs.get("id"), a.attrs.get("rows")) for a in areas]
+    for name in ("view-registry.js", "view-playbook-lib.js"):              # textareas built in JS
+        assert all(int(n) <= 4 for n in re.findall(r"\.rows = (\d+)", SCRIPTS[name])), name
+    two = _rule(".dlg .row-2, .dlg .form-fields")
+    assert "repeat(2, minmax(0, 1fr))" in two
+    narrow = "".join(_blocks("@container (max-width: 479px)"))
+    assert ".dlg .row-2" in narrow and "grid-template-columns: minmax(0, 1fr)" in narrow
+    assert "grid-column: 1 / -1" in _rule(".dlg .fld.full")
+    for dlg_id in ("vault-editor", "cl-editor", "sk-editor"):              # short fields paired
+        assert _with_class(IDS[dlg_id], "row-2"), dlg_id
+    for name in ("view-registry.js", "view-playbook-lib.js"):              # schema/stage fields too
+        assert '"fld full"' in SCRIPTS[name] and '"fld"' in SCRIPTS[name], name
+
+
+def test_a_bottom_sheet_on_phones():
     sheet = "".join(_blocks("@media (max-width: 639px)"))
-    assert ".dlg" in sheet and "border-radius: 0" in sheet
-    assert re.search(r"(?<![-\w])height: 100%", sheet) and "max-height: 100%" in sheet
+    assert ".dlg" in sheet and "margin: auto 0 0" in sheet                  # sits at the bottom
+    assert re.search(r"max-height:\s*92vh", sheet) and re.search(r"border-radius: \d+px \d+px 0 0", sheet)
+    assert not re.search(r"(?<![-\w])height: 100%", sheet)                  # no forced full screen
 
 
 def test_backdrop_motion_focus_and_scroll_lock():

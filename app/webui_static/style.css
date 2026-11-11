@@ -147,7 +147,9 @@ body {
 .version { color: var(--dim); font-size: 11.5px; }
 
 .main { padding: 34px 40px 60px; max-width: 1180px; width: 100%; min-width: 0; }
-.view-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+/* wraps on a phone: title, badge and the New button never push the page sideways */
+.view-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 22px; }
+.view-head .badge { min-width: 0; overflow-wrap: anywhere; }
 .view-head h1 { font-size: 26px; letter-spacing: .3px; }
 .view-head .btn { margin-left: auto; }
 .view-head .btn + .btn { margin-left: 0; }
@@ -396,9 +398,10 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
   overflow-wrap: anywhere; }
 
 /* ── dialogs ───────────────────────────────────────────────────────────── */
-/* Every create/edit form is a native <dialog> (dialogs.js). Head and footer stay put,
-   only the body scrolls, so Save/Delete never leave the screen. The confirm dialog
-   (.modal-card) shares the surface and stacks above an open form. */
+/* Every create/edit form is a native <dialog> (dialogs.js). Compact: 540 px (780 px for
+   long texts), as tall as its content up to 85vh. Head and footer stay put, only the
+   body scrolls, so Save/Delete never leave the screen. The confirm dialog (.modal-card)
+   shares the surface and stacks above an open form. */
 .dlg, .modal-card {
   margin: auto;                  /* centred: the global `* { margin: 0 }` reset undoes the UA's */
   color: var(--text);
@@ -408,11 +411,11 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
   box-shadow: 0 30px 90px -20px rgba(0, 0, 0, .85), 0 0 80px -30px rgba(139, 92, 246, .5);
 }
 .dlg {
-  width: 100%; max-width: min(760px, calc(100vw - 32px));
-  max-height: 90vh; max-height: 90dvh;
+  width: 100%; max-width: min(540px, calc(100vw - 32px));
+  max-height: 85vh; max-height: 85dvh;
   padding: 0; overflow: auto;
 }
-.dlg.wide { max-width: min(960px, calc(100vw - 32px)); }
+.dlg.wide { max-width: min(780px, calc(100vw - 32px)); }
 .dlg[open] { display: flex; flex-direction: column; }
 /* ::backdrop doesn't see :root variables everywhere yet — literal colours */
 .dlg::backdrop, .modal-card::backdrop {
@@ -421,35 +424,56 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 }
 .dlg-head {
   position: sticky; top: 0; z-index: 1; flex: none;
-  display: flex; align-items: center; gap: 12px;
-  padding: 16px 16px 14px 22px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 9px 18px;
   border-bottom: 1px solid var(--border);
   background: var(--grad) top / 100% 2px no-repeat, rgba(16, 18, 40, .96);
 }
 .dlg-head h3 {
   flex: 1; min-width: 0; overflow-wrap: anywhere;
-  font-size: 13.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--purple-2);
+  font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--purple-2);
 }
 .dlg-x {
-  flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
-  border-radius: 9px; border: 1px solid var(--border); background: transparent;
-  color: var(--dim); font-size: 22px; line-height: 1; cursor: pointer;
+  flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 8px; border: 1px solid var(--border); background: transparent;
+  color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer;
   transition: color .18s, border-color .18s, background .18s;
 }
 .dlg-x:hover { color: var(--text); border-color: var(--border-hi); background: rgba(139, 92, 246, .1); }
 .dlg-body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  padding: 6px 22px 22px;
+  padding: 2px 18px 16px; container-type: inline-size;
 }
 .dlg-foot {
   position: sticky; bottom: 0; z-index: 1; flex: none;
-  margin: 0; padding: 14px 22px;
+  margin: 0; padding: 10px 18px; gap: 8px;
   border-top: 1px solid var(--border);
   background: rgba(8, 9, 22, .94);
 }
 .modal-card { width: min(420px, calc(100vw - 32px)); padding: 22px 24px 18px; }
 .modal-card p { margin-bottom: 6px; }
 #cl-result { margin-top: 4px; }
+
+/* inside a dialog: tighter rhythm, inputs as everywhere else, textareas by their rows
+   (3–4, resizable). Short fields pair up; under 480 px of dialog width one column. */
+.dlg label { margin: 8px 0 4px; font-size: 11.5px; }
+.dlg .check { margin: 8px 0 4px; font-size: 14px; }
+.dlg textarea.inp { min-height: 0; }
+.dlg .row-2, .dlg .form-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px;
+  align-items: end;              /* a label on two lines doesn't push its input out of line */
+}
+.dlg .fld.full { grid-column: 1 / -1; }
+.dlg .chips { margin: 0 0 6px; }
+.dlg .notice { margin: 8px 0; }
+.dlg .btn-row { margin-top: 10px; }
+.dlg h4 { margin: 14px 0 2px; }
+.dlg .rn-steps { margin: 6px 0 8px; gap: 6px; }
+.dlg .pb-stage-edit { margin: 8px 0; padding: 2px 12px 10px; }
+.dlg .pb-stage-edit .btn-row { margin-top: 8px; }
+@container (max-width: 479px) {
+  .dlg .row-2, .dlg .form-fields { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* open: a short rise and fade — transform and opacity only */
 .dlg[open], .modal-card[open] { animation: dlg-in .2s cubic-bezier(.16, 1, .3, 1); }
@@ -465,13 +489,13 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 html.dlg-lock { scrollbar-gutter: stable; }
 html.dlg-lock body { overflow: hidden; }
 
-/* phones: a full-screen sheet */
+/* phones: a bottom sheet — full width, as tall as its content up to 92vh */
 @media (max-width: 639px) {
   .dlg, .dlg.wide {
-    width: 100%; max-width: 100%; height: 100%; max-height: 100%;
-    margin: 0; border: 0; border-radius: 0;
+    width: 100%; max-width: 100%; max-height: 92vh; max-height: 92dvh;
+    margin: auto 0 0; border-width: 1px 0 0; border-radius: 16px 16px 0 0;
   }
-  .dlg-head { padding: 12px 12px 12px 16px; }
-  .dlg-body { padding: 4px 16px 18px; }
-  .dlg-foot { padding: 12px 16px; }
+  .dlg-head { padding: 9px 8px 8px 16px; }
+  .dlg-body { padding: 2px 16px 14px; }
+  .dlg-foot { padding: 10px 16px max(10px, env(safe-area-inset-bottom)); }
 }

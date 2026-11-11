@@ -378,9 +378,18 @@
     <div class="dlg-body">
       <p id="vault-edit-hint" class="dim small hidden" data-i18n="vault_edit_hint"></p>
       <form id="form-secret" autocomplete="off">
-        <label data-i18n="vault_f_name"></label>
-        <input id="sec-name" class="inp mono" required
-               pattern="[^\/]+" data-i18n-ph="vault_ph_name">
+        <div class="row-2">
+          <div>
+            <label data-i18n="vault_f_name"></label>
+            <input id="sec-name" class="inp mono" required
+                   pattern="[^\/]+" data-i18n-ph="vault_ph_name">
+          </div>
+          <div>
+            <label data-i18n="vault_f_owner"></label>
+            <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
+            <datalist id="sec-owner-list"></datalist>
+          </div>
+        </div>
         <label data-i18n="vault_f_value"></label>
         <div class="pw-row">
           <input id="sec-value" class="inp mono" type="password" required
@@ -389,9 +398,6 @@
         </div>
         <label data-i18n="vault_f_desc"></label>
         <input id="sec-desc" class="inp" maxlength="300" data-i18n-ph="vault_ph_desc">
-        <label data-i18n="vault_f_owner"></label>
-        <input id="sec-owner" class="inp mono" list="sec-owner-list" data-i18n-ph="vault_ph_owner">
-        <datalist id="sec-owner-list"></datalist>
         <p class="dim small" data-i18n="vault_writeonly"></p>
       </form>
     </div>
@@ -411,20 +417,32 @@
     </header>
     <div class="dlg-body">
       <form id="form-agentkey" autocomplete="off">
-        <label data-i18n="cl_f_name"></label>
-        <input id="ak-name" class="inp mono" required data-i18n-ph="cl_ph_name">
-        <label data-i18n="cl_f_person"></label>
-        <input id="ak-person" class="inp mono" required list="ak-person-list" data-i18n-ph="cl_ph_person">
-        <datalist id="ak-person-list"></datalist>
+        <div class="row-2">
+          <div>
+            <label data-i18n="cl_f_name"></label>
+            <input id="ak-name" class="inp mono" required data-i18n-ph="cl_ph_name">
+          </div>
+          <div>
+            <label data-i18n="cl_f_person"></label>
+            <input id="ak-person" class="inp mono" required list="ak-person-list" data-i18n-ph="cl_ph_person">
+            <datalist id="ak-person-list"></datalist>
+          </div>
+        </div>
         <label data-i18n="cl_f_profile"></label>
         <select id="ak-profile" class="inp">
           <option value="core" data-i18n="cl_profile_core"></option>
           <option value="full" data-i18n="cl_profile_full"></option>
         </select>
-        <label data-i18n="cl_f_scopes"></label>
-        <input id="ak-scopes" class="inp mono" value="all">
-        <label data-i18n="cl_f_ttl"></label>
-        <input id="ak-ttl" class="inp mono" type="number" min="0" value="0">
+        <div class="row-2">
+          <div>
+            <label data-i18n="cl_f_scopes"></label>
+            <input id="ak-scopes" class="inp mono" value="all">
+          </div>
+          <div>
+            <label data-i18n="cl_f_ttl"></label>
+            <input id="ak-ttl" class="inp mono" type="number" min="0" value="0">
+          </div>
+        </div>
       </form>
       <div id="cl-result" class="hidden" data-dlg-ignore>
         <p class="err small" data-i18n="cl_once"></p>
@@ -453,23 +471,29 @@
     </header>
     <div class="dlg-body">
       <form id="form-skill" autocomplete="off">
-        <label data-i18n="sk_f_name"></label>
-        <input id="sk-name" class="inp" required>
         <div class="row-2">
+          <div>
+            <label data-i18n="sk_f_name"></label>
+            <input id="sk-name" class="inp" required>
+          </div>
           <div>
             <label data-i18n="sk_f_category"></label>
             <input id="sk-category" class="inp" list="sk-cat-list" required>
             <datalist id="sk-cat-list"></datalist>
           </div>
+        </div>
+        <div class="row-2">
           <div>
             <label data-i18n="sk_f_tags"></label>
             <input id="sk-tags" class="inp">
           </div>
+          <div>
+            <label data-i18n="sk_f_desc"></label>
+            <input id="sk-desc" class="inp" required>
+          </div>
         </div>
-        <label data-i18n="sk_f_desc"></label>
-        <input id="sk-desc" class="inp" required>
         <label data-i18n="sk_f_body"></label>
-        <textarea id="sk-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+        <textarea id="sk-body" class="inp mono" rows="4" spellcheck="false"></textarea>
       </form>
     </div>
     <footer class="dlg-foot btn-row">
@@ -511,7 +535,7 @@
           </div>
         </div>
         <label for="mem-body" data-i18n="mem_f_body"></label>
-        <textarea id="mem-body" class="inp mono" rows="14" spellcheck="false"></textarea>
+        <textarea id="mem-body" class="inp mono" rows="4" spellcheck="false"></textarea>
         <p id="mem-meta" class="dim small"></p>
         <div id="mem-conflict" class="notice hidden">
           <span data-i18n="mem_conflict"></span>
@@ -535,8 +559,17 @@
     </header>
     <div class="dlg-body">
       <form id="form-cron" autocomplete="off">
-        <label for="cron-name" data-i18n="cron_f_name"></label>
-        <input id="cron-name" class="inp" required maxlength="80">
+        <div class="row-2">
+          <div>
+            <label for="cron-name" data-i18n="cron_f_name"></label>
+            <input id="cron-name" class="inp" required maxlength="80">
+          </div>
+          <div>
+            <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
+            <select id="cron-runner-sel" class="inp"></select>
+          </div>
+        </div>
+        <p class="dim small" data-i18n="cron_runner_hint"></p>
         <label data-i18n="cron_f_when"></label>
         <div class="chips" id="cron-presets">
           <button type="button" class="chip" data-preset="daily" data-i18n="cron_p_daily"></button>
@@ -558,7 +591,7 @@
         <input id="cron-expr" class="inp mono" required spellcheck="false">
         <p id="cron-preview" class="dim small" aria-live="polite"></p>
         <label for="cron-prompt" data-i18n="cron_f_prompt"></label>
-        <textarea id="cron-prompt" class="inp" rows="6" required></textarea>
+        <textarea id="cron-prompt" class="inp" rows="4" required></textarea>
         <div class="row-2">
           <div>
             <label for="cron-notify" data-i18n="cron_f_notify"></label>
@@ -569,11 +602,10 @@
             <input id="cron-owner" class="inp mono">
           </div>
         </div>
-        <label for="cron-runner-sel" data-i18n="cron_f_runner"></label>
-        <select id="cron-runner-sel" class="inp"></select>
-        <p class="dim small" data-i18n="cron_runner_hint"></p>
-        <label class="check"><input id="cron-once" type="checkbox"> <span data-i18n="cron_f_once"></span></label>
-        <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
+        <div class="row-2">
+          <label class="check"><input id="cron-once" type="checkbox"> <span data-i18n="cron_f_once"></span></label>
+          <label class="check"><input id="cron-enabled" type="checkbox" checked> <span data-i18n="cron_f_enabled"></span></label>
+        </div>
       </form>
     </div>
     <footer class="dlg-foot btn-row">
@@ -699,19 +731,25 @@
             <input id="pbd-category" class="inp" maxlength="60">
           </div>
         </div>
-        <label for="pbd-title" data-i18n="pb_f_title2"></label>
-        <input id="pbd-title" class="inp" required maxlength="120">
+        <div class="row-2">
+          <div>
+            <label for="pbd-title" data-i18n="pb_f_title2"></label>
+            <input id="pbd-title" class="inp" required maxlength="120">
+          </div>
+          <div>
+            <label for="pbd-source" data-i18n="pb_f_source"></label>
+            <input id="pbd-source" class="inp" type="url" maxlength="300">
+          </div>
+        </div>
         <label for="pbd-desc" data-i18n="pb_f_desc"></label>
         <input id="pbd-desc" class="inp" maxlength="600">
-        <label for="pbd-source" data-i18n="pb_f_source"></label>
-        <input id="pbd-source" class="inp" type="url" maxlength="300">
         <h4 data-i18n="pb_stages"></h4>
         <div id="pb-stage-forms"></div>
         <button type="button" id="btn-pb-add-stage" class="btn ghost sm" data-i18n="pb_add_stage"></button>
         <label for="pbd-plays" data-i18n="pb_f_plays"></label>
-        <textarea id="pbd-plays" class="inp mono" rows="5" spellcheck="false"></textarea>
+        <textarea id="pbd-plays" class="inp mono" rows="4" spellcheck="false"></textarea>
         <label for="pbd-guidance" data-i18n="pb_f_guidance"></label>
-        <textarea id="pbd-guidance" class="inp" rows="8"></textarea>
+        <textarea id="pbd-guidance" class="inp" rows="4"></textarea>
       </form>
     </div>
     <footer class="dlg-foot btn-row">

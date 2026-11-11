@@ -63,6 +63,11 @@ function regInput(f, value) {
   return el;
 }
 
+// Addresses, paths, descriptions and JSON take the whole row; the short fields (name,
+// host, port, user, secret pickers, switches) pair up two by two.
+const regWide = (f) => f.type === "object" || f.type === "array"
+  || /(^|_)(url|path|description)$|ca_bundle/.test(f.name);
+
 function regRenderForm(kind, config) {
   const spec = REG.kinds.find((k) => k.kind === kind);
   const box = $("#sv-fields");
@@ -75,7 +80,10 @@ function regRenderForm(kind, config) {
     label.textContent = f.name + (f.required ? " *" : "");
     const input = regInput(f, config ? config[f.name] : undefined);
     if (f.name === "name" && REG.name) input.readOnly = true;   // renaming = a new entry
-    box.append(label, input);
+    const cell = document.createElement("div");
+    cell.className = regWide(f) ? "fld full" : "fld";
+    cell.append(label, input);
+    box.append(cell);
   });
 }
 

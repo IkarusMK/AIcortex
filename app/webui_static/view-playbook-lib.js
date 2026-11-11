@@ -105,21 +105,24 @@ async function openPlaybook(name) {
 
 function stageFieldset(s, i) {
   const fs = el("fieldset", "pb-stage-edit");
-  fs.append(el("legend", null, `${i + 1}`));
-  const add = (key, input) => {
+  const grid = el("div", "form-fields");          // name | artifact, approval | approver
+  fs.append(el("legend", null, `${i + 1}`), grid);
+  const add = (key, input, full) => {
     const id = `pbs-${i}-${key}`; input.id = id; input.dataset.key = key;
     const label = el("label", null, t(`pb_f_stage_${key}`)); label.htmlFor = id;
-    fs.append(label, input);
+    const cell = el("div", full ? "fld full" : "fld");
+    cell.append(label, input);
+    grid.append(cell);
   };
   const text = (v) => { const x = el("input", "inp"); x.value = v || ""; return x; };
   add("name", text(s.name)); add("artifact", text(s.artifact));
-  const goal = el("textarea", "inp"); goal.rows = 2; goal.value = s.goal || ""; add("goal", goal);
+  const goal = el("textarea", "inp"); goal.rows = 3; goal.value = s.goal || ""; add("goal", goal, true);
   const appr = el("select", "inp");
   ["webui", "chat", "none"].forEach((v) => { const o = el("option", null, t(`pb_appr_${v}`)); o.value = v; appr.append(o); });
   appr.value = s.approval || "webui"; add("approval", appr);
   add("approver", text(s.approver));
-  const tpl = el("textarea", "inp mono"); tpl.rows = 5; tpl.spellcheck = false; tpl.value = s.template || "";
-  add("template", tpl);
+  const tpl = el("textarea", "inp mono"); tpl.rows = 4; tpl.spellcheck = false; tpl.value = s.template || "";
+  add("template", tpl, true);
   const row = el("div", "btn-row");
   [["pb_up", -1], ["pb_down", 1]].forEach(([key, dir]) => {
     const b = el("button", "btn ghost sm", t(key)); b.type = "button";
