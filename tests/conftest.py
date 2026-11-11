@@ -47,6 +47,22 @@ def _purge_app_modules():
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "oidc: keep the OIDC_* settings the test sets (fresh_server clears them otherwise)")
+    config.addinivalue_line(
+        "markers", "secure_default_role: test the real default role of a new interactive "
+                   "identity (otherwise OIDC_DEFAULT_ROLE=admin is set, see _legacy_default_role)")
+
+
+@pytest.fixture(autouse=True)
+def _legacy_default_role(request, monkeypatch):
+    """Until 2.5 every new OIDC identity was admin, and most tests were written that way
+    (they sign in as a person nobody configured and expect the management plane). They
+    keep that world with OIDC_DEFAULT_ROLE=admin — the documented way an operator keeps
+    it too. Tests of the secure default (only operators are admin, everyone else is
+    "user") opt out with ``@pytest.mark.secure_default_role``."""
+    if request.node.get_closest_marker("secure_default_role") is None:
+        monkeypatch.setenv("OIDC_DEFAULT_ROLE", "admin")
+    else:
+        monkeypatch.delenv("OIDC_DEFAULT_ROLE", raising=False)
 
 
 @pytest.fixture

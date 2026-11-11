@@ -3,11 +3,14 @@
 fastmcp ≥3.4 forwards the RFC 8707 `resource` parameter to the upstream IdP by
 default; IdPs without Resource-Indicator support (Pocket ID) reject the authorize
 request with `invalid_request` and the connector login dies. server.py disables
-the forwarding via `forward_resource=False` (plus `require_authorization_consent=
-"external"` to skip the new /consent interstitial).
+the forwarding via `forward_resource=False`. Against the OAuth confused deputy it
+keeps FastMCP's consent page on (`require_authorization_consent="remember"`: asked
+once per client, then remembered) and restricts client redirect URIs
+(`allowed_client_redirect_uris`) — tests/test_sec_oauth_redirects.py covers those
+end to end.
 
 These tests pin that contract against the INSTALLED fastmcp, so a future version
-bump that renames or breaks either knob fails CI instead of breaking logins in
+bump that renames or breaks a knob fails CI instead of breaking logins in
 production. Skipped when fastmcp isn't installed (the slim local test env).
 """
 import pytest
@@ -56,6 +59,7 @@ def test_constructor_still_offers_both_knobs():
         params = inspect.signature(cls.__init__).parameters
         assert "forward_resource" in params, cls.__name__
         assert "require_authorization_consent" in params, cls.__name__
+        assert "allowed_client_redirect_uris" in params, cls.__name__
 
 
 def test_forward_resource_false_strips_resource_from_upstream_url():
@@ -75,16 +79,11 @@ def test_default_would_forward_resource():
     assert "resource=" in url
 
 
-@pytest.mark.asyncio
-async def test_external_consent_redirects_straight_to_idp():
-    """With require_authorization_consent="external", authorize() must return the
-    upstream IdP URL directly — no /consent interstitial in the flow."""
+def _client_and_params():
     from mcp.server.auth.provider import AuthorizationParams
     from mcp.shared.auth import OAuthClientInformationFull
     from pydantic import AnyUrl
 
-    proxy = _proxy(forward_resource=False,
-                   require_authorization_consent="external")
     client = OAuthClientInformationFull(
         client_id="mcp-client",
         redirect_uris=[AnyUrl("https://claude.ai/api/mcp/auth_callback")],
@@ -96,6 +95,27 @@ async def test_external_consent_redirects_straight_to_idp():
         redirect_uri_provided_explicitly=True,
         resource="https://connector.example/mcp",
     )
+    return client, params
+
+
+@pytest.mark.asyncio
+async def test_remember_consent_routes_through_the_consent_page():
+    """With require_authorization_consent="remember" (server.py), authorize() sends the
+    browser to the local /consent page first — the step that stops a client an
+    attacker registered from receiving a person's code without them noticing."""
+    proxy = _proxy(forward_resource=False, require_authorization_consent="remember")
+    client, params = _client_and_params()
+    url = await proxy.authorize(client, params)
+    assert url.startswith("https://connector.example/consent?txn_id=")
+    assert "idp.example" not in url
+
+
+@pytest.mark.asyncio
+async def test_external_consent_would_skip_the_consent_page():
+    """Documents WHY "external" is no longer used: it goes straight to the IdP, so
+    nothing in AICortex asks the person before their code leaves for the client."""
+    proxy = _proxy(forward_resource=False, require_authorization_consent="external")
+    client, params = _client_and_params()
     url = await proxy.authorize(client, params)
     assert url.startswith("https://idp.example/authorize?")
     assert "/consent" not in url
