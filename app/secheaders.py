@@ -2,10 +2,11 @@
 
 - ``Strict-Transport-Security`` when BASE_URL is https: browsers then refuse to talk
   to this server over plain HTTP for a year, so a downgraded first request can't
-  expose the WebUI session or the OAuth pages. HSTS=<value> sets another value
-  (e.g. "max-age=63072000; includeSubDomains; preload"), HSTS=off switches it off.
-  Browsers ignore the header on plain-HTTP responses, so LAN access by IP keeps
-  working.
+  expose the WebUI session or the OAuth pages. The default covers this host only:
+  includeSubDomains would pin every name below it to HTTPS too, and some of those
+  may still be plain HTTP. HSTS=<value> sets another value (e.g. "max-age=63072000;
+  includeSubDomains; preload"), HSTS=off switches it off. Browsers ignore the header
+  on plain-HTTP responses, so LAN access by IP keeps working.
 - ``X-Content-Type-Options: nosniff``: no response is ever content-sniffed into
   something executable.
 
@@ -16,7 +17,7 @@ below the ASGI layer, out of reach of a middleware).
 import os
 import re
 
-DEFAULT_HSTS = "max-age=31536000; includeSubDomains"
+DEFAULT_HSTS = "max-age=31536000"
 _OFF = {"0", "off", "false", "no", "none"}
 _HSTS_VALUE = re.compile(r"^max-age=\d{1,10}(\s*;\s*(includeSubDomains|preload))*$", re.I)
 
