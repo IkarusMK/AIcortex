@@ -19,9 +19,11 @@ services:
       PYTHONUNBUFFERED: "1"
       # Trust the reverse proxy's X-Forwarded-* headers so the server knows it is
       # served over HTTPS — otherwise issued OAuth tokens fail audience validation.
-      # Default "*" is convenient on an isolated Docker network; for a tighter
-      # setup scope it to your proxy's source IP/subnet (e.g. "172.18.0.0/16").
-      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-*}"
+      # Default: loopback + private networks (a proxy on the Docker host, in a
+      # Docker network or elsewhere in the LAN). Not "*": with "*" uvicorn takes the
+      # FIRST X-Forwarded-For entry, which an internet client can forge. Tighten to
+      # your proxy's source IP/subnet (e.g. "127.0.0.1,172.16.0.0/12").
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
       # SSRF allow-list: internal/private IP ranges the dispatchers (call_service,
       # mqtt, ftp) may reach. EMPTY = block all private/link-local by default.
       # Set to the LAN and/or VPN subnets you actually use, e.g.

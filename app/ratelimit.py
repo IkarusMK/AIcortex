@@ -15,9 +15,10 @@ A limit is "N/second|minute|hour|day" (s, sec, m, min, h, hr, d also work) or a 
 N per minute; 0 switches the group off, RATE_LIMIT=0 switches off all of them.
 
 The client IP is the ASGI scope's client, which uvicorn has already taken from
-X-Forwarded-For when the proxy is trusted (FORWARDED_ALLOW_IPS). With "*" that is
-the FIRST entry, which a client can forge when the proxy appends to the header —
-naming the proxy's address there makes the count exact. IPv6 clients are
+X-Forwarded-For when the proxy is trusted (FORWARDED_ALLOW_IPS). uvicorn walks the
+header from the right and takes the first address outside that list — the one the
+proxy appended. With "*" it takes the FIRST entry instead, which a client can forge;
+the shipped default (loopback + private networks) avoids that. IPv6 clients are
 grouped by their /64, the block a single host usually gets. At most MAX_CLIENTS
 addresses are tracked per group; the least recently seen is forgotten first, which
 only ever resets that address to a full bucket.

@@ -130,7 +130,7 @@ identity, so roles and isolation key off the real person.
 | Symptom | Fix |
 |---------|-----|
 | Login redirects then fails | The **Callback URL** in Pocket ID doesn't exactly match `BASE_URL` + `/auth/callback`. Fix the URL in the client. |
-| `Bearer token rejected` (401) right after login | Behind a TLS-terminating proxy — set `FORWARDED_ALLOW_IPS: "*"` (already in `docker-compose.yml`). |
+| `Bearer token rejected` (401) right after login | Behind a TLS-terminating proxy — set `FORWARDED_ALLOW_IPS` to your proxy's source (the `docker-compose.yml` default trusts loopback and private networks; avoid `"*"`). |
 | Pocket ID "Sign in" spins forever | Missing scope on `/authorize`. Already handled by AICortex; override only via `OIDC_SCOPE` if needed. |
 | Roles don't take effect | Confirm the `groups` claim actually arrives (audit log shows your `sub`; set `AUTH_AUDIT_ALL=1`), the group name matches `policy.json`, and `OIDC_SCOPE` includes `groups`. |
 
