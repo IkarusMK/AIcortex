@@ -101,8 +101,8 @@ class _Sse:
         self.tools = [SimpleNamespace(name="get_forecast", description="Weather forecast.\nSecond line.")]
         self.result = SimpleNamespace(data={"temp": 21}, content=[])
 
-    def transport(self, url, headers=None):
-        self.transports.append(SimpleNamespace(url=url, headers=headers))
+    def transport(self, url, headers=None, **kw):
+        self.transports.append(SimpleNamespace(url=url, headers=headers, **kw))
         return self.transports[-1]
 
     def client(self, transport):

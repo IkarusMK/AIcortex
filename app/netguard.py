@@ -18,6 +18,8 @@ LAN and/or a VPN subnet:
     e.g. 192.168.0.0/16,10.0.0.0/8,100.64.0.0/10
 """
 import contextlib
+import contextvars
+import functools
 import ipaddress
 import os
 import socket
@@ -154,29 +156,54 @@ def tls_insecure(cfg: dict) -> bool:
 # check_host() validates at preflight, but the client libraries (httpx, ftplib,
 # paramiko, paho, smtplib) resolve again at CONNECT time — a hostname that
 # answered with a public IP during the check can answer with an internal IP at
-# connect (DNS rebinding). guard(host) wraps the actual network call: while it is
-# active EVERY socket.getaddrinfo is re-checked against the egress policy and any
-# disallowed (internal/link-local, not allow-listed) address is dropped.
+# connect (DNS rebinding). guard(host) wraps the actual network call: inside it,
+# EVERY socket.getaddrinfo made by that call is re-checked against the egress
+# policy and any disallowed (internal/link-local, not allow-listed) address is
+# dropped.
 #
-# Filtering ALL lookups while a guard is active — not just the named host — is
+# Filtering every lookup of the guarded call — not just the named host — is
 # deliberate: it also closes a cross-host redirect bypass (an already-registered
 # endpoint that 30x-redirects the client to 169.254.169.254 or a LAN admin panel
 # would otherwise resolve the NEW host unchecked). Public addresses still pass and
 # operator allow-listed internal ranges still pass, so legitimate LAN devices keep
 # working; only a disallowed target is blocked. TLS/SNI is unaffected (the
-# hostname is unchanged), so certificate verification keeps working. Refcounted +
-# thread-safe so concurrent/nested guarded calls coexist and getaddrinfo is
-# restored only once the last one exits.
+# hostname is unchanged), so certificate verification keeps working.
+#
+# The filter is scoped to the CONTEXT that entered the guard (a contextvar): the
+# guarded call and whatever it runs through asyncio.to_thread are filtered, other
+# threads and other asyncio tasks are not — an unrelated lookup (OIDC discovery,
+# another person's request) must not be filtered because some guard happens to be
+# open. socket.getaddrinfo is still patched process-wide while any guard is open
+# (refcounted + thread-safe) and restored once the last one exits.
+#
+# An async client must NOT rely on this filter: uvloop's resolver never calls
+# socket.getaddrinfo, asyncio's executor threads don't carry the context, and an IP
+# literal is connected without any lookup at all. Async callers use
+# ``pinned_async_transport`` instead, which checks and pins every request itself.
 _guard_lock = threading.Lock()
 _guarded: dict = {}
 _orig_getaddrinfo = None
+_SYSTEM_GETADDRINFO = socket.getaddrinfo
+_ACTIVE: contextvars.ContextVar = contextvars.ContextVar("netguard_active", default=0)
+
+
+def _raw_getaddrinfo():
+    """The resolver underneath the filter (the filter itself never resolves twice)."""
+    orig = _orig_getaddrinfo
+    if orig is not None:
+        return orig
+    current = socket.getaddrinfo
+    return _SYSTEM_GETADDRINFO if current is _filtered_getaddrinfo else current
+
+
+def _blocked_message(host) -> str:
+    return (f"netguard: every address for '{host}' is internal/blocked at connect "
+            f"time (possible DNS rebinding or redirect); none in INTERNAL_ALLOW_CIDRS")
 
 
 def _filtered_getaddrinfo(host, *args, **kwargs):
-    res = _orig_getaddrinfo(host, *args, **kwargs)
-    with _guard_lock:
-        active = bool(_guarded)
-    if not active:
+    res = _raw_getaddrinfo()(host, *args, **kwargs)
+    if _ACTIVE.get() <= 0:
         return res
     nets = _allowed_cidrs()
     allowed = []
@@ -188,25 +215,24 @@ def _filtered_getaddrinfo(host, *args, **kwargs):
         if _ip_allowed(ip, nets):
             allowed.append(entry)
     if not allowed:
-        raise socket.gaierror(
-            f"netguard: every address for '{host}' is internal/blocked at connect "
-            f"time (possible DNS rebinding or redirect); none in INTERNAL_ALLOW_CIDRS")
+        raise socket.gaierror(_blocked_message(host))
     return allowed
 
 
 @contextlib.contextmanager
 def guard(host: str):
-    """Enforce the egress IP policy at CONNECT time (anti-rebinding, anti-redirect).
-    Wrap the network call: `with netguard.guard(host): client.request(...)`. While
-    active, every outbound DNS resolution — including redirect targets — is checked
-    against the policy, so `host` is only a label for refcounting/diagnostics.
+    """Enforce the egress IP policy at CONNECT time (anti-rebinding, anti-redirect)
+    for a SYNC network call: `with netguard.guard(host): client.request(...)`. While
+    active, every DNS resolution made in this context — including redirect targets —
+    is checked against the policy, so `host` is only a label for refcounting and
+    diagnostics. Lookups of other threads and other asyncio tasks are left alone.
 
-    Coverage note: the guard filters ``socket.getaddrinfo``. Sync clients (httpx,
-    smtplib, ftplib, paramiko, paho) and ASYNC httpx (mcp_gateway) on the default
-    asyncio resolver all route through it (asyncio's ``loop.getaddrinfo`` calls
-    ``socket.getaddrinfo`` in an executor). Do NOT install a C-ares resolver
-    (``aiodns``): it would bypass this connect-time guard. The ``check_host`` /
-    ``check_url`` preflight still applies regardless."""
+    Coverage note: the guard filters ``socket.getaddrinfo`` in the calling context.
+    Sync clients (httpx, smtplib, ftplib, paramiko, paho) resolve there — even for
+    an IP literal (``socket.create_connection`` always calls getaddrinfo). ASYNC
+    httpx does not (uvloop, executor threads, IP literals); it must use
+    ``pinned_async_transport``. The ``check_host`` / ``check_url`` preflight still
+    applies regardless."""
     global _orig_getaddrinfo
     key = (host or "").strip().strip("[]").lower() or "-"
     with _guard_lock:
@@ -214,9 +240,14 @@ def guard(host: str):
         if _orig_getaddrinfo is None:
             _orig_getaddrinfo = socket.getaddrinfo
             socket.getaddrinfo = _filtered_getaddrinfo
+    token = _ACTIVE.set(_ACTIVE.get() + 1)
     try:
         yield
     finally:
+        try:
+            _ACTIVE.reset(token)
+        except ValueError:      # exited in another context than it was entered in
+            _ACTIVE.set(max(0, _ACTIVE.get() - 1))
         with _guard_lock:
             n = _guarded.get(key, 0) - 1
             if n <= 0:
@@ -226,3 +257,128 @@ def guard(host: str):
             if not _guarded and _orig_getaddrinfo is not None:
                 socket.getaddrinfo = _orig_getaddrinfo
                 _orig_getaddrinfo = None
+
+
+# ── Pinned async egress (every hop resolved once, checked, then connected to) ──
+class Blocked(PermissionError):
+    """Every address of a destination is outside the egress policy."""
+
+
+_MAX_ADDRESSES = 3      # connect attempts per request before giving up
+
+
+def allowed_addresses(host: str, port: int = 0) -> list:
+    """Resolve `host` ONCE and return the addresses the egress policy allows, in the
+    resolver's order — the caller connects to exactly these, so nothing can answer
+    differently between the check and the connect. An IP literal is checked as is
+    (it has no lookup that a filter could catch). Raises ``Blocked`` when none is
+    allowed and ``socket.gaierror`` when the name does not resolve."""
+    h = (host or "").strip().strip("[]")
+    if not h:
+        raise Blocked("netguard: empty host")
+    try:
+        ipaddress.ip_address(h.split("%")[0])
+        candidates = [h]
+    except ValueError:
+        infos = _raw_getaddrinfo()(h, port or None, type=socket.SOCK_STREAM)
+        candidates = []
+        for info in infos:
+            try:
+                ip = str(info[4][0])
+            except (IndexError, TypeError):
+                continue
+            if ip not in candidates:
+                candidates.append(ip)
+    nets = _allowed_cidrs()
+    allowed = []
+    for ip in candidates:
+        try:
+            parsed = ipaddress.ip_address(ip.split("%")[0])
+        except ValueError:
+            continue
+        if "%" not in ip and _ip_allowed(parsed, nets):
+            allowed.append(ip)
+    if not allowed:
+        raise Blocked(_blocked_message(h))
+    return allowed
+
+
+async def _allowed_async(host: str, port: int) -> list:
+    import anyio
+    return await anyio.to_thread.run_sync(allowed_addresses, host, port)
+
+
+def _pinned_request(lib, request, ip: str):
+    """`request` aimed at the checked address `ip`, with the original host name kept
+    as the Host header and as the TLS server name (SNI + certificate check)."""
+    host = request.url.host
+    if ip == host:
+        return request
+    return lib.Request(request.method, request.url.copy_with(host=ip),
+                       headers=request.headers, stream=request.stream,
+                       extensions={**request.extensions, "sni_hostname": host})
+
+
+@functools.lru_cache(maxsize=None)
+def _pinned_class(lib):
+    """The pinned transport for an httpx-compatible library (httpx, or httpx2 that the
+    MCP SDK's clients are built on)."""
+
+    class PinnedAsyncTransport(lib.AsyncBaseTransport):
+        def __init__(self, transport_kwargs: dict):
+            self._kwargs = dict(transport_kwargs)
+            self._pools: dict = {}
+
+        def _pool(self, url):
+            # One connection pool per original host name, so a connection opened (and
+            # TLS-verified) for one name is never reused for another on the same IP.
+            key = (url.scheme, url.host, url.port)
+            if key not in self._pools:
+                self._pools[key] = lib.AsyncHTTPTransport(**self._kwargs)
+            return self._pools[key]
+
+        async def handle_async_request(self, request):
+            url = request.url
+            port = url.port or {"https": 443, "http": 80}.get(url.scheme, 0)
+            addresses = await _allowed_async(url.host, port)
+            pool = self._pool(url)
+            failure = None
+            for ip in addresses[:_MAX_ADDRESSES]:
+                try:
+                    return await pool.handle_async_request(_pinned_request(lib, request, ip))
+                except lib.ConnectError as exc:     # nothing was sent yet: try the next one
+                    failure = exc
+            raise failure
+
+        async def aclose(self) -> None:
+            pools, self._pools = self._pools, {}
+            for pool in pools.values():
+                await pool.aclose()
+
+    return PinnedAsyncTransport
+
+
+def pinned_async_transport(lib=None, **transport_kwargs):
+    """An async transport for an httpx(-compatible) client whose EVERY request —
+    redirect hops included — is resolved once, checked against the egress policy and
+    sent to a checked address, while the Host header and the TLS name stay the host
+    name. Independent of the event loop's resolver (uvloop) and of IP literals, which
+    the getaddrinfo filter of ``guard`` cannot see. `transport_kwargs` go to the
+    library's ``AsyncHTTPTransport`` (e.g. ``verify``)."""
+    if lib is None:
+        import httpx as lib
+    return _pinned_class(lib)(transport_kwargs)
+
+
+def mcp_client_factory(headers=None, timeout=None, auth=None):
+    """An ``httpx_client_factory`` for the MCP SDK's transports (fastmcp's SSE client):
+    its httpx2 client connects through the pinned transport and follows no redirect
+    itself (the SDK only follows same-origin ones, each through this transport)."""
+    import httpx2
+    kwargs = {"timeout": timeout or httpx2.Timeout(30.0, read=300.0),
+              "transport": pinned_async_transport(httpx2), "follow_redirects": False}
+    if headers is not None:
+        kwargs["headers"] = headers
+    if auth is not None:
+        kwargs["auth"] = auth
+    return httpx2.AsyncClient(**kwargs)
