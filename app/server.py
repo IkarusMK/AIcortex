@@ -80,7 +80,16 @@ def http_middleware():
 
 def uvicorn_config():
     """Extra uvicorn settings for the HTTP transport: no "server: uvicorn" banner
-    telling every client which stack (and version range) answers."""
+    telling every client which stack (and version range) answers.
+
+    uvicorn reads FORWARDED_ALLOW_IPS itself. With "*" it takes the FIRST
+    X-Forwarded-For entry as the client IP — the one a client can write — so the
+    per-IP rate limits and the audit trail can be fooled. Warn, don't refuse: an
+    existing install keeps starting."""
+    if os.environ.get("FORWARDED_ALLOW_IPS", "").strip() == "*":
+        print("[AICortex] WARNING: FORWARDED_ALLOW_IPS=\"*\" lets clients forge their IP "
+              "(rate limits, audit). Set it to your proxy's source, e.g. "
+              "127.0.0.1,172.16.0.0/12.")
     return {"server_header": False}
 
 

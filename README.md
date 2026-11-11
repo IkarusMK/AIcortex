@@ -531,7 +531,7 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | Symptom | Cause & fix |
 |---------|-------------|
 | Login succeeds, client says *"returned an error when connecting"*; logs show **`Token missing required scopes`** | The proxy-issued token doesn't carry upstream scopes as claims. **Don't set `required_scopes`** — a successful login is enough (already handled in `server.py`). |
-| `Issued new FastMCP tokens` then **`Bearer token rejected`** (401) | Behind a TLS-terminating proxy, uvicorn ignored `X-Forwarded-Proto`. Set **`FORWARDED_ALLOW_IPS: "*"`** (already in `docker-compose.yml`). |
+| `Issued new FastMCP tokens` then **`Bearer token rejected`** (401) | Behind a TLS-terminating proxy, uvicorn ignored `X-Forwarded-Proto`. Set **`FORWARDED_ALLOW_IPS`** to your proxy's source (the default in `docker-compose.yml` already trusts loopback and private networks). Avoid `"*"`: it lets a client forge its IP. |
 | **`disk client_storage unavailable (Fernet key must be 32 url-safe base64-encoded bytes)`** | `STORAGE_ENCRYPTION_KEY` isn't a valid Fernet key (it's **not** `JWT_SIGNING_KEY`). Generate: `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`. |
 | `Bearer token rejected` for an **old client id** after recreating the container | The OAuth client store was ephemeral. Persistent `data/auth` fixes it; to clear a stuck client, remove the connector, fully quit & reopen the app, re-add. |
 | Connector won't connect; proxy returns a login **web page** | Reverse-proxy SSO / forward-auth in front of `/mcp`. A machine client can't do interactive login — **remove it**; auth belongs at the MCP layer. |
