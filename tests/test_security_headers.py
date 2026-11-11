@@ -4,8 +4,8 @@ Found in the 2026-11 review:
 - No HSTS. A deployment behind HTTPS (BASE_URL https://…) never told browsers to
   stay on HTTPS, so the WebUI session cookie and the OAuth pages could be reached
   over a downgraded first request. Now every response carries
-  ``Strict-Transport-Security: max-age=31536000; includeSubDomains`` when BASE_URL
-  is https (HSTS=<value> changes it, HSTS=off switches it off).
+  ``Strict-Transport-Security: max-age=31536000`` when BASE_URL is https
+  (HSTS=<value> changes it, HSTS=off switches it off; test_sec_hsts_default.py).
 - ``X-Content-Type-Options: nosniff`` was only set on the WebUI page and assets;
   now on every response, never twice.
 - Every response said ``server: uvicorn``. The banner is switched off in the
@@ -19,7 +19,7 @@ import pytest
 
 ACCEPT = "application/json, text/event-stream"
 PING = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
-HSTS = "max-age=31536000; includeSubDomains"
+HSTS = "max-age=31536000"
 
 
 @pytest.fixture
