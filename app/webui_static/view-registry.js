@@ -232,3 +232,99 @@ function oauthNotice() {
     code === "ok");
   history.replaceState(null, "", location.pathname + location.hash);
 }
+
+/* Vault: the hosts each secret may be sent to (host binding). An AI can't widen this —
+   only a person here, or whoever re-enters the value. Rendered with textContent only. */
+Object.assign(I18N.de, {
+  vault_hosts: "Erlaubte Hosts", vault_hosts_save: "Hosts speichern",
+  vault_hosts_ph: "z. B. api.example.com, 192.0.2.10",
+  vault_hosts_hint: "Nur an diese Hosts wird das Secret gesendet. Eine KI kann das nicht ändern – nur du hier (oder wer den Wert neu eingibt).",
+  vault_hosts_unbound: "Noch nicht gebunden – die erste Integration, die es verwendet, bindet es an ihren Host.",
+  vault_hosts_none: "An keinen Host gebunden – es wird nirgendwohin gesendet.",
+  vault_hosts_line: "Hosts: {0}", vault_hosts_open: "Hosts: noch nicht gebunden",
+});
+Object.assign(I18N.en, {
+  vault_hosts: "Allowed hosts", vault_hosts_save: "Save hosts",
+  vault_hosts_ph: "e.g. api.example.com, 192.0.2.10",
+  vault_hosts_hint: "The secret is only ever sent to these hosts. An AI can't change this — only you, here (or whoever re-enters the value).",
+  vault_hosts_unbound: "Not bound yet — the first integration that uses it binds it to its host.",
+  vault_hosts_none: "Bound to no host — it is sent nowhere.",
+  vault_hosts_line: "Hosts: {0}", vault_hosts_open: "Hosts: not bound yet",
+});
+
+function hostsText(hosts) {
+  if (hosts == null) return t("vault_hosts_open");
+  return t("vault_hosts_line", hosts.length ? hosts.join(", ") : "—");
+}
+
+function decorateVaultRows() {
+  $$("#vault-table tbody tr").forEach((tr, i) => {
+    const s = SECRETS[i];
+    if (!s || !tr.firstChild) return;
+    const line = document.createElement("div");
+    line.className = "dim small mono";
+    line.textContent = hostsText(s.hosts);
+    tr.firstChild.append(line);
+  });
+}
+
+function hostsBox() {
+  let box = $("#sec-hosts-box");
+  if (box) return box;
+  box = document.createElement("div");
+  box.id = "sec-hosts-box";
+  box.className = "hidden";
+  const label = document.createElement("label");
+  label.htmlFor = "sec-hosts";
+  const hint = document.createElement("p");
+  hint.className = "dim small"; hint.id = "sec-hosts-hint";
+  const input = document.createElement("input");
+  input.id = "sec-hosts"; input.className = "inp mono"; input.autocomplete = "off";
+  const state = document.createElement("p");
+  state.className = "dim small"; state.id = "sec-hosts-state";
+  const save = document.createElement("button");
+  save.type = "button"; save.className = "btn ghost sm"; save.id = "btn-sec-hosts";
+  save.addEventListener("click", () => saveHosts().catch((e) => toast(t("toast_error", e.message), false)));
+  box.append(label, hint, input, state, save);
+  $("#form-secret").after(box);
+  return box;
+}
+
+function renderHostsBox(s) {
+  const box = hostsBox();
+  box.classList.toggle("hidden", !s);
+  if (!s) return;
+  box.querySelector("label").textContent = t("vault_hosts");
+  $("#sec-hosts-hint").textContent = t("vault_hosts_hint");
+  $("#sec-hosts").placeholder = t("vault_hosts_ph");
+  $("#sec-hosts").value = (s.hosts || []).join(", ");
+  $("#sec-hosts-state").textContent = s.hosts == null ? t("vault_hosts_unbound")
+    : (s.hosts.length ? "" : t("vault_hosts_none"));
+  $("#btn-sec-hosts").textContent = t("vault_hosts_save");
+}
+
+async function saveHosts() {
+  const s = VAULT_EDIT;
+  if (!s) return;
+  const hosts = $("#sec-hosts").value.split(/[\s,]+/).filter(Boolean);
+  const r = await api("/ui/api/secrets/hosts", {
+    method: "POST", body: { name: s.name, owner: s.owner || "", hosts } });
+  toast(r.message, r.ok);
+  if (!r.ok) return;
+  await loadVault();
+  const fresh = SECRETS.find((x) => x.name === s.name && (x.owner || "") === (s.owner || ""));
+  if (fresh) { VAULT_EDIT = fresh; renderHostsBox(fresh); }
+}
+
+// Extend the vault view from app.js: rows get their hosts, the edit form a hosts box.
+const vaultLoadBase = loadVault;
+loadVault = async function () {
+  await vaultLoadBase();
+  decorateVaultRows();
+};
+VIEWS.vault = loadVault;
+const vaultEditBase = editSecret;
+editSecret = function (s) {
+  vaultEditBase(s);
+  renderHostsBox(s || null);
+};

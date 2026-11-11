@@ -102,7 +102,8 @@ def test_hmac_signature_must_match_the_exact_body(http_server, fresh_server):
     _hook(secret_env="", hmac_secret_env="HOOK_HMAC")
     body = b'{"event":"push"}'
     assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body)}).status_code == 202
-    assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body, prefix="")}).status_code == 202
+    bare = b'{"event":"push","n":2}'      # a new delivery: an exact repeat is a duplicate
+    assert _post(http_server, body=bare, **{"X-Hub-Signature-256": _sig(bare, prefix="")}).status_code == 202
     assert _post(http_server, body=body + b" ", **{"X-Hub-Signature-256": _sig(body)}).status_code == 401
     assert _post(http_server, body=body, **{"X-Hub-Signature-256": _sig(body, key="other")}).status_code == 401
     assert _post(http_server, body=body).status_code == 401
@@ -284,6 +285,8 @@ def test_send_failures_come_back_as_messages(fresh_server, sent, monkeypatch):
 
 
 def test_an_admin_may_send_any_secret_in_a_header_the_response_never_shows_it(fresh_server, sent):
+    # …to a host it is explicitly bound to (host binding; test_sec_secret_binding.py)
+    sys.modules["secrets_store"].vault_set_hosts("HOOK_TOKEN", "", ["hooks.example.net"])
     args = {"url": "https://hooks.example.net/n", "secret_env": "HOOK_TOKEN"}
     assert TOKEN not in _t(fresh_server, "webhook_send", args)
     assert sent.calls[0][1]["headers"] == {"Authorization": TOKEN}
@@ -296,8 +299,9 @@ def test_an_admin_may_send_any_secret_in_a_header_the_response_never_shows_it(fr
 def test_a_non_admin_can_send_only_their_own_personal_secret(monkeypatch, fresh_server, sent):
     monkeypatch.setenv("STORAGE_ENCRYPTION_KEY", Fernet.generate_key().decode())
     vault = sys.modules["secrets_store"]
-    vault.vault_set("PERSONAL_KEY", "alice-own-value", owner="alice")
-    vault.vault_set("SHARED_KEY", "shared-value")
+    vault.vault_set("PERSONAL_KEY", "alice-own-value", owner="alice", hosts=["hooks.example.net"])
+    vault.vault_set("SHARED_KEY", "shared-value", hosts=["hooks.example.net"])
+    vault.vault_set_hosts("HOOK_TOKEN", "", ["hooks.example.net"])
     args = {"url": "https://hooks.example.net/n", "secret_header": "X-Key"}
     _as(monkeypatch, "alice")
     assert "HTTP 202" in _t(fresh_server, "webhook_send", {**args, "secret_env": "PERSONAL_KEY"})
@@ -315,6 +319,7 @@ def test_without_enforcement_every_caller_is_privileged(monkeypatch, request):
     monkeypatch.setattr(sys.modules["netguard"], "check_url", lambda url: (True, ""))
     post = _Sent()
     monkeypatch.setattr(httpx, "post", post)
+    sys.modules["secrets_store"].vault_set_hosts("HOOK_TOKEN", "", ["hooks.example.net"])
     _as(monkeypatch, "alice")
     _t(server, "webhook_send", {"url": "https://hooks.example.net/n", "secret_env": "HOOK_TOKEN"})
     assert post.calls[0][1]["headers"] == {"Authorization": TOKEN}

@@ -447,7 +447,10 @@ def register(mcp):
             headers = {}
             tok_env = svc.get("token_env")
             if tok_env:
-                token = secrets_store.get_secret(tok_env)
+                try:   # the service's token only goes to a host it is bound to
+                    token = secrets_store.use(tok_env, up_url)
+                except secrets_store.Refused as exc:
+                    return result + f" (Paperless upload refused — {exc})"
                 if not token:
                     return result + f" (Paperless needs secret '{tok_env}' — set it with secret_set.)"
                 headers["Authorization"] = f"Token {token}"

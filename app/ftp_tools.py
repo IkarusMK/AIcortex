@@ -98,15 +98,16 @@ def _connect(cfg):
     else:
         ftp = ftplib.FTP()
 
+    username = cfg.get("username") or "anonymous"
+    password = ""
+    if cfg.get("password_env"):
+        # only to a host the password is bound to (raises secrets_store.Refused)
+        password = secrets_store.use(cfg["password_env"], host) or ""
+        if not password:  # never fall back to an empty-password login
+            raise RuntimeError(f"endpoint needs secret '{cfg['password_env']}'. Use secret_set.")
     # guard(host): enforce the egress IP policy at CONNECT time (anti DNS-rebinding)
     with netguard.guard(host):
         ftp.connect(host, port, timeout=30)
-        username = cfg.get("username") or "anonymous"
-        password = ""
-        if cfg.get("password_env"):
-            password = secrets_store.get_secret(cfg["password_env"]) or ""
-            if not password:  # never fall back to an empty-password login
-                raise RuntimeError(f"endpoint needs secret '{cfg['password_env']}'. Use secret_set.")
         ftp.login(username, password)
         if mode in ("implicit", "explicit"):
             ftp.prot_p()  # encrypt the data channel too
@@ -213,7 +214,10 @@ def _curl_upload(cfg: dict, src: Path, remote_path: str) -> str:
             return f"Connect failed: cannot resolve '{host}': {exc}"
     password = ""
     if cfg.get("password_env"):
-        password = secrets_store.get_secret(cfg["password_env"]) or ""
+        try:   # only to a host the password is bound to
+            password = secrets_store.use(cfg["password_env"], host) or ""
+        except secrets_store.Refused as exc:
+            return str(exc)
     config = _curl_config(cfg, password, src, remote_path, pinned_ip)
     try:
         proc = subprocess.run(
@@ -254,6 +258,9 @@ def register(mcp):
                 "password_env": password_env,
                 "description": description,
             }
+            refused = secrets_store.check_registration('ftp', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):

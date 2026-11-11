@@ -74,11 +74,12 @@ class _Refused(Exception):
 
 def _auth_headers(cfg) -> dict:
     """Build the auth header dict for an upstream server (token resolved
-    server-side from the vault, never stored in the config or returned)."""
+    server-side from the vault, never stored in the config or returned). Raises
+    ``secrets_store.Refused`` when the server's host is not one the token is bound to."""
     headers = {}
     tok_env = cfg.get("token_env")
     if tok_env:
-        token = secrets_store.get_secret(tok_env)
+        token = secrets_store.use(tok_env, cfg.get("url", ""))
         if token:
             header = cfg.get("auth_header") or "Authorization"
             scheme = cfg.get("auth_scheme", "Bearer")
@@ -122,10 +123,16 @@ class _StreamableMCP:
     Not Allowed``. The MCP spec says a client MUST tolerate that and keep using
     plain POST. This client does exactly the spec's minimum: POST JSON-RPC with
     ``Accept: application/json, text/event-stream`` (the strictly-required Accept),
-    follow redirects, carry the ``Mcp-Session-Id`` across requests, and never open
-    a standalone GET stream — so it works whether or not the server provides one.
-    Supports the three operations the gateway needs: initialize, tools/list,
-    tools/call. (SSE-transport servers still go through fastmcp.)
+    follow redirects on the server's own origin, carry the ``Mcp-Session-Id`` across
+    requests, and never open a standalone GET stream — so it works whether or not the
+    server provides one. Supports the three operations the gateway needs: initialize,
+    tools/list, tools/call. (SSE-transport servers still go through fastmcp.)
+
+    Egress: every request, redirect hops included, goes through netguard's pinned
+    transport (resolved once, checked, connected to the checked address) — the
+    getaddrinfo guard alone does not cover async clients (uvloop, IP literals). A
+    redirect to another origin is refused: it would carry the auth header (a custom
+    one survives httpx's cross-origin stripping) to a host the token is not bound to.
     """
 
     def __init__(self, url: str, headers: dict, timeout: float = 30.0):
@@ -179,9 +186,20 @@ class _StreamableMCP:
         except Exception:
             pass
 
+    async def _stay_on_origin(self, request):
+        """httpx request hook, run for every hop: only the configured origin (or its
+        https upgrade) may be requested."""
+        if not _same_origin(self.url, str(request.url)):
+            raise _HttpMCPError(
+                f"Refused: the server redirected to another address ({request.url.host}); "
+                f"the gateway only follows redirects on the server's own origin.")
+
     async def __aenter__(self):
         import httpx
-        self._client = httpx.AsyncClient(follow_redirects=True, timeout=self.timeout)
+        self._client = httpx.AsyncClient(
+            follow_redirects=True, timeout=self.timeout,
+            transport=netguard.pinned_async_transport(),
+            event_hooks={"request": [self._stay_on_origin]})
         try:
             init = await self._rpc("initialize", {
                 "protocolVersion": self.proto,
@@ -223,13 +241,27 @@ class _StreamableMCP:
                                {"name": name, "arguments": args or {}}, with_proto=True)
 
 
+def _origin(url: str) -> tuple:
+    u = urlparse(url)
+    scheme = (u.scheme or "").lower()
+    return scheme, (u.hostname or "").lower(), u.port or {"https": 443, "http": 80}.get(scheme)
+
+
+def _same_origin(base: str, url: str) -> bool:
+    """`url` is on `base`'s origin, or is its https upgrade on the default ports."""
+    a, b = _origin(base), _origin(url)
+    return a == b or (a[1] == b[1] and a[0] == "http" and a[2] == 80
+                      and b[0] == "https" and b[2] == 443)
+
+
 def _make_client(cfg, headers=None):
     """Return an async-context client for a registered upstream server.
 
     - transport 'http' (streamable, the default) → our spec-minimal POST client
       (always sends the required Accept header, tolerates servers without a GET
       stream — fixes #17).
-    - transport 'sse' (legacy) → the bundled fastmcp SSE client.
+    - transport 'sse' (legacy) → the bundled fastmcp SSE client, its HTTP client built
+      on netguard's pinned transport (same egress check as the HTTP path).
     Both expose ``async with client`` + ``list_tools`` / ``call_tool``.
     `headers` defaults to the vault-token header of the config.
     """
@@ -238,7 +270,8 @@ def _make_client(cfg, headers=None):
     if (cfg.get("transport") or "http").lower() == "sse":
         from fastmcp import Client
         from fastmcp.client.transports import SSETransport
-        return Client(SSETransport(url, headers=headers))
+        return Client(SSETransport(url, headers=headers,
+                                   httpx_client_factory=netguard.mcp_client_factory))
     return _StreamableMCP(url, headers)
 
 
@@ -429,6 +462,9 @@ def register(mcp):
                 "auth": auth,
                 "read_only": bool(read_only),
             }
+            refused = secrets_store.check_registration('mcp', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             if auth == "oauth":
                 return (f"Registered MCP server '{_slug(name)}'. Sign in: AICortex WebUI → "
@@ -483,7 +519,7 @@ def register(mcp):
             return await client.list_tools()
         try:
             tools = await _run(_slug(server), cfg, work)
-        except mcp_oauth.OAuthError as exc:
+        except (mcp_oauth.OAuthError, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
             return f"Could not reach '{server}': {exc}"
@@ -504,7 +540,7 @@ def register(mcp):
         try:
             result = await _run(_slug(server), cfg, _call_work(server, cfg, tool, args))
             return _format_result(result)
-        except (mcp_oauth.OAuthError, _Refused) as exc:
+        except (mcp_oauth.OAuthError, _Refused, secrets_store.Refused) as exc:
             return str(exc)
         except Exception as exc:
             return f"Call failed: {exc}"

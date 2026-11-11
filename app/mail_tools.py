@@ -80,6 +80,9 @@ def register(mcp):
                    "username": username, "password_env": password_env,
                    "tls_insecure": bool(tls_insecure), "ca_bundle": ca_bundle.strip(),
                    "security": (security or "starttls").lower(), "description": description}
+            refused = secrets_store.check_registration('mail', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
@@ -159,6 +162,14 @@ def register(mcp):
                         f"{', '.join(bad)}. Ask the operator to permit them.")
         sec = cfg.get("security", "starttls")
         port = int(cfg.get("port", 587))
+        pw = None
+        if cfg.get("username") and cfg.get("password_env"):
+            try:   # only to a host the password is bound to — checked before connecting
+                pw = secrets_store.use(cfg["password_env"], host)
+            except secrets_store.Refused as exc:
+                return str(exc)
+            if not pw:
+                return f"Account needs secret '{cfg['password_env']}'. Use secret_set."
         try:
             # guard() wraps the actual connect so the SSRF egress policy is
             # re-applied at resolve time (anti DNS-rebinding), not just at the
@@ -172,10 +183,7 @@ def register(mcp):
                 with server:
                     if sec == "starttls":
                         server.starttls(context=ctx)
-                    if cfg.get("username") and cfg.get("password_env"):
-                        pw = secrets_store.get_secret(cfg["password_env"])
-                        if not pw:
-                            return f"Account needs secret '{cfg['password_env']}'. Use secret_set."
+                    if pw is not None:
                         server.login(cfg["username"], pw)
                     server.send_message(msg, from_addr=cfg.get("from_addr"), to_addrs=rcpts)
         except Exception as exc:

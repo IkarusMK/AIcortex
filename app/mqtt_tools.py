@@ -65,7 +65,8 @@ def _new_client(cfg):
     if username:
         password = None
         if cfg.get("password_env"):
-            password = secrets_store.get_secret(cfg["password_env"])
+            # only to a host the password is bound to (raises secrets_store.Refused)
+            password = secrets_store.use(cfg["password_env"], cfg.get("host", ""))
         client.username_pw_set(username, password)
 
     if cfg.get("tls"):
@@ -121,6 +122,9 @@ def register(mcp):
                 "client_id": client_id,
                 "description": description,
             }
+            refused = secrets_store.check_registration('mqtt', _cfg_path(name), cfg)
+            if refused:
+                return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
