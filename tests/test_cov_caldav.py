@@ -101,7 +101,8 @@ def env(fresh_server, monkeypatch):
     dns.set(HOST, "203.0.113.10")
     monkeypatch.setattr(socket, "getaddrinfo", dns)
     monkeypatch.setattr(mod, "httpx", SimpleNamespace(Client=hub.build))
-    sys.modules["secrets_store"].vault_set("CAL_PW", PASSWORD)
+    # the hosts these tests register — bound by a person, as only a person binds a secret (2.6.0)
+    sys.modules["secrets_store"].vault_set("CAL_PW", PASSWORD, hosts=[HOST, "lan.example.net", "odd.example.net", "rebind.example.net"])
     return _Env(fresh_server, dns, hub, mod)
 
 
@@ -140,7 +141,7 @@ def test_add_normalises_slug_and_url_and_stores_only_the_secret_name(env):
     out = env.add("Family Cal!", base_url="https://dav.example.com/dav/alice")
     assert out == "Registered CalDAV endpoint 'family-cal'."  # secret exists: no hint
     assert env.add("!!!", password_env="UNSET_PW").startswith("Registered CalDAV endpoint 'caldav'.")
-    assert "secret_set('UNSET_PW', <value>)" in env.add(password_env="UNSET_PW")  # secret missing
+    assert "secret_set('UNSET_PW', <value>, hosts='dav.example.com')" in env.add(password_env="UNSET_PW")  # secret missing: store it with its host
     text = (env.mod.CALDAV_DIR / "family-cal.json").read_text()
     assert '"base_url": "https://dav.example.com/dav/alice/"' in text
     assert '"password_env": "CAL_PW"' in text and PASSWORD not in text

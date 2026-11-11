@@ -115,7 +115,8 @@ def _sent(world):
 
 
 def _vault(name="SMTP_PW", value="test-password"):
-    sys.modules["secrets_store"].vault_set(name, value)
+    # Stored with its host, as a person does (only a person binds a secret, 2.6.0).
+    sys.modules["secrets_store"].vault_set(name, value, hosts=["smtp.example.com", "mail.example.com", "relay.example.net", "sub.example.com"])
 
 
 def _ca_pem(path):

@@ -472,7 +472,7 @@ def register(mcp):
                         f"own account).")
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
-                note = f" — set the token with secret_set('{token_env}', <value>)"
+                note = f" — set the token with {secrets_store.set_hint(token_env, url)}"
             return f"Registered MCP server '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register MCP server: {exc}"

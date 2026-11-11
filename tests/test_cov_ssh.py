@@ -145,7 +145,8 @@ def _add(srv, name="box", host="box.example.com", **extra):
 
 
 def _vault(value="test-password", name="BOX_PW"):
-    sys.modules["secrets_store"].vault_set(name, value)
+    # Stored with its host, as a person does (only a person binds a secret, 2.6.0).
+    sys.modules["secrets_store"].vault_set(name, value, hosts=["box.example.com", "lan.example.net", "rebind.example.com"])
 
 
 def _ed25519_pem():

@@ -172,7 +172,8 @@ def env(fresh_server, monkeypatch):
     monkeypatch.setattr(paho_client, "Client", broker.make)
     monkeypatch.setattr(mod, "threading", SimpleNamespace(Event=_FastEvent, Lock=threading.Lock))
     monkeypatch.setattr(mod, "time", SimpleNamespace(time=clock.time, sleep=clock.sleep))
-    sys.modules["secrets_store"].vault_set("MQ_PW", PASSWORD)
+    # the hosts these tests register — bound by a person, as only a person binds a secret (2.6.0)
+    sys.modules["secrets_store"].vault_set("MQ_PW", PASSWORD, hosts=[HOST, "lan.example.net", "odd.example.net", "rebind.example.net"])
     return _Env(fresh_server, dns, broker, mod, clock)
 
 
@@ -201,7 +202,7 @@ def test_add_normalises_slug_and_stores_only_the_secret_name(env):
     out = env.add("Plant Floor 1!", ca_bundle="  /certs/lan-ca.pem ")
     assert out == "Registered MQTT broker 'plant-floor-1'."  # secret exists: no hint
     assert env.add("!!!", password_env="UNSET_PW").startswith("Registered MQTT broker 'broker'.")
-    assert "secret_set('UNSET_PW', <value>)" in env.add(password_env="UNSET_PW")  # secret missing
+    assert "secret_set('UNSET_PW', <value>, hosts='broker.example.net')" in env.add(password_env="UNSET_PW")  # secret missing: store it with its host
     cfg = (env.mod.MQTT_DIR / "plant-floor-1.json").read_text()
     assert '"password_env": "MQ_PW"' in cfg and '"ca_bundle": "/certs/lan-ca.pem"' in cfg
     assert '"port": 8883' in cfg and '"tls": true' in cfg and PASSWORD not in cfg

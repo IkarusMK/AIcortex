@@ -129,7 +129,8 @@ def _add(srv, name="files", **extra):
 
 
 def _vault(name="FTP_PW", value="test-password"):
-    sys.modules["secrets_store"].vault_set(name, value)
+    # Stored with its host, as a person does (only a person binds a secret, 2.6.0).
+    sys.modules["secrets_store"].vault_set(name, value, hosts=["ftp.example.com", "dual.example.com", "nas.example.net", "printer.example.com", "rebind.example.com"])
 
 
 def _file(tmp_path, name="m.bin", data=b"payload"):

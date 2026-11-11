@@ -264,7 +264,7 @@ def register(mcp):
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
-                note = f" — set the password with secret_set('{password_env}', <value>)"
+                note = f" — set the password with {secrets_store.set_hint(password_env, host)}"
             return f"Registered FTP endpoint '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register endpoint: {exc}"

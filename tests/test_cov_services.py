@@ -35,6 +35,10 @@ def svc(monkeypatch, fresh_server):
     monkeypatch.setenv("AUTH_ENFORCE", "1")
     monkeypatch.delenv("INTERNAL_ALLOW_CIDRS", raising=False)
     monkeypatch.delenv("SVC_TOKEN", raising=False)
+    # The test token may go to the test services' hosts — bound by a person, as
+    # only a person binds a secret (2.6.0); the value comes from the environment.
+    sys.modules["secrets_store"].vault_set_hosts(
+        "SVC_TOKEN", "", ["ha.example.com", "dns.example.com", "old.example.com"], by="test")
     mod = sys.modules["services"]
     fake = FakeMCP()
     mod.register(fake)
@@ -191,7 +195,7 @@ def test_the_token_is_injected_as_bearer_or_as_a_raw_custom_header(svc, wire, mo
     assert (wire["method"], wire["url"], wire["json"], wire["params"]) == (
         "POST", "https://ha.example.com/api/states", {"a": 1}, {"q": "x"})
     assert wire["verify"] is True and wire["timeout"] == 30
-    # same host: the token is bound to ha.example.com since its first use
+    # same host: the token is bound to ha.example.com
     _raw(svc, "plain", base_url="https://ha.example.com", token_env="SVC_TOKEN", auth_scheme="",
          auth_header="X-Api-Key")
     svc.t["call_service"]("plain")

@@ -296,7 +296,7 @@ def test_fetch_errors_fail_the_scan_only_when_no_page_arrived(srv, world, tmp_pa
 
 
 def test_paperless_push_uses_the_vault_token_and_never_returns_it(srv, world, tmp_path):
-    sys.modules["secrets_store"].vault_set("PAPERLESS_TOKEN", "test-token")
+    sys.modules["secrets_store"].vault_set("PAPERLESS_TOKEN", "test-token", hosts=["paperless.example.com"])
     _service(tmp_path, base_url="https://paperless.example.com/")
     _add(srv)
     world.page_script = [_Resp(200, b"A"), _Resp(200, b"B"), _Resp(404)]
@@ -328,7 +328,7 @@ def test_paperless_without_token_env_sends_no_authorization_header(srv, world, t
 def test_paperless_failures_keep_the_scan_and_explain_the_problem(srv, world, tmp_path, setup, expected):
     _add(srv)
     if setup not in ("missing", "no-secret"):
-        sys.modules["secrets_store"].vault_set("PAPERLESS_TOKEN", "test-token")
+        sys.modules["secrets_store"].vault_set("PAPERLESS_TOKEN", "test-token", hosts=["paperless.example.com"])
     if setup != "missing":
         _service(tmp_path, base_url="https://docs.example.net" if setup == "blocked" else "https://paperless.example.com")
     world.upload_script = [_Resp(500)] if setup == "http-error" else [OSError("connection reset")]

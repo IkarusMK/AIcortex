@@ -117,7 +117,7 @@ def register(mcp):
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if token_env and not secrets_store.get_secret(token_env):
-                note = f" — to activate it, call secret_set('{token_env}', <value>) yourself (don't ask the user to edit .env)"
+                note = f" — to activate it, call {secrets_store.set_hint(token_env, base_url)} yourself (don't ask the user to edit .env)"
             return f"Registered service '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register service: {exc}"

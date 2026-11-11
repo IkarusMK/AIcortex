@@ -116,7 +116,8 @@ def env(fresh_server, monkeypatch, tmp_path):
     (root / "f.txt").write_bytes(b"test-data")
     monkeypatch.setattr(mod, "DATA_ROOT", root.resolve())
     monkeypatch.setattr(mod, "WORK_DIR", root / "work")
-    sys.modules["secrets_store"].vault_set("DAV_PW", PASSWORD)
+    # the hosts these tests register — bound by a person, as only a person binds a secret (2.6.0)
+    sys.modules["secrets_store"].vault_set("DAV_PW", PASSWORD, hosts=[HOST, "lan.example.net", "odd.example.net", "rebind.example.net"])
     return _Env(fresh_server, dns, hub, mod, root)
 
 
@@ -147,7 +148,7 @@ def test_add_normalises_slug_and_url_and_stores_only_the_secret_name(env):
     out = env.add("Cloud Drive!", base_url="https://dav.example.com/dav/alice")
     assert out == "Registered WebDAV endpoint 'cloud-drive'."  # secret exists: no hint
     assert env.add("!!!", password_env="UNSET_PW").startswith("Registered WebDAV endpoint 'webdav'.")
-    assert "secret_set('UNSET_PW', <value>)" in env.add(password_env="UNSET_PW")  # secret missing
+    assert "secret_set('UNSET_PW', <value>, hosts='dav.example.com')" in env.add(password_env="UNSET_PW")  # secret missing: store it with its host
     text = (env.mod.WEBDAV_DIR / "cloud-drive.json").read_text()
     assert '"base_url": "https://dav.example.com/dav/alice/"' in text
     assert '"password_env": "DAV_PW"' in text and PASSWORD not in text

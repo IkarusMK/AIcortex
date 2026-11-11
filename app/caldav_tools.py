@@ -140,7 +140,7 @@ def register(mcp):
             cfgstore.write_merged(_cfg_path(name), cfg)
             note = ""
             if password_env and not secrets_store.get_secret(password_env):
-                note = f" — set the app password: secret_set('{password_env}', <value>)"
+                note = f" — set the app password: {secrets_store.set_hint(password_env, base_url)}"
             return f"Registered CalDAV endpoint '{_slug(name)}'.{note}"
         except Exception as exc:
             return f"Could not register endpoint: {exc}"

@@ -219,6 +219,14 @@ def _build_auth():
 
 
 auth = _build_auth()
+
+# Upgrade step, once: the secrets the integrations configured so far use are bound to
+# those integrations' hosts. From then on only a person binds a secret (in the WebUI,
+# or secret_set with hosts=, which needs the value) — see secrets_store.
+_prebound = secrets_store.prebind_existing()
+if _prebound:
+    print(f"[AICortex] vault: bound {len(_prebound)} secret(s) of existing integrations "
+          f"to their hosts (once, at the upgrade)")
 # `instructions` are sent to the client on connect — a fresh LLM immediately
 # learns what this connector is and how to use it.
 mcp = FastMCP("AICortex", auth=auth, instructions=guide.INSTRUCTIONS)

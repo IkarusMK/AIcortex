@@ -119,7 +119,8 @@ def _add(srv, name="inbox", **extra):
 
 
 def _vault(name="IMAP_PW", value="test-password"):
-    sys.modules["secrets_store"].vault_set(name, value)
+    # Stored with its host, as a person does (only a person binds a secret, 2.6.0).
+    sys.modules["secrets_store"].vault_set(name, value, hosts=["imap.example.com", "mail.example.net"])
 
 
 def _header_response(uid, size, subject, sender="bob@example.com", date="Mon, 03 Nov 2025 10:00:00 +0000"):

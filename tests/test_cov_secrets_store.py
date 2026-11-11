@@ -85,7 +85,7 @@ def test_an_unreadable_vault_is_never_overwritten_or_shortened(vault, monkeypatc
 
 
 def test_a_vault_holding_json_that_is_not_an_object_is_unreadable(vault):
-    vault.mod.VAULT_DIR.mkdir(parents=True)
+    vault.mod.VAULT_DIR.mkdir(parents=True, exist_ok=True)   # meta.json may live there already
     vault.mod.VAULT_FILE.write_text("[1, 2, 3]")
     assert vault.mod.vault_status()["state"] == "unreadable"
     assert vault.mod._read_all() == {}
@@ -192,7 +192,8 @@ def test_delete_removes_shared_and_personal_secrets_and_their_notes(vault):
     assert vault.mod.vault_delete("HA_TOKEN", owner="alice") == "No secret named 'HA_TOKEN' for alice."
     assert vault.mod.vault_delete(" HA_TOKEN ") == "Deleted secret 'HA_TOKEN'."
     assert vault.mod.vault_delete("HA_TOKEN") == "No secret named 'HA_TOKEN'."
-    assert json.loads(vault.mod.VAULT_META.read_text()) == {}
+    meta = json.loads(vault.mod.VAULT_META.read_text())
+    assert {k: v for k, v in meta.items() if not k.startswith("_/")} == {}   # bookkeeping aside
 
 
 def test_delete_accepts_the_namespace_segment_as_the_listing_shows_it(vault):
@@ -231,12 +232,13 @@ def test_references_skip_broken_configs_and_missing_ones_are_reported(vault, mon
     assert vault.mod.missing_references() == []
 
 
-def test_corrupt_metadata_degrades_to_no_notes(vault):
+def test_corrupt_metadata_degrades_to_no_notes_and_blocks_writes(vault):
     vault.mod.vault_set("HA_TOKEN", "test-token", description="note")
     vault.mod.VAULT_META.write_text("{corrupt")
     assert vault.mod.vault_entries()[0]["description"] == ""
-    vault.mod.vault_set("HA_TOKEN", "newer-token", description="fresh")
-    assert vault.mod.vault_entries()[0]["description"] == "fresh"
+    # A write would start meta.json over — and unbind every secret from its hosts.
+    assert vault.mod.vault_set("HA_TOKEN", "newer-token", description="fresh").startswith("Refusing")
+    assert vault.mod.VAULT_META.read_text() == "{corrupt"
 
 
 # ── the tools ────────────────────────────────────────────────────────────────
@@ -244,7 +246,8 @@ def test_secret_set_attributes_the_caller_and_survives_a_label_failure(vault, mo
     with vault.authz.rest_identity("boss", "admin"):
         text = vault.t["secret_set"]("HA_TOKEN", "test-token", owner="alice", description="d")
     assert "alice's private vault" in text and "test-token" not in text
-    (meta,) = json.loads(vault.mod.VAULT_META.read_text()).values()
+    (meta,) = (v for k, v in json.loads(vault.mod.VAULT_META.read_text()).items()
+               if not k.startswith("_/"))                                   # bookkeeping aside
     assert meta["updated_by"] == "boss"
     monkeypatch.setattr(vault.authz, "caller_label", _boom)
     assert vault.t["secret_set"]("NAS_TOKEN", "other-token").startswith("Stored 'NAS_TOKEN'")

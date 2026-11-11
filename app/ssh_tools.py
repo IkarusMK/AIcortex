@@ -135,7 +135,7 @@ def register(mcp):
                 return refused
             cfgstore.write_merged(_cfg_path(name), cfg)
             need = key_env or password_env
-            note = f" — set the credential: secret_set('{need}', <value>)" if need and not secrets_store.get_secret(need) else ""
+            note = f" — set the credential: {secrets_store.set_hint(need, host)}" if need and not secrets_store.get_secret(need) else ""
             return f"Registered SSH host '{_slug(name)}' ({username}@{host}:{port}).{note}"
         except Exception as exc:
             return f"Could not register host: {exc}"

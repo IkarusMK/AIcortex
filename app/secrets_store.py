@@ -296,22 +296,25 @@ def get_own_secret(name: str):
 # EVERY outbound use goes through ``use``:
 #
 # - the destination host must be bound to the secret;
-# - an unbound secret is bound by the first registered integration that is created or
-#   updated with it (``check_registration``) or that uses it — to that integration's
-#   host, or, when configs written BEFORE binding existed reference it, to their hosts
-#   (trusted as found, so an existing install with one token on two hosts keeps
-#   working after the upgrade);
+# - only a person makes the FIRST binding: in the WebUI (registering or editing an
+#   integration there — ``authz.from_webui`` —, or the vault's host list), or with
+#   ``secret_set(..., hosts=...)``, which needs the value (an AI that doesn't know it
+#   can only overwrite it, never aim it somewhere). An unbound secret is refused for
+#   every MCP/REST session, at registration and at use: binding it to whatever host
+#   the first ``*_add`` named let a prompt-injected admin session claim a fresh token;
+# - the configs that existed before this version are bound once, at the first start
+#   (``prebind_existing``, recorded so it never runs again): every secret they
+#   reference is bound to their hosts, so an existing install — one token on two
+#   hosts included — keeps working after the upgrade;
 # - another host is refused, at registration and at use, unless a person makes the
-#   change in the WebUI (``authz.from_webui``) — then the host is added;
-# - webhook_send never binds on its own: the host must have been bound explicitly,
-#   with ``secret_set(..., hosts=...)`` (which needs the value, so an AI that doesn't
-#   know it can only overwrite it, never widen where it goes) or in the WebUI vault.
+#   change in the WebUI — then the host is added;
+# - webhook_send never binds on its own either.
 #
 # A NEW value keeps the binding: the binding says where the integration lives, not
 # what the token is — rotating a token must not reopen trust-on-first-use, or anyone
 # allowed to write a value could re-aim the secret by writing a junk one first.
 _HOSTS_KEY = "_/hosts"   # meta.json: storage key -> [host, ...]; "/" never occurs in a name
-_SINCE_KEY = "_/since"   # meta.json: when binding started; older configs are trusted as found
+_PREBOUND_KEY = "_/prebound"   # meta.json: when the configs found at the upgrade were bound
 _MAX_HOSTS = 32
 _HOST_RE = re.compile(r"^[a-z0-9_]([a-z0-9_.-]{0,251}[a-z0-9_])?$")
 # Registry kind -> how its destination host is read. Inbound webhooks have none: a
@@ -383,8 +386,11 @@ def _with_binding(meta: dict, key: str, hosts) -> dict:
     return {**meta, _HOSTS_KEY: {**_bindings(meta), key: sorted(set(hosts))}}
 
 
-def _with_since(meta: dict) -> dict:
-    return meta if isinstance(meta.get(_SINCE_KEY), (int, float)) else {**meta, _SINCE_KEY: time.time()}
+def set_hint(name: str, dest) -> str:
+    """How to store secret `name` for an integration at `dest` — with its host, the
+    only way an AI session can bind it (it needs the value)."""
+    host = host_of(dest)
+    return f"secret_set('{name}', <value>, hosts='{host}')" if host else f"secret_set('{name}', <value>, hosts=...)"
 
 
 def _config_host(kind: str, cfg: dict):
@@ -393,32 +399,56 @@ def _config_host(kind: str, cfg: dict):
     return host_of(cfg.get(field)) if field and isinstance(cfg, dict) else None
 
 
-def _found_hosts(name: str, before: float):
-    """(referenced, hosts) from the configs written before binding started that name
-    `name` — the setup found at upgrade time, trusted as it was."""
-    referenced, hosts = False, set()
+def _referenced_hosts() -> dict:
+    """secret name -> the destination hosts of every registered config naming it."""
+    found: dict = {}
     for kind, d in _registries():
         for p in sorted(Path(d).glob("*.json")):
             try:
-                if p.stat().st_mtime >= before:
-                    continue
                 cfg = json.loads(p.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if not isinstance(cfg, dict) or name not in {str(cfg.get(f) or "").strip() for f in _REF_FIELDS}:
-                continue
-            referenced = True
             host = _config_host(kind, cfg)
-            if host:
-                hosts.add(host)
-    return referenced, hosts
+            if not host:
+                continue
+            for field in _REF_FIELDS:
+                name = str(cfg.get(field) or "").strip()
+                if name and "/" not in name and not is_internal_env(name):
+                    found.setdefault(name, set()).add(host)
+    return found
 
 
-def _first_binding(meta: dict, name: str, host: str) -> list:
-    """What an unbound secret is bound to on its first registered use: the hosts of the
-    configs found at upgrade time that reference it — or else this use's host."""
-    referenced, found = _found_hosts(name, meta[_SINCE_KEY])
-    return sorted(found) if referenced else [host]
+@_serialized
+def prebind_existing():
+    """One-time upgrade step, run at startup (server.py): bind every secret that a
+    config found at this point references to that config's hosts — shared,
+    environment and personal entries alike, and a referenced name that has no value
+    yet, so the value set later is bound too. Recorded in meta.json, so it never runs
+    again: a config added later can't get a secret bound this way. Already-bound
+    entries are left as they are. Returns {name: hosts} bound now, or None when it
+    already ran or can't run yet (unreadable vault or metadata: tried again at the
+    next start). Never raises."""
+    try:
+        meta = _meta_strict()
+        if _PREBOUND_KEY in meta:
+            return None
+        data = _read_all(strict=True)
+        bound_now = {}
+        for name, hosts in sorted(_referenced_hosts().items()):
+            keys = _keys_of(name, data) or [name]
+            for key in keys:
+                if _bound(meta, key) is None:
+                    meta = _with_binding(meta, key, hosts)
+                    bound_now[name] = sorted(hosts)
+        store.write_json(VAULT_META, {**meta, _PREBOUND_KEY: time.time()})
+        return bound_now
+    except (store.StoreCorrupt, VaultUnreadable) as exc:
+        print(f"[AICortex] WARNING: secrets of existing integrations not bound to their "
+              f"hosts yet ({type(exc).__name__}); retried at the next start")
+    except Exception as exc:
+        print(f"[AICortex] WARNING: binding the secrets of existing integrations failed "
+              f"({type(exc).__name__}); retried at the next start")
+    return None
 
 
 def _from_webui() -> bool:
@@ -429,8 +459,18 @@ def _from_webui() -> bool:
         return False
 
 
+def _unbound_refusal(name: str, host: str) -> str:
+    return (f"Refused: secret '{name}' is not bound to any host yet, so it is not sent to "
+            f"'{host}'. Only a person binds a secret: store it together with its host — "
+            f"secret_set('{name}', <value>, hosts='{host}') (needs the value) — or allow "
+            f"the host in the AICortex WebUI (Vault → the secret's hosts, or save the "
+            f"integration under Services). Then retry.")
+
+
 def _refusal(name: str, hosts, host: str, registered: bool) -> str:
-    where = ", ".join(hosts) if hosts else "no host yet"
+    if hosts is None:
+        return _unbound_refusal(name, host)
+    where = ", ".join(hosts) if hosts else "no host"
     if registered:
         return (f"Refused: secret '{name}' may only be sent to {where} — not to '{host}'. "
                 f"If this integration really moved, a person can allow the new host in the "
@@ -445,29 +485,28 @@ def _refusal(name: str, hosts, host: str, registered: bool) -> str:
 
 _UNREADABLE = ("Refused: the vault's metadata (meta.json) is unreadable, so where secrets "
                "may be sent can't be checked. Restore or fix it, then retry.")
+_UNREADABLE_WRITE = ("Refusing to write: the vault's metadata (meta.json) is unreadable — "
+                     "starting it over would unbind every secret from its hosts. Restore or "
+                     "fix it, then retry — nothing was changed.")
 
 
 @_serialized
 def _admit(key: str, name: str, host: str, registered: bool) -> str:
-    """"" when the secret stored at `key` may go to `host` (recording a first or a
-    WebUI binding on the way), else the refusal."""
+    """"" when the secret stored at `key` may go to `host`, else the refusal. A use
+    never makes a first binding; a person in the WebUI may add a registered
+    integration's new host to a bound secret."""
     try:
-        meta = _with_since(_meta_strict())
+        meta = _meta_strict()
     except store.StoreCorrupt:
         return _UNREADABLE
-    bound, changed = _bound(meta, key), False
-    if bound is None and registered:
-        bound, changed = _first_binding(meta, name, host), True
+    bound = _bound(meta, key)
     if bound is None:
-        return _refusal(name, [], host, registered)
-    if host not in bound:
-        if not (registered and _from_webui()):
-            if changed:
-                store.write_json(VAULT_META, _with_binding(meta, key, bound))
-            return _refusal(name, bound, host, registered)
-        bound, changed = [*bound, host], True
-    if changed:
-        store.write_json(VAULT_META, _with_binding(meta, key, bound))
+        return _unbound_refusal(name, host)
+    if host in bound:
+        return ""
+    if not (registered and _from_webui()):
+        return _refusal(name, bound, host, registered)
+    store.write_json(VAULT_META, _with_binding(meta, key, [*bound, host]))
     return ""
 
 
@@ -490,29 +529,30 @@ def use(name: str, dest: str, registered: bool = True, own_only: bool = False):
     return value
 
 
-def _keys_of(name: str) -> list:
+def _keys_of(name: str, data=None) -> list:
     """Every storage key that holds a value for `name`: shared/env and everyone's own."""
-    data = _read_all()
+    data = _read_all() if data is None else data
     keys = [name] if (os.environ.get(name) or name in data) else []
     return keys + sorted(k for k in data if k.startswith("users/") and k.split("/", 2)[-1] == name)
 
 
 @_serialized
 def _admit_registration(name: str, host: str) -> str:
+    """"" when a registration may send `name` to `host`, else the refusal. A person in
+    the WebUI binds an unbound secret (its value set later included: the shared name
+    is bound ahead) and adds a new host; an MCP/REST session does neither."""
     try:
-        meta = _with_since(_meta_strict())
+        meta = _meta_strict()
     except store.StoreCorrupt:
         return _UNREADABLE
     webui, refusal, changed = _from_webui(), "", False
-    for key in _keys_of(name):
+    keys = _keys_of(name) or ([name] if webui else [])
+    for key in keys:
         bound = _bound(meta, key)
-        if bound is None:
-            bound = _first_binding(meta, name, host)
-            meta, changed = _with_binding(meta, key, bound), True
-        if host in bound:
+        if bound is not None and host in bound:
             continue
         if webui:
-            meta, changed = _with_binding(meta, key, [*bound, host]), True
+            meta, changed = _with_binding(meta, key, [*(bound or []), host]), True
         else:
             refusal = refusal or _refusal(name, bound, host, True)
     if changed:
@@ -524,7 +564,8 @@ def check_registration(kind: str, path, cfg: dict) -> str:
     """"" or why a ``*_add`` must be refused: the config about to be stored — merged
     with the stored one exactly as cfgstore will merge it, so a partial update that
     only changes the address is seen — would send a secret to a host it is not bound
-    to. Binds a stored but still unbound secret on the way (first registration)."""
+    to — or to any host while the secret is not bound yet (only a person binds it:
+    from the WebUI the binding is made on the way)."""
     import cfgstore
     try:
         existing = store.read_json(path, {})
@@ -565,7 +606,7 @@ def vault_set_hosts(name: str, owner: str = "", hosts=(), by: str = "") -> str:
     if why:
         return why
     try:
-        meta = _with_since(_meta_strict())
+        meta = _meta_strict()
     except store.StoreCorrupt:
         return _UNREADABLE
     key = _binding_key(name, (owner or "").strip())
@@ -610,18 +651,20 @@ def vault_set(name: str, value: str, owner: str = "", description: str = "",
                 "changed or the file is corrupt. Writing now would DESTROY the stored "
                 "secrets. Fix the key (or restore data/vault/secrets.enc from "
                 "secrets.enc.bak), then retry — nothing was changed.")
+    try:
+        meta = _meta_strict()
+    except store.StoreCorrupt:
+        return _UNREADABLE_WRITE
     owner = (owner or "").strip()
     key = f"{_owner_prefix(owner)}/{name}" if owner else name
-    d[key] = value
-    _write_all(d)
+    _write_all({**d, key: value})
     from datetime import datetime, timezone
-    meta = _meta()
-    old = meta.get(key, {})
-    meta[key] = {"description": (description or "").strip() or old.get("description", ""),
-                 "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 "updated_by": (by or "").strip()}
+    old = meta.get(key) if isinstance(meta.get(key), dict) else {}
+    meta = {**meta, key: {"description": (description or "").strip() or old.get("description", ""),
+                          "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                          "updated_by": (by or "").strip()}}
     if clean is not None:
-        meta = _with_binding(_with_since(meta), key, clean)
+        meta = _with_binding(meta, key, clean)
     store.write_json(VAULT_META, meta)
     where = f"in {owner}'s private vault" if owner else "as a shared secret"
     bound = f" It may be sent to: {', '.join(clean) or 'no host'}." if clean is not None else ""
@@ -653,16 +696,18 @@ def vault_update(name: str, owner: str = "", value: str = "", description=None, 
     key = _existing_key(d, name, (owner or "").strip())
     if not key:
         return f"No secret named '{name}'{(' for ' + owner) if owner else ''}."
+    try:
+        meta = _meta_strict()
+    except store.StoreCorrupt:
+        return _UNREADABLE_WRITE
     if value:
-        d[key] = value
-        _write_all(d)
+        _write_all({**d, key: value})
     from datetime import datetime, timezone
-    meta = _meta()
-    old = meta.get(key, {})
-    meta[key] = {"description": str(description).strip()[:300] if description is not None
-                 else old.get("description", ""),
-                 "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 "updated_by": (by or "").strip()}
+    old = meta.get(key) if isinstance(meta.get(key), dict) else {}
+    meta = {**meta, key: {"description": str(description).strip()[:300] if description is not None
+                          else old.get("description", ""),
+                          "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                          "updated_by": (by or "").strip()}}
     store.write_json(VAULT_META, meta)
     return (f"Updated '{name}': " + ("new value stored, encrypted. It will not be shown." if value
                                       else "the value stays as it is."))
@@ -733,7 +778,7 @@ def vault_entries() -> list:
                     "owner_label": owner.rsplit("-", 1)[0] if owner else "",
                     "description": m.get("description", ""), "updated": m.get("updated", ""),
                     "updated_by": m.get("updated_by", ""), "used_by": refs.get(name, []),
-                    "hosts": hosts,   # None = not bound yet (the first integration binds it)
+                    "hosts": hosts,   # None = not bound yet (a person binds it: here or secret_set hosts=)
                     "env_override": bool(os.environ.get(name)) and not is_internal_env(name)})
     return out
 
@@ -760,10 +805,11 @@ def register(mcp):
         THAT user's private vault namespace (only their own service calls resolve
         it). Leave empty for a shared secret. Users can't set secrets themselves —
         an admin grants vault access this way. `description` = what it is for
-        (shown in the WebUI, never the value). `hosts` (optional, comma-separated) =
-        exactly the hosts the secret may be sent to — needed before webhook_send may
-        send it; a registered integration binds an unbound secret to its own host on
-        first use. Without `hosts` a new value keeps the existing binding."""
+        (shown in the WebUI, never the value). `hosts` (comma-separated) = exactly the
+        hosts the secret may be sent to, e.g. hosts="api.example.com" — a new secret
+        needs them before any integration (*_add) or webhook_send may use it; only a
+        person (you, with the value, or in the WebUI) binds a secret. Without `hosts`
+        a new value keeps the existing binding."""
         try:
             import authz
             by = authz.caller_label()

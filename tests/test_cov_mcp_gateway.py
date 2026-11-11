@@ -153,7 +153,8 @@ def env(fresh_server, monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", up.AsyncClient)
     monkeypatch.setattr(fastmcp, "Client", sse.client)
     monkeypatch.setattr(fm_transports, "SSETransport", sse.transport)
-    sys.modules["secrets_store"].vault_set("UP_TOKEN", TOKEN)
+    # the hosts these tests register — bound by a person, as only a person binds a secret (2.6.0)
+    sys.modules["secrets_store"].vault_set("UP_TOKEN", TOKEN, hosts=[HOST, "ghost.example.net", "lan.example.net", "odd.example.net", "rebind.example.net"])
     return _Env(fresh_server, dns, up, sse, sys.modules["mcp_gateway"])
 
 
@@ -167,7 +168,7 @@ def fc(env):
 def test_add_normalises_slug_and_transport_and_stores_only_the_secret_name(env):
     assert env.add("Weather API!", transport="SSE") == "Registered MCP server 'weather-api'."
     assert env.add("!!!", token_env="UNSET_TOKEN").startswith("Registered MCP server 'server'.")
-    assert "secret_set('UNSET_TOKEN', <value>)" in env.add(token_env="UNSET_TOKEN")  # secret missing
+    assert "secret_set('UNSET_TOKEN', <value>, hosts='mcp.example.net')" in env.add(token_env="UNSET_TOKEN")  # secret missing: store it with its host
     cfg = json.loads((env.mod.MCP_DIR / "weather-api.json").read_text())
     assert (cfg["transport"], cfg["token_env"], cfg["auth_header"], cfg["auth_scheme"]) == (
         "sse", "UP_TOKEN", "Authorization", "Bearer")

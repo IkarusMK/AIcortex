@@ -239,7 +239,7 @@ Object.assign(I18N.de, {
   vault_hosts: "Erlaubte Hosts", vault_hosts_save: "Hosts speichern",
   vault_hosts_ph: "z. B. api.example.com, 192.0.2.10",
   vault_hosts_hint: "Nur an diese Hosts wird das Secret gesendet. Eine KI kann das nicht ändern – nur du hier (oder wer den Wert neu eingibt).",
-  vault_hosts_unbound: "Noch nicht gebunden – die erste Integration, die es verwendet, bindet es an ihren Host.",
+  vault_hosts_unbound: "Noch nicht gebunden – es wird nirgendwohin gesendet, bis du hier Hosts einträgst (oder die Integration unter „Services & Geräte“ speicherst).",
   vault_hosts_none: "An keinen Host gebunden – es wird nirgendwohin gesendet.",
   vault_hosts_line: "Hosts: {0}", vault_hosts_open: "Hosts: noch nicht gebunden",
 });
@@ -247,7 +247,7 @@ Object.assign(I18N.en, {
   vault_hosts: "Allowed hosts", vault_hosts_save: "Save hosts",
   vault_hosts_ph: "e.g. api.example.com, 192.0.2.10",
   vault_hosts_hint: "The secret is only ever sent to these hosts. An AI can't change this — only you, here (or whoever re-enters the value).",
-  vault_hosts_unbound: "Not bound yet — the first integration that uses it binds it to its host.",
+  vault_hosts_unbound: "Not bound yet — it is sent nowhere until you enter its hosts here (or save the integration under Services).",
   vault_hosts_none: "Bound to no host — it is sent nowhere.",
   vault_hosts_line: "Hosts: {0}", vault_hosts_open: "Hosts: not bound yet",
 });
