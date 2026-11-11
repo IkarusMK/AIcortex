@@ -549,9 +549,10 @@ def register(mcp):
         if not sub:
             return _fail("claims")
         # The IdP's own role claim is recorded with the session; the role itself is
-        # recomputed from it and the current policy on every request (_session).
+        # recomputed from it and the current policy on every request (_session). This
+        # sign-in is the only way to become the first operator (authz.signin_role).
         claim_role = authz._role_from_claims(claims)
-        role = authz.role_for(sub, is_runner=False, claims=claims)
+        role = authz.signin_role(sub, claims)
         sess = {"sub": sub, "name": _display_name(claims), "role": role,
                 "claim_role": claim_role, "csrf": pysecrets.token_urlsafe(16),
                 "epoch": _session_epoch(), "exp": time.time() + SESSION_TTL}

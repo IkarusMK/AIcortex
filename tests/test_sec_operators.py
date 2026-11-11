@@ -8,9 +8,9 @@ management plane. Now:
 - precedence for an interactive person: explicit ``roles`` → IdP claim →
   OIDC_DEFAULT_ROLE → policy ``default`` → listed in ``operators`` → admin, else
   "user";
-- bootstrap: with no operator and no explicit admin, the FIRST interactive identity
-  (within the bootstrap window after the start) is recorded as operator (so a fresh
-  install doesn't lock its owner out);
+- bootstrap: with no operator and no explicit admin, the FIRST person to sign in to
+  the WebUI (within the bootstrap window after the start) is recorded as operator (so
+  a fresh install doesn't lock its owner out) — ``signin_role``, never ``role_for``;
 - upgrade: once, at startup, the identities that are admin today (listed in policy
   ``users``/``roles`` without an explicit non-admin role) become operators — today's
   admins stay admin, only NEW identities start as "user" (the WebUI's admins from the
@@ -79,10 +79,10 @@ def test_junk_in_operators_is_ignored(az):
 
 
 # ── bootstrap ────────────────────────────────────────────────────────────────
-def test_the_first_interactive_identity_becomes_the_operator(az):
-    assert az.role_for("dave", False) == "admin"
+def test_the_first_person_signing_in_to_the_webui_becomes_the_operator(az):
+    assert az.signin_role("dave") == "admin"
     assert _read(az)["operators"] == ["dave"]
-    assert az.role_for("erin", False) == "user"
+    assert az.signin_role("erin") == "user"
     assert az.role_for("dave", False) == "admin"
     audit = az.AUDIT_FILE.read_text(encoding="utf-8")
     assert "operator" in audit and "dave" in audit
@@ -91,7 +91,7 @@ def test_the_first_interactive_identity_becomes_the_operator(az):
 def test_bootstrap_keeps_the_rest_of_the_policy(az):
     _write(az, {"roles": {"kim": "user"}, "users": {"kim": {"memory": "own"}},
                 "groups": {"staff": "user"}})
-    assert az.role_for("dave", False) == "admin"
+    assert az.signin_role("dave") == "admin"
     pol = _read(az)
     assert pol["operators"] == ["dave"] and pol["roles"] == {"kim": "user"}
     assert pol["users"] == {"kim": {"memory": "own"}} and pol["groups"] == {"staff": "user"}
@@ -104,18 +104,18 @@ def test_bootstrap_keeps_the_rest_of_the_policy(az):
 ])
 def test_no_bootstrap_when_someone_is_already_in_charge(az, policy):
     _write(az, policy)
-    assert az.role_for("dave", False) == "user"
+    assert az.signin_role("dave") == "user"
     assert _read(az) == policy
 
 
 def test_no_bootstrap_for_a_claim_role_a_key_a_runner_or_an_unreadable_policy(az):
-    assert az.role_for("dave", False, {"groups": ["user"]}) == "user"
-    assert az.role_for("dave", False, {"aicortex_key": "k1"}) == "user"
+    assert az.signin_role("dave", {"groups": ["user"]}) == "user"
+    assert az.signin_role("dave", {"aicortex_key": "k1"}) == "user"
     assert az.role_for("runner", True) == "user"
     assert not az.POLICY_FILE.exists()
     _write(az, {})
     az.POLICY_FILE.write_text("{torn", encoding="utf-8")            # never overwrite a broken policy
-    assert az.role_for("dave", False) == "user"
+    assert az.signin_role("dave") == "user"
     assert az.POLICY_FILE.read_text(encoding="utf-8") == "{torn"
 
 

@@ -21,10 +21,11 @@ DESIGN SAFETY (so it can't lock a hands-off operator out):
   secrets, add cron jobs, etc. (closes #2/#4/#5/#7/#15). An interactive person is
   admin only as an OPERATOR (policy "operators", or an explicit role); everyone
   else the IdP lets in starts as "user". OPERATORS (env) names operators outright;
-  otherwise the first person to sign in to an install nobody is in charge of becomes
-  the operator — only within OPERATOR_BOOTSTRAP_MINUTES of the start — and an upgrade
-  keeps the earlier admins as operators (see ``migrate_operators``), so the human
-  isn't locked out. The last person in charge can't be removed
+  otherwise the first person to sign in to the WebUI of an install nobody is in charge
+  of becomes the operator — only within OPERATOR_BOOTSTRAP_MINUTES of the start, and
+  never an app, agent key or runner on /mcp or /api (see ``signin_role``) — and an
+  upgrade keeps the earlier admins as operators (see ``migrate_operators``), so the
+  human isn't locked out. The last person in charge can't be removed
   (``last_operator_refusal``).
 - Policy is DATA: optional /data/auth/policy.json maps identities → roles.
 
@@ -357,7 +358,7 @@ def session_role(identity: str, claim_role: str = "", pol=None) -> str:
 def default_role(pol=None) -> str:
     """What a NEW interactive identity (no policy entry, no IdP claim) gets right now —
     for the WebUI. While nobody is in charge and the bootstrap window is open, the next
-    sign-in becomes the operator."""
+    WebUI sign-in becomes the operator."""
     pol = _policy() if pol is None else pol
     configured = _configured_default(pol)
     if configured:
@@ -376,10 +377,11 @@ def _policy_strict() -> dict:
     return obj
 
 
-# The first-come bootstrap: on a start with nobody in charge, the first interactive
-# sign-in within OPERATOR_BOOTSTRAP_MINUTES becomes the operator. Without a window,
-# an install whose policy names nobody handed admin to whoever signed in first — at
-# any time, months later. Opened only by ``start_bootstrap_window`` (server startup).
+# The first-come bootstrap: on a start with nobody in charge, the first person to sign
+# in to the WebUI within OPERATOR_BOOTSTRAP_MINUTES becomes the operator. Without a
+# window, an install whose policy names nobody handed admin to whoever signed in first —
+# at any time, months later. Opened only by ``start_bootstrap_window`` (server startup);
+# fired only by ``signin_role`` (/ui/callback).
 _BOOTSTRAP_MINUTES = 30
 _BOOTSTRAP: dict = {"until": None}      # monotonic deadline; None = closed
 
@@ -409,8 +411,8 @@ def start_bootstrap_window(pol=None) -> int:
         return 0
     _BOOTSTRAP["until"] = _clock() + minutes * 60
     print(f"[AICortex] WARNING: nobody is operator (admin) yet. The FIRST person to sign "
-          f"in within the next {minutes} minutes becomes the operator. Name the operator "
-          f"instead with OPERATORS=<identity> (the IdP 'sub'); "
+          f"in to the WebUI (/ui) within the next {minutes} minutes becomes the operator. "
+          f"Name the operator instead with OPERATORS=<identity> (the IdP 'sub'); "
           f"OPERATOR_BOOTSTRAP_MINUTES=0 switches this off.")
     return minutes
 
@@ -592,9 +594,10 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
     """Resolve a caller's role. Precedence: explicit per-identity policy →
     IdP role/group claim → runner/default fallback. Secure defaults: runner→user,
     an agent key→its person's explicit role or user, an interactive person →
-    ``session_role`` (operators are admin, everyone else user). The very first
-    interactive identity of an install nobody is in charge of becomes the operator —
-    within the bootstrap window after the start only (``start_bootstrap_window``).
+    ``session_role`` (operators are admin, everyone else user). Never the first-come
+    bootstrap: on /mcp and /api the identity may be a connected app's client_id (an
+    IdP that doesn't forward the person's 'sub'), so only a person signing in to the
+    WebUI can become the operator (``signin_role``).
     With sign-in configured, an unresolved identity gets no role ("")."""
     if _unresolved(identity) and _identity_required():
         return ""
@@ -610,9 +613,21 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
             return explicit or claim_role
         r = os.environ.get("RUNNER_ROLE") or pol.get("runner") or "user"
         return r if r in _VALID_ROLES else "user"
-    role = session_role(identity, claim_role, pol)
-    if (role == "user" and not claim_role and not _explicit_role(pol, identity)
-            and not _unresolved(identity) and _bootstrap_open(pol)
+    return session_role(identity, claim_role, pol)
+
+
+def signin_role(identity: str, claims=None) -> str:
+    """Role of a person signing in to the WebUI (/ui/callback; ``identity`` is the
+    IdP's userinfo 'sub', ``claims`` the userinfo). The one place the first-come
+    bootstrap fires: on a start with nobody in charge, the first person to sign in
+    within the window becomes the operator — never a connected app, an agent key or a
+    runner calling /mcp or /api, which only ever get ``role_for``."""
+    role = role_for(identity, False, claims)
+    if (role != "user" or _unresolved(identity) or _role_from_claims(claims)
+            or (isinstance(claims, dict) and claims.get("aicortex_key"))):
+        return role
+    pol = _policy()
+    if (not _explicit_role(pol, identity) and _bootstrap_open(pol)
             and _bootstrap_window_open() and _bootstrap_operator(identity)):
         return "admin"
     return role

@@ -220,7 +220,7 @@ def _build_auth():
     named = authz.env_operators()
     if named:
         print(f"[AICortex] auth: operators from OPERATORS: {', '.join(sorted(named))}")
-    # Nobody in charge yet: only the first sign-in within OPERATOR_BOOTSTRAP_MINUTES
+    # Nobody in charge yet: only the first WebUI sign-in within OPERATOR_BOOTSTRAP_MINUTES
     # of this start becomes the operator (logged loudly), never one months later.
     authz.start_bootstrap_window()
 
