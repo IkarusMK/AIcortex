@@ -20,8 +20,9 @@ past the reverse proxy's auth, never ``/mcp``.
 The route is public, so it is also kept cheap and replay-proof:
 
 - the hook name is checked (length + characters) before anything is looked up;
-- requests for unknown hooks are audited once per name and window, capped per window
-  (a stranger probing names must not be able to fill the audit log);
+- every refusal — an unknown hook, a wrong token or signature for a known one — is
+  audited once per hook, reason and window, capped per window (a stranger probing
+  names or guessing tokens must not be able to fill the audit log);
 - the body limit is enforced while reading (a declared Content-Length above it is
   refused without reading at all);
 - an exact repeat of an accepted delivery (same hook, timestamp and body) within
@@ -55,6 +56,9 @@ WEBHOOK_DIR = Path(os.environ.get("WEBHOOK_DIR", "/data/webhooks"))
 _MAX_BODY = int(os.environ.get("WEBHOOK_MAX_BODY_BYTES", str(256_000)))
 _MAX_INBOX = 4000  # how much of the payload we quote into the inbox message
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")   # what a sender may ask for
+# Unix seconds / a byte count: ASCII digits only — str.isdigit() also accepts "²" or
+# "١", which int() then rejects (a 500) or reads as some other number.
+_DIGITS_RE = re.compile(r"[0-9]{1,12}", re.ASCII)
 _TS_HEADER = "x-webhook-timestamp"
 _TS_WINDOW = 300            # a timestamped delivery must be within ±5 minutes
 _REPLAY_TTL = max(_TS_WINDOW * 2, int(os.environ.get("WEBHOOK_REPLAY_TTL", "600") or 600))
@@ -151,8 +155,8 @@ def _check_timestamp(headers):
     ts = headers.get(_TS_HEADER)
     if ts is None:
         return True, "ok"
-    ts = ts.strip()
-    if not ts.isdigit() or len(ts) > 12:
+    ts = ts.strip(" \t")
+    if not _DIGITS_RE.fullmatch(ts):
         return False, "invalid timestamp"
     if abs(_now() - int(ts)) > _TS_WINDOW:
         return False, "stale timestamp"
@@ -205,9 +209,11 @@ async def _read_capped(request, limit: int):
     """The body, or None as soon as it exceeds `limit` — read in chunks, so an
     oversized body is never held in memory (a declared Content-Length above the limit
     is refused before reading anything)."""
-    declared = (request.headers.get("content-length") or "").strip()
-    if declared.isdigit() and int(declared) > limit:
+    declared = (request.headers.get("content-length") or "").strip(" \t")
+    if _DIGITS_RE.fullmatch(declared) and int(declared) > limit:
         return None
+    if declared and not _DIGITS_RE.fullmatch(declared):
+        return None         # not a byte count we can trust: treat it as too large
     buf = bytearray()
     async for chunk in request.stream():
         buf += chunk
@@ -225,17 +231,18 @@ def _audit(name: str, decision: str, reason: str) -> None:
 
 
 def _audit_quiet(name: str, reason: str) -> None:
-    """Audit a refusal a stranger can trigger at will (unknown or malformed hook name)
-    without letting them fill the log: once per name and window, at most _QUIET_MAX
-    lines per window; the next line written says how many were left out."""
-    now = _now()
+    """Audit a refusal a stranger can trigger at will (an unknown or malformed hook
+    name, a wrong token or signature for a known one …) without letting them fill the
+    log: once per hook and reason per window, at most _QUIET_MAX lines per window; the
+    next line written says how many were left out."""
+    now, key = _now(), (name, reason)
     with _quiet_lock:
         if now - _quiet["start"] > _QUIET_WINDOW:
             _quiet.update(start=now, names=set())
-        if name in _quiet["names"] or len(_quiet["names"]) >= _QUIET_MAX:
+        if key in _quiet["names"] or len(_quiet["names"]) >= _QUIET_MAX:
             _quiet["suppressed"] += 1
             return
-        _quiet["names"].add(name)
+        _quiet["names"].add(key)
         left_out, _quiet["suppressed"] = _quiet["suppressed"], 0
     _audit(name, "deny", reason + (f" (+{left_out} similar not logged)" if left_out else ""))
 
@@ -374,18 +381,18 @@ def register(mcp):
         # stranger which hook names exist.
         ok, why = _check_token(cfg, headers)
         if not ok:
-            _audit(name, "deny", why)
+            _audit_quiet(name, why)
             return _unauthorized()
         raw = await _read_capped(request, _MAX_BODY)
         if raw is None:
             if cfg.get("hmac_secret_env"):     # the signature can't be checked: unauthenticated
-                _audit(name, "deny", "payload too large (signature not checked)")
+                _audit_quiet(name, "payload too large (signature not checked)")
                 return _unauthorized()
-            _audit(name, "deny", "payload too large")
+            _audit_quiet(name, "payload too large")
             return JSONResponse({"error": "payload too large"}, status_code=413)
         for ok, why in (_check_signature(cfg, headers, raw), _check_timestamp(headers)):
             if not ok:
-                _audit(name, "deny", why)
+                _audit_quiet(name, why)
                 return _unauthorized()
         digest = _digest(headers, raw)
         if not _remember(_slug(name), digest):
