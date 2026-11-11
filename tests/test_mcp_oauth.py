@@ -44,6 +44,11 @@ class Provider:
         self.codes, self.access, self.refresh = {}, set(), set()
         self.n = 0
         self.expires_in = 3600
+        # client registration: "open" takes anything; "native_only" answers a web client
+        # with `web_refusal` (HTTP 400) and takes a native client with a loopback
+        # redirect; "refuse_all" refuses both
+        self.register_mode = "open"
+        self.web_refusal = {"error": "invalid_redirect_uri", "error_description": WEB_ONLY}
         self.challenge = True        # 401 carries WWW-Authenticate resource_metadata
         self.prm_extra = {}          # overrides for the protected-resource metadata
         self.meta_extra = {}         # overrides for the authorization-server metadata (None = drop)
@@ -93,6 +98,18 @@ class Provider:
     def bearer_tokens(self):
         return [h for h in self.mcp_auth if h]
 
+    def refusal(self, body):
+        """The 400 answer to a registration, or None when it is taken."""
+        if self.register_mode == "open":
+            return None
+        if body.get("application_type") != "native":
+            return self.web_refusal
+        loopback = all(str(u).startswith("http://127.0.0.1:") for u in body.get("redirect_uris") or [])
+        if self.register_mode == "refuse_all" or not loopback:
+            return {"error": "invalid_client_metadata",
+                    "error_description": "Native clients are not enabled for this tenant."}
+        return None
+
 
 def _handler(p: Provider):
     class H(BaseHTTPRequestHandler):
@@ -137,6 +154,11 @@ def _handler(p: Provider):
             if u.path == "/register":
                 body = json.loads(raw)
                 p.registrations.append(body)
+                refused = p.refusal(body)
+                if isinstance(refused, str):          # some providers answer in plain text
+                    return self._send(400, raw=refused.encode())
+                if refused is not None:
+                    return self._send(400, refused)
                 return self._send(201, {"client_id": f"client-{len(p.registrations)}",
                                         "redirect_uris": body.get("redirect_uris"),
                                         "token_endpoint_auth_method": "none"})
@@ -202,6 +224,12 @@ def _start(p: Provider):
     p.base = f"http://127.0.0.1:{srv.server_address[1]}"
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
+
+
+# the native-client fallback: the loopback redirect, and how a provider that only takes
+# approved web redirect addresses words its refusal
+LOOPBACK = "http://127.0.0.1:8765/callback"
+WEB_ONLY = "Web clients may only register exact redirect URIs from the approved SaaS allowlist."
 
 
 @pytest.fixture
