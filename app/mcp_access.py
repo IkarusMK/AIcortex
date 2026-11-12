@@ -8,8 +8,10 @@ model included. Now each person decides, per server, which of their channels may
 - ``webui`` — the person in the AICortex WebUI: always (it is their own login);
 - ``app`` — an interactive app (``allow_apps``), known by the redirect host of the OAuth
   client it registered here (pocketid_proxy.APP_CLAIM): claude.ai, chatgpt.com,
-  "localhost" for desktop/CLI apps. "local" stands for an unauthenticated connection
-  to a server without sign-in;
+  "localhost" for desktop/CLI apps. "(local)" stands for an unauthenticated connection
+  to a server without sign-in — a marker no host name can be (until 2.7.0's review it
+  was "local", which a real redirect host can be; stored settings are read with the
+  new marker, see ``settings``);
 - ``runner`` — a runner carrying out one of their jobs (``allow_runners``: runner ids,
   "external" for an own program with RUNNER_TOKEN), known by the token it calls with;
 - ``key`` — one of their agent keys (``allow_keys``: key ids).
@@ -32,7 +34,8 @@ import store
 
 DEFAULTS = {"allow_apps": [], "allow_runners": [], "allow_keys": [], "approve_writes": True}
 LISTS = ("allow_apps", "allow_runners", "allow_keys")
-LOCAL = "local"
+LOCAL = "(local)"
+_OLD_LOCAL = "local"           # the marker before: read as LOCAL, never an app any more
 _ENTRY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
 _MAX_ENTRIES = 50
 _SEEN_MAX = 100
@@ -45,11 +48,18 @@ class Invalid(ValueError):
 
 
 # ── the settings ─────────────────────────────────────────────────────────────
+def _apps(names: list) -> list:
+    """Apps with the old marker of a connection without sign-in as the new one."""
+    return list(dict.fromkeys(LOCAL if n == _OLD_LOCAL else n for n in names))
+
+
 def settings(cfg, person: str) -> dict:
-    """`person`'s settings for this server (a copy), the strict defaults filled in."""
+    """`person`'s settings for this server (a copy), the strict defaults filled in —
+    and an app "local" stored before as the connection without sign-in it meant."""
     own = (((cfg or {}).get("access") or {}).get(person) if isinstance(cfg, dict) else None)
     own = own if isinstance(own, dict) else {}
     out = {k: [str(v) for v in own.get(k) or [] if isinstance(v, str)] for k in LISTS}
+    out["allow_apps"] = _apps(out["allow_apps"])
     out["approve_writes"] = own.get("approve_writes") is not False
     return out
 
@@ -63,7 +73,9 @@ def _clean(changes: dict) -> dict:
         if not isinstance(v, list) or len(v) > _MAX_ENTRIES:
             raise Invalid(f"{k} must be a list of at most {_MAX_ENTRIES} names.")
         names = [str(x).strip() for x in v]
-        bad = [x for x in names if not _ENTRY.fullmatch(x)]
+        if k == "allow_apps":
+            names = _apps(names)
+        bad = [x for x in names if not (_ENTRY.fullmatch(x) or (k == "allow_apps" and x == LOCAL))]
         if bad:
             raise Invalid(f"{k}: '{bad[0][:40]}' is not a host, runner id or key id.")
         out[k] = list(dict.fromkeys(names))
@@ -146,6 +158,8 @@ def channel() -> dict:
     import pocketid_proxy
     app = claims.get(pocketid_proxy.APP_CLAIM)
     if isinstance(app, dict) and app.get("host"):
+        if not pocketid_proxy.is_app_host(app["host"]):
+            return {"kind": "unknown", "id": ""}
         return {"kind": "app", "id": str(app["host"]), "name": str(app.get("name") or "")}
     if ident == "unknown" and not claims and not _token() and not _oidc():
         return {"kind": "local", "id": LOCAL}
@@ -233,7 +247,7 @@ def register(mcp):
                    allow_runners: list[str] | None = None, allow_keys: list[str] | None = None,
                    approve_writes: bool | None = None) -> str:
         """Show or NARROW who may use your sign-in to an OAuth MCP server: apps (by host,
-        e.g. claude.ai; "local" = without sign-in), runners (ids), agent keys (ids), and
+        e.g. claude.ai; "(local)" = without sign-in), runners (ids), agent keys (ids), and
         whether tools that change data wait for your approval in the WebUI. Pass a
         list to keep only those entries, approve_writes=true to switch approvals on.
         Allowing more is only possible for the person in the AICortex WebUI."""

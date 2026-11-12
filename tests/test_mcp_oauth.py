@@ -252,7 +252,8 @@ def env(monkeypatch, request, prov):
     add(prov.base)
     # The in-process calls below are an unauthenticated local connection. Only the person
     # in the WebUI may let a channel use their sign-in (test_mcp_access) — once, here.
-    r = ui.post("/ui/api/mcp-oauth/access", json={"server": SERVER, "allow_apps": ["local"]})
+    r = ui.post("/ui/api/mcp-oauth/access",
+                json={"server": SERVER, "allow_apps": [sys.modules["mcp_access"].LOCAL]})
     assert r.status_code == 200, r.text
     yield e
     ui.close()

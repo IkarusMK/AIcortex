@@ -56,7 +56,7 @@ function mcpAccessItems(box, choices, chosen) {
     const input = document.createElement("input"); input.type = "checkbox";
     input.value = c.id; input.checked = chosen.includes(c.id);
     const text = document.createElement("span"); text.className = "mono";
-    text.textContent = c.id === "local" ? t("ma_local") : c.label;
+    text.textContent = c.id === "(local)" ? t("ma_local") : c.label;
     label.append(input, text);
     box.append(label);
   });

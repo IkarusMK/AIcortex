@@ -15,7 +15,9 @@ redirect host of the OAuth client that app registered here — claude.ai, chatgp
 "localhost" for desktop/CLI apps. Who may use a person's sign-in to an upstream MCP
 server is decided per app (mcp_access), so the mark comes only from the client record
 in the proxy's own store, never from the token's other claims; when the app can't be
-told, the mark is removed and the app counts as unknown.
+told, the mark is removed and the app counts as unknown. Only a plain host name is an
+app — never "local", the name 2.7.0 first used for a connection without sign-in (with
+a wildcard in MCP_REDIRECT_URIS a client could register exactly that host).
 
 `extract_upstream_claims()` is a plain function (no FastMCP import) so it's unit-
 testable without the framework; `build_proxy()` constructs the subclass and is the
@@ -24,6 +26,7 @@ only part that imports FastMCP.
 import base64
 import ipaddress
 import json
+import re
 from urllib.parse import urlsplit
 
 # Claims we forward if present in the upstream id_token. groups/oc_groups carry
@@ -56,6 +59,10 @@ def extract_upstream_claims(idp_tokens):
 
 APP_CLAIM = "aicortex_app"
 _LOOPBACK = "localhost"
+# What an app's host may look like: the characters a stored access setting takes
+# (mcp_access), and never the word an earlier version stored for "no sign-in".
+_APP_HOST = re.compile(r"[a-z0-9][a-z0-9._:-]{0,199}")
+_NOT_AN_APP = frozenset({"local"})
 _apps: dict = {}           # client_id -> {"host", "name"} (a client's redirects don't change)
 _APPS_MAX = 512
 
@@ -73,11 +80,20 @@ def _host(uri) -> str:
         return host
 
 
+def is_app_host(host) -> bool:
+    """Can `host` name an app? A plain host name — not "local" (see the module text)
+    and nothing a host name can't contain, like the "(local)" of mcp_access."""
+    return (isinstance(host, str) and bool(_APP_HOST.fullmatch(host))
+            and host not in _NOT_AN_APP)
+
+
 def app_of(redirect_uris) -> str:
     """The app a client stands for: the one host all its redirect addresses share
-    (loopback addresses are "localhost"), or "" when there is none or more than one."""
+    (loopback addresses are "localhost"), or "" when there is none, more than one, or
+    one that can't name an app (is_app_host)."""
     hosts = {_host(u) for u in redirect_uris or []}
-    return hosts.pop() if len(hosts) == 1 and "" not in hosts else ""
+    host = hosts.pop() if len(hosts) == 1 else ""
+    return host if is_app_host(host) else ""
 
 
 async def annotate(proxy, token: str, found):
