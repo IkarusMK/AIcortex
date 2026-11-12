@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # The official MCP Registry checks this label to verify that the image belongs to the
 # server it lists (must equal "name" in server.json).
