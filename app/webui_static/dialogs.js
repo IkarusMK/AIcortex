@@ -122,7 +122,7 @@ function escapeDialog(dlg) {
 /* ── confirm dialog ──────────────────────────────────────────────────────── */
 let CONFIRM_DONE = null;
 
-function confirmModal(text, okKey = "confirm") {
+function confirmModal(text, okKey = "confirm", tone = "danger") {
   if (CONFIRM_DONE) CONFIRM_DONE(false);         // a newer question replaces an open one
   return new Promise((resolve) => {
     const m = $("#modal");
@@ -135,6 +135,8 @@ function confirmModal(text, okKey = "confirm") {
     };
     $("#modal-text").textContent = text;
     $("#modal-ok").textContent = t(okKey);
+    // red only for what removes or overwrites something; a plain go-ahead is primary
+    $("#modal-ok").className = "btn " + (tone === "primary" ? "primary" : "danger");
     $("#modal-ok").addEventListener("click", () => done(true), { signal: off.signal });
     $("#modal-cancel").addEventListener("click", () => done(false), { signal: off.signal });
     // closed some other way (the browser's own close request): that is a "no"

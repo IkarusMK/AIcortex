@@ -230,7 +230,7 @@ async function oauthSignIn(name) {
   const d = await api("/ui/api/mcp-oauth/start", { method: "POST", body: { server: name } });
   if (!d.ok) { toast(d.message, false); return; }
   // Say where the sign-in happens before leaving: the provider's host and the server.
-  if (!(await confirmModal(t("oa_confirm", d.login_host, d.server_url)))) return;
+  if (!(await confirmModal(t("oa_confirm", d.login_host, d.server_url), "oa_go", "primary"))) return;
   if (d.mode === "paste") { oauthPaste(name, d); return; }   // no way back to this page
   location.assign(d.url);      // the provider's login page (https, checked by the server)
 }

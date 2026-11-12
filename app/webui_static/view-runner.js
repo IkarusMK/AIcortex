@@ -292,7 +292,7 @@ async function saveRunner() {
 }
 
 async function testRunner(rec) {
-  if (rec.kind === "claude-cloud" && !(await confirmModal(t("confirm_rn_test_cloud")))) return;
+  if (rec.kind === "claude-cloud" && !(await confirmModal(t("confirm_rn_test_cloud"), "yes_test", "primary"))) return;
   await rnPost("/ui/api/runners/test", { id: rec.id });
 }
 
@@ -346,7 +346,7 @@ async function finishChatgpt() {
 }
 
 async function signoutChatgpt() {
-  if (!(await confirmModal(t("confirm_rn_cg_signout")))) return;
+  if (!(await confirmModal(t("confirm_rn_cg_signout"), "yes_signout"))) return;
   const d = await api("/ui/api/runner/chatgpt/signout", { method: "POST", body: {} });
   toast(d.message, !!d.ok);
   await loadRunners();

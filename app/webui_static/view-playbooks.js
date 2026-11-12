@@ -178,7 +178,7 @@ async function openRun(id) {
     const cancel = el("button", "btn danger sm", t("pb_cancel_run"));
     cancel.type = "button";
     cancel.addEventListener("click", async () => {
-      if (!(await confirmModal(t("confirm_pb_cancel", run.title)))) return;
+      if (!(await confirmModal(t("confirm_pb_cancel", run.title), "yes_cancel_run"))) return;
       const r = await api("/ui/api/playbooks/runs/cancel", { method: "POST", body: { id: run.id } });
       toast(r.message, !!r.ok);
       await loadPlaybooks(); await openRun(run.id);

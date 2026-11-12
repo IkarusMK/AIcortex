@@ -106,6 +106,9 @@ const I18N = {
     us_operator_hint: "Operator: Admin bei der Anmeldung (policy.json „operators“)",
     save: "Speichern", cancel: "Abbrechen", delete: "Löschen",
     confirm: "Ja, löschen",
+    yes_signout: "Ja, abmelden", yes_rekey: "Ja, neu verschlüsseln",
+    yes_overwrite: "Ja, überschreiben", yes_test: "Ja, testen", yes_cancel_run: "Ja, Lauf abbrechen",
+    oa_go: "Weiter zur Anmeldung",
     toast_error: "Fehler: {0}",
   },
   en: {
@@ -209,6 +212,9 @@ const I18N = {
     us_operator_hint: "Operator: admin when signing in (policy.json “operators”)",
     save: "Save", cancel: "Cancel", delete: "Delete",
     confirm: "Yes, delete",
+    yes_signout: "Yes, sign out", yes_rekey: "Yes, re-encrypt",
+    yes_overwrite: "Yes, overwrite", yes_test: "Yes, test", yes_cancel_run: "Yes, cancel the run",
+    oa_go: "Continue to sign-in",
     toast_error: "Error: {0}",
   },
 };
@@ -833,7 +839,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-logout").addEventListener("click", logout);
   $("#btn-logout-denied").addEventListener("click", logout);
   $("#btn-logout-all").addEventListener("click", async () => {
-    if (!(await confirmModal(t("confirm_logout_all")))) return;
+    if (!(await confirmModal(t("confirm_logout_all"), "yes_signout"))) return;
     try {
       const r = await api("/ui/api/sessions/revoke", { method: "POST", body: {} });
       if (!r.ok) { toast(r.message, false); return; }
@@ -856,7 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
     v.type = v.type === "password" ? "text" : "password";
   });
   $("#btn-vault-rekey").addEventListener("click", async () => {
-    if (!(await confirmModal(t("confirm_rekey")))) return;
+    if (!(await confirmModal(t("confirm_rekey"), "yes_rekey"))) return;
     try {
       const r = await api("/ui/api/secrets/rekey", { method: "POST", body: {} });
       toast(r.message, r.ok); loadVault();
@@ -883,7 +889,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const existing = SECRETS.find((s) => s.name === name
       && (s.owner === owner || s.owner_label === owner || (!s.owner && !owner)));
     if (existing && !(await confirmModal(t("confirm_overwrite_secret", name,
-      existing.owner_label || existing.owner || t("shared"))))) return;
+      existing.owner_label || existing.owner || t("shared")), "yes_overwrite"))) return;
     try {
       const r = await api("/ui/api/secrets", { method: "POST", body: {
         name, value: $("#sec-value").value, owner,
