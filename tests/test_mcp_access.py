@@ -208,15 +208,20 @@ def test_widening_needs_the_person_in_the_webui_tightening_does_not(up):
     out = call("mcp_access", {"server": SERVER, "allow_apps": ["claude.ai"]})
     assert out.startswith("Refused") and "WebUI" in out
     assert stored_access() is None
-    access(up, allow_apps=["claude.ai", "chatgpt.com"], allow_keys=["abc123"], approve_writes=False)
-    for widen in ({"allow_apps": ["claude.ai", "chatgpt.com", "other.example"]},
+    # the calls below come through the connection without sign-in: it must be allowed to
+    # use the sign-in at all (test_sec_mcp_access_review)
+    local = sys.modules["mcp_access"].LOCAL
+    access(up, allow_apps=[local, "claude.ai", "chatgpt.com"], allow_keys=["abc123"],
+           approve_writes=False)
+    for widen in ({"allow_apps": [local, "claude.ai", "chatgpt.com", "other.example"]},
                   {"allow_runners": ["r_any001"]}):
         assert call("mcp_access", {"server": SERVER, **widen}).startswith("Refused"), widen
-    assert stored_access()["allow_runners"] == [] and len(stored_access()["allow_apps"]) == 2
-    out = call("mcp_access", {"server": SERVER, "allow_apps": ["claude.ai"], "approve_writes": True})
+    assert stored_access()["allow_runners"] == [] and len(stored_access()["allow_apps"]) == 3
+    out = call("mcp_access", {"server": SERVER, "allow_apps": [local, "claude.ai"],
+                              "approve_writes": True})
     assert not out.startswith("Refused"), out
     now = stored_access()
-    assert now["allow_apps"] == ["claude.ai"] and now["approve_writes"] is True
+    assert now["allow_apps"] == [local, "claude.ai"] and now["approve_writes"] is True
     assert now["allow_keys"] == ["abc123"]
     assert call("mcp_access", {"server": SERVER, "approve_writes": False}).startswith("Refused")
     assert stored_access()["approve_writes"] is True
@@ -226,7 +231,7 @@ def test_widening_needs_the_person_in_the_webui_tightening_does_not(up):
     assert no_csrf.post("/ui/api/mcp-oauth/access",
                         json={"server": SERVER, "allow_apps": ["x.example"]}).status_code == 403
     no_csrf.close()
-    assert stored_access()["allow_apps"] == ["claude.ai"]
+    assert stored_access()["allow_apps"] == [local, "claude.ai"]
 
 
 def test_settings_are_checked_and_belong_to_the_person(up):

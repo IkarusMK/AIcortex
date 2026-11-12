@@ -19,9 +19,12 @@ model included. Now each person decides, per server, which of their channels may
 - ``key`` — one of their agent keys (``allow_keys``: key ids).
 
 Everything else — and every call that can't be told apart — is refused, and every
-decision is in the audit log with its channel. ``approve_writes`` (default on): a tool
-the server does not mark readOnlyHint does not run on such a call; it waits for the
-person's approval in the WebUI (mcp_approvals).
+decision is in the audit log with its channel. The same goes for showing or narrowing
+the settings with the ``mcp_access`` tool: a channel that may not use the sign-in
+may neither read who may, nor take everyone's permission away.
+
+``approve_writes`` (default on): a tool the server does not mark readOnlyHint does not
+run on such a call; it waits for the person's approval in the WebUI (mcp_approvals).
 
 The settings live in the server's config, under ``access`` → person. A person with
 nothing stored there gets the strict defaults (WebUI only, approvals on) — that is
@@ -292,13 +295,17 @@ def register(mcp):
         e.g. claude.ai; "(local)" = without sign-in), runners (ids), agent keys (ids), and
         whether tools that change data wait for your approval in the WebUI. Pass a
         list to keep only those entries, approve_writes=true to switch approvals on.
-        Allowing more is only possible for the person in the AICortex WebUI."""
+        Allowing more is only possible for the person in the AICortex WebUI; this tool
+        works only where the sign-in may be used."""
         import mcp_gateway
         import mcp_oauth
         cfg = mcp_gateway._load(server)
         if not mcp_oauth.is_oauth(cfg):
             return f"'{server}' is no OAuth MCP server (mcp_list)."
         person = mcp_oauth.caller()
+        allowed, _, refusal = check(server, cfg, person, "mcp_access")
+        if not allowed:
+            return refusal
         changes = {"allow_apps": allow_apps, "allow_runners": allow_runners,
                    "allow_keys": allow_keys, "approve_writes": approve_writes}
         slug = mcp_gateway._slug(server)

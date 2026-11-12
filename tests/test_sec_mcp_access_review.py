@@ -15,6 +15,10 @@
    their own access settings could all have changed since the call was held. Now the
    decision re-checks all of that first; a refused approval is not run and stays
    waiting.
+4. The ``mcp_access`` tool (show or narrow the settings) had no channel check: any
+   caller acting as the person — an app they never allowed, an unknown one — could read
+   who may use their sign-in, or narrow it to nothing. It now needs the same permission
+   as using the sign-in (an allowed channel, or the person in the WebUI).
 
 All upstream data is invented (the fake provider of test_mcp_oauth).
 """
@@ -29,7 +33,7 @@ from cryptography.fernet import Fernet
 
 from test_mcp_access import (OWNER, TOOLS, access, app, approval_id, as_token,  # noqa: F401
                              audit_lines, decide, mcp_client, owner_is_admin, pending,
-                             text_of, up)
+                             stored_access, text_of, up)
 from test_mcp_oauth import SERVER, add, call, direct_sign_in, env, prov  # noqa: F401
 
 MARKER = "(local)"
@@ -207,3 +211,23 @@ def test_an_approval_runs_only_while_the_person_may_still_use_the_server(monkeyp
     assert r.status_code == 200 and r.json()["ok"] is True, r.text
     assert prov.calls == ["set_value"]
     ui.close()
+
+
+# ── 4. the settings tool needs the same permission as the sign-in ────────────
+def test_the_settings_tool_needs_an_allowed_channel(up):
+    access(up, allow_apps=["claude.ai"], allow_keys=["abc123"])
+    for claims in (app("chatgpt.com"), {"sub": OWNER}):  # an app not allowed / an unknown one
+        with as_token(claims):
+            shown = call("mcp_access", {"server": SERVER})
+            narrowed = call("mcp_access", {"server": SERVER, "allow_apps": []})
+        assert shown.startswith("Refused") and "abc123" not in shown, shown
+        assert narrowed.startswith("Refused"), narrowed
+    out = call("mcp_access", {"server": SERVER})          # a connection without sign-in: no
+    assert out.startswith("Refused") and "abc123" not in out
+    assert stored_access()["allow_apps"] == ["claude.ai"]
+    assert any(a["tool"] == "mcp_access" and a["decision"] == "deny" for a in audit_lines())
+    with as_token(app("claude.ai")):                      # the allowed app may
+        assert "abc123" in call("mcp_access", {"server": SERVER})
+    out = call("mcp_access", {"server": SERVER, "allow_keys": []}, who=OWNER)   # and the WebUI
+    assert not out.startswith("Refused"), out
+    assert stored_access()["allow_keys"] == []

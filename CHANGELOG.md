@@ -16,9 +16,10 @@ that person's permission.
   sign-in, each person decides in the WebUI (Services → Access) which of their
   connected apps, runners and agent keys may use their sign-in. Nothing is allowed
   until the person ticks it; the person in the WebUI always may. Only a person in
-  the WebUI can widen it — an assistant can only narrow it. Every decision is in the
-  audit log. A runner uses it only for jobs the person wrote themselves, never for a
-  job an admin scheduled for them.
+  the WebUI can widen it — an assistant can only narrow it (`mcp_access`, and only
+  through a channel that may use the sign-in). Every decision is in the audit log. A
+  runner uses it only for jobs the person wrote themselves, never for a job an admin
+  scheduled for them.
 - **Approvals for changing calls.** A call to a tool the server doesn't mark as
   read-only doesn't run on its own: it waits under Services → Approvals with the exact
   tool and arguments. Approve runs it once with the person's sign-in; Reject or ten
