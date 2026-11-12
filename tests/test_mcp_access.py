@@ -179,6 +179,11 @@ def test_a_runner_job_uses_it_only_when_that_runner_is_allowed(up):
     actas, agent_auth = __import__("actas"), __import__("agent_auth")
     rid = "r_t3st01"
     args = {"server": SERVER, "tool": "read_status"}
+    sys.modules["cron"]._write([{"id": "job-1", "name": "job-1", "schedule": "* * * * *",
+                                 "prompt": "Read the status.", "notify": "user",
+                                 "enabled": True, "owner": OWNER, "runner": "",
+                                 "updated_by": OWNER, "created": "2026-11-01T08:00:00",
+                                 "last_run": ""}])        # the person's own job
 
     async def job_call():
         async with mcp_client(up.base, agent_auth.internal_token(rid)) as c:

@@ -13,7 +13,9 @@ model included. Now each person decides, per server, which of their channels may
   was "local", which a real redirect host can be; stored settings are read with the
   new marker, see ``settings``);
 - ``runner`` — a runner carrying out one of their jobs (``allow_runners``: runner ids,
-  "external" for an own program with RUNNER_TOKEN), known by the token it calls with;
+  "external" for an own program with RUNNER_TOKEN), known by the token it calls with —
+  and only for a job the person wrote themselves: an admin can write a job for someone
+  else (cron_add owner=…), and that prompt must not reach the person's sign-in;
 - ``key`` — one of their agent keys (``allow_keys``: key ids).
 
 Everything else — and every call that can't be told apart — is refused, and every
@@ -152,7 +154,8 @@ def channel() -> dict:
         # run started by anyone else (an admin's app) has no runner, so no access.
         import agent_auth
         rid = agent_auth.runner_of(_token()) if is_runner else ""
-        return {"kind": "runner", "id": rid}
+        job = actas.current_job(authz.binding_key(ident)) if acting else ""
+        return {"kind": "runner", "id": rid, "job": job}
     if claims.get("aicortex_key"):
         return {"kind": "key", "id": str(claims["aicortex_key"])}
     import pocketid_proxy
@@ -180,6 +183,26 @@ def tag(ch: dict) -> str:
 
 
 # ── the check ────────────────────────────────────────────────────────────────
+def job_problem(job_id: str, person: str) -> str:
+    """"" when the scheduled job `job_id` a runner carries out may use `person`'s
+    sign-in — it is `person`'s job and they wrote it themselves (cron's updated_by) —
+    else why not. A job that can't be read or found, or whose author is unknown (from
+    before 2.3), is no job of theirs."""
+    import cron
+    try:
+        job = next((j for j in cron._read() if isinstance(j, dict) and j.get("id") == job_id),
+                   None) if job_id else None
+    except Exception:
+        job = None
+    if job is None or job.get("owner") != person:
+        return f"job '{job_id or '?'}' is not a scheduled job of {person or 'the person'}"
+    author = str(job.get("updated_by") or "")
+    if author != person:
+        return (f"job '{job_id}' was written by {author or 'someone unknown'}, not by "
+                f"{person} themselves")
+    return ""
+
+
 def check(server: str, cfg: dict, person: str, tool: str) -> tuple[bool, dict, str]:
     """May the current call use `person`'s sign-in to `server`? (ok, channel, refusal)."""
     import authz
@@ -191,12 +214,17 @@ def check(server: str, cfg: dict, person: str, tool: str) -> tuple[bool, dict, s
     allowed = ch["kind"] == "webui" or (
         bool(ch["id"]) and ch["kind"] in _KIND_OF
         and ch["id"] in settings(cfg, person)[_KIND_OF[ch["kind"]]])
+    problem = job_problem(ch.get("job", ""), person) if allowed and ch["kind"] == "runner" else ""
+    allowed = allowed and not problem
     authz.audit(person or "unknown", authz.effective_identity()[1], tool,
                 "allow" if allowed else "deny",
                 f"oauth sign-in of '{slug}' via {tag(ch)}"
-                + ("" if allowed else " — not allowed by the person"))
+                + ("" if allowed else f" — {problem or 'not allowed by the person'}"))
     if allowed:
         return True, ch, ""
+    if problem:
+        return False, ch, (f"Refused: {label(ch)} uses {person}'s sign-in to '{slug}' only for "
+                           f"a job {person} wrote themselves — {problem}.")
     return False, ch, (f"Refused: {person or 'the person'} has not allowed {label(ch)} to use "
                        f"their sign-in to '{slug}'. Only they can, in the AICortex WebUI → "
                        f"Services → {slug} → Access.")

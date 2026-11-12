@@ -160,3 +160,12 @@ def current(caller: str = ""):
         if b and b.get("sub") and int(b.get("exp", 0)) >= int(time.time()):
             return b["sub"]
     return None
+
+
+def current_job(caller: str = "") -> str:
+    """The id of the job `caller` is running as its owner, or "" (none, or expired)."""
+    with _lock:
+        b = _bindings.get(caller)
+        if b and b.get("sub") and int(b.get("exp", 0)) >= int(time.time()):
+            return str(b.get("job") or "")
+    return ""
