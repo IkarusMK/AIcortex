@@ -6,6 +6,55 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-11-12
+Forms open as compact dialogs, upstream sign-ins also work with providers that only
+accept approved web addresses, and nobody uses a person's upstream sign-in without
+that person's permission.
+
+### Added
+- **Who may use an upstream sign-in.** For every upstream MCP server with a browser
+  sign-in, each person decides in the WebUI (Services → Access) which of their
+  connected apps, runners and agent keys may use their sign-in. Nothing is allowed
+  until the person ticks it; the person in the WebUI always may. Only a person in
+  the WebUI can widen it — an assistant can only narrow it. Every decision is in the
+  audit log.
+- **Approvals for changing calls.** A call to a tool the server doesn't mark as
+  read-only doesn't run on its own: it waits under Services → Approvals with the exact
+  tool and arguments. Approve runs it once with the person's sign-in; Reject or ten
+  minutes without an answer drop it. The assistant fetches the result with
+  `mcp_call(..., approval_id=...)`. On by default, switchable per person.
+- **Sign-in with a paste step.** Some providers only accept the web addresses of
+  approved apps. AICortex then registers like a desktop app with a local address
+  (`http://127.0.0.1:8765/callback`): the sign-in opens in a new tab, and afterwards you
+  paste the address the browser landed on into the WebUI. The code in it is useless
+  without the PKCE key, which never leaves AICortex.
+
+### Changed
+- **Every create and edit form opens in a dialog** over the page (vault, agent keys,
+  skills, notes, cron jobs, runners, playbooks, users, services & devices) instead of
+  far down the page. Compact: as high as its content, 540 px wide (780 px for skills,
+  notes and playbooks); a bottom sheet on phones. Esc or × closes it and asks first if
+  something was typed.
+- A person who isn't admin sees their own identity in the WebUI and how to get admin
+  rights.
+
+### Fixed
+- **No longer admin after the 2.6 update.** The upgrade only kept people listed in
+  `policy.json`, which a single-user install usually doesn't have. Now everyone who
+  signed in to the WebUI as admin before (from the audit log) is restored as operator —
+  once, also on installs 2.6.x already set up.
+- The first operator can only be a person signing in to the WebUI, never an app.
+- The vault's name check in the browser works again (its pattern was invalid).
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.7.0` and redeploy; `data/` stays as it is.
+- **Upstream sign-ins start locked:** after the update, allow your app (e.g. Claude)
+  once under Services → Access for each upstream server you use. Runners and agent
+  keys stay off until you tick them.
+- Not admin after the update? Sign in to the WebUI: it shows your identity and the
+  line `OPERATORS=<your identity>` for your `.env`.
+- Approvals are stored encrypted and need `STORAGE_ENCRYPTION_KEY`.
+
 ## [2.6.1] — 2026-11-11
 The Services & devices list is readable again.
 

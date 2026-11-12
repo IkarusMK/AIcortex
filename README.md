@@ -165,10 +165,11 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 > vault, services, tasks, sessions and API keys carry over. What changes is listed in
 > [CHANGELOG.md](CHANGELOG.md#upgrading-from-1x).
 
-> 🔐 **Updating to 2.6.0 (security release)?** Pull and restart as usual — your data
-> stays. But read **[Upgrading to 2.6.0](#upgrading-to-260--what-you-need-to-do)**
-> first: one setting may need a change, everyone signs in once more, and each app
-> asks for consent once.
+> 🔐 **Updating to 2.6 or 2.7?** Pull and restart as usual — your data stays. Read
+> **[Upgrading to 2.7.0](#upgrading-to-270--whats-new-for-you)** and
+> **[Upgrading to 2.6.0](#upgrading-to-260--what-you-need-to-do)** first: one setting
+> may need a change, everyone signs in once more, each app asks for consent once, and
+> upstream sign-ins start locked until you allow your app.
 
 **Expose it & add the connector:**
 
@@ -222,6 +223,37 @@ AUTH_ROLE_CLAIM=groups                  # map Pocket ID groups → roles
 `AUTH_ENFORCE=1` is the **one switch** — "enforce means enforce". It turns on roles (admin / user / viewer), per-user isolation, and per-user capability areas together. Roles are driven by your IdP groups (mapped in `data/auth/policy.json`, or managed live with the `tenancy_*` admin tools). Each non-admin is confined to their **own memory scope and private vault namespace** — two people never read or overwrite each other's data — and reaches only the **services & skills an admin assigns** (default-deny); an admin provisions per-user secrets (`secret_set owner=…`) and areas (`tenancy_set services=… skills=…`). Admins keep full access.
 
 Both modes run the same image. **Who is admin:** only the **operators** you name (`OPERATORS=<your IdP sub>`, or the first person who signs in after a fresh start — see [below](#who-is-admin)); everyone else who signs in is `user`. With sign-in configured, a caller whose identity can't be resolved, or a policy check that fails, is **refused** (fail closed). **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+
+## Upgrading to 2.7.0 — what's new for you
+
+### Forms open in dialogs
+Every "New" and "Edit" in the WebUI opens a compact dialog over the page — no more
+scrolling to the bottom. Esc or × closes it; if you typed something, it asks first.
+
+### Admin after the update
+If you lost admin rights with 2.6.x: 2.7.0 restores everyone who signed in to the WebUI
+as admin before, automatically, at the first start. Still not admin? Sign in to the
+WebUI — it shows your identity and the exact line to put into your `.env`:
+`OPERATORS=<your identity>`, then restart.
+
+### Upstream servers with a browser sign-in
+Some upstream MCP servers want a browser sign-in (often with 2FA). Register them in
+**Services & devices → New → kind `mcp`** with `auth` = `oauth`, save, then **Sign in**.
+
+- **Providers that only accept approved apps:** if the provider refuses AICortex's web
+  address, AICortex signs in like a desktop app. The sign-in opens in a new tab; after
+  signing in, the browser shows an error page whose address starts with
+  `http://127.0.0.1:8765/callback` — that is expected. Copy the whole address from the
+  address bar into the AICortex dialog and press **Finish**.
+- **Who may use your sign-in:** under **Access** next to the server you tick which of
+  your apps (e.g. Claude), runners and agent keys may use it. Nothing is ticked at
+  first — after the update, allow your app once. You yourself in the WebUI always may.
+  An assistant can narrow this, never widen it.
+- **Approvals:** calls that change something (any tool the provider doesn't mark as
+  read-only) wait under **Approvals** with the exact tool and values. **Approve** runs
+  it once, **Reject** drops it, and after ten minutes it expires. The assistant gets the
+  result with `mcp_call(..., approval_id=...)`. You can switch approvals off per server
+  in **Access** — keep them on unless you have a good reason.
 
 ## Upgrading to 2.6.0 — what you need to do
 
@@ -660,6 +692,10 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | App sign-in fails with **`invalid redirect uri`** (since 2.6.0) | The app's callback isn't in the built-in list. Add an https pattern for it to **`MCP_REDIRECT_URIS`** and restart. Custom schemes (`vscode://`, `cursor://`) can't be matched. |
 | A tool call is refused with **`secret '…' may only be sent to …`** or **`… is not bound to any host yet`** | The secret may only go to the hosts it is bound to. Add the new host in **WebUI → Vault → allowed hosts**, or store the secret again with `secret_set(name, value, hosts="host")`. |
 | **`429 Too Many Requests`** on sign-in, `/mcp` or `/api/v1` | A rate limit per client IP. Wait for `Retry-After`. If everyone behind your proxy is affected at once, `FORWARDED_ALLOW_IPS` doesn't trust your proxy — set it to the proxy's source. |
+| **Not admin after updating to 2.6.x** | Update to 2.7.0: it restores earlier WebUI admins automatically. Otherwise sign in to the WebUI — it shows your identity; set **`OPERATORS=<your identity>`** and restart. |
+| Upstream sign-in: *"The provider refused the client registration … approved … allowlist"* | Fixed in 2.7.0: AICortex then signs in like a desktop app and asks you to paste the final address (see [Upstream servers with a browser sign-in](#upstream-servers-with-a-browser-sign-in)). |
+| `mcp_call` / `mcp_tools` refused: *not allowed* for an app, runner or key | Upstream sign-ins are locked per person. Tick the app/runner/key under **Services & devices → Access** next to the server. |
+| `mcp_call` answers that it **waits for approval** | The call changes something. Approve or reject it under **Services & devices → Approvals**; the assistant then fetches the result with `approval_id`. |
 | Log: **`WARNING: nobody is operator (admin) yet`**, WebUI shows no admin pages | Nobody is operator. Sign in within 30 minutes of a start, or set **`OPERATORS=<your sub>`** and restart. |
 | Log: **`WARNING: FORWARDED_ALLOW_IPS="*"`** or **`… is not set`** | Set `FORWARDED_ALLOW_IPS` to your proxy's source, e.g. `127.0.0.1,172.16.0.0/12` for a proxy on the Docker host. |
 | REST call returns **404 `{"error":"REST API disabled"}`** | `API_ENABLED=0`. Set it to `1` (the default) and `docker compose up -d --force-recreate`. |

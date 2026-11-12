@@ -8,11 +8,11 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/IkarusMK/AIcortex#readme",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/ikarusmk/aicortex:v2.6.1",
+      "identifier": "ghcr.io/ikarusmk/aicortex:v2.7.0",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:8787/mcp"
