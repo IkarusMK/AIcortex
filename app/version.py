@@ -13,4 +13,4 @@ A release also sets "version" and the image tag in server.json (the MCP Registry
 listing) to this number; tests/test_mcp_registry.py fails until it does.
 """
 
-__version__ = "2.7.1"
+__version__ = "2.7.2"

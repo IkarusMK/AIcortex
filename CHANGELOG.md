@@ -6,6 +6,30 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.7.2] — 2026-11-12
+Apps that sign in with a client metadata document are recognised; clearer sign-in
+dialogs.
+
+### Fixed
+- **claude.ai can be allowed under Access again.** claude.ai signs in to AICortex with
+  a client metadata document (its client id is the document's URL) instead of
+  registering a client. AICortex took an app's identity only from a registered
+  client's redirect addresses, which FastMCP leaves empty for such a client — so
+  claude.ai counted as "a caller AICortex cannot identify", never showed up under
+  Services → Access, and a person could not allow it to use their sign-in to an
+  upstream server. The redirect addresses now come from the metadata document too
+  (the same rule: one host, or no app).
+- **Confirm buttons say what they do.** Several questions that delete nothing showed
+  the red "Yes, delete" button — among them going to the sign-in page of an upstream
+  server. They now read "Continue to sign-in", "Yes, sign out", "Yes, re-encrypt",
+  "Yes, overwrite", "Yes, test" and "Yes, cancel the run".
+
+### Changed
+- **Finishing a sign-in by pasting the address:** the dialog says to paste it right
+  away (the code in it is only valid for a few minutes). When the provider refuses,
+  the WebUI shows the provider's reason (e.g. `invalid_grant`) and what to do next,
+  instead of only "The provider did not issue a token".
+
 ## [2.7.1] — 2026-11-12
 A short configuration: secure values are built in, not configurable.
 
