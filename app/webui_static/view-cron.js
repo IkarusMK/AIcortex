@@ -192,7 +192,6 @@ function openCron(job) {
   $("#cron-once").checked = job ? !!job.once : false;
   fillCronRunners(job ? job.runner || "" : "");
   $("#btn-cron-delete").classList.toggle("hidden", !job);
-  $("#cron-editor").classList.remove("hidden");
   if (job) {
     CRON.preset = "";
     $$("#cron-presets .chip").forEach((b) => b.classList.remove("active"));
@@ -201,7 +200,7 @@ function openCron(job) {
   } else {
     cronSetPreset("daily");
   }
-  $("#cron-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  openDialog($("#cron-editor"));
   return Promise.resolve();
 }
 
@@ -221,7 +220,7 @@ async function deleteCron(job) {
   if (!(await confirmModal(t("confirm_cron_delete", job.name)))) return;
   const d = await api("/ui/api/cron/delete", { method: "POST", body: { name: job.name } });
   toast(d.ok ? t("toast_cron_deleted") : d.message, !!d.ok);
-  $("#cron-editor").classList.add("hidden");
+  closeDialog($("#cron-editor"));
   await loadCron();
 }
 
@@ -242,7 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
     cronPreview();
   });
   $("#btn-cron-new").addEventListener("click", () => openCron(null));
-  $("#btn-cron-close").addEventListener("click", () => $("#cron-editor").classList.add("hidden"));
   $("#btn-cron-delete").addEventListener("click", () => deleteCron(CRON.editing).catch(fail));
   $("#form-cron").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -250,6 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   prompt: $("#cron-prompt").value, notify: $("#cron-notify").value.trim(),
                   enabled: $("#cron-enabled").checked, owner: isAdmin() ? $("#cron-owner").value.trim() : "",
                   runner: $("#cron-runner-sel").value, once: $("#cron-once").checked };
-    saveCronJob(job).then((ok) => { if (ok) $("#cron-editor").classList.add("hidden"); }).catch(fail);
+    saveCronJob(job).then((ok) => { if (ok) closeDialog($("#cron-editor")); }).catch(fail);
   });
 });

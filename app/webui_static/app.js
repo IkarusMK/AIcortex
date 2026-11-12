@@ -38,6 +38,7 @@ const I18N = {
     vault_list_hint: "Nur Namen — Werte verlassen den Vault nie.",
     vault_col_name: "Name", vault_col_owner: "Bereich",
     vault_empty: "Noch keine Secrets gespeichert.",
+    vault_new: "Neues Secret", vault_toggle: "Wert zeigen oder verbergen",
     vault_add_title: "Secret anlegen", vault_edit: "Bearbeiten", vault_edit_title: "Secret bearbeiten: {0}",
     vault_keep_value: "Neuer Wert — leer lassen, um den gespeicherten zu behalten",
     vault_edit_hint: "Den gespeicherten Wert siehst du nie. Trag nur einen neuen ein, wenn du ihn ersetzen willst — oder lösch den Eintrag ganz.",
@@ -49,7 +50,7 @@ const I18N = {
     cl_list_title: "Agent-Schlüssel", cl_list_hint: "Ein Schlüssel pro Agent — einzeln widerrufbar.",
     cl_col_agent: "Agent", cl_col_person: "Person", cl_col_access: "Zugriff", cl_col_created: "Erstellt",
     cl_empty: "Noch keine Agent-Schlüssel.",
-    cl_new_title: "Neuen Agent verbinden",
+    cl_new: "Neuer Agent", cl_new_title: "Neuen Agent verbinden",
     cl_f_name: "Name des Agenten", cl_ph_name: "z. B. hermes, claude-code",
     cl_f_person: "Für Person", cl_ph_person: "Identität (IdP-sub)",
     cl_f_profile: "Werkzeuge",
@@ -90,7 +91,7 @@ const I18N = {
     us_list_hint: "Rollen und Datenbereiche aus policy.json — greift bei AUTH_ENFORCE=1.",
     us_col_identity: "Identität", us_col_role: "Rolle", us_col_area: "Bereich",
     us_empty: "Keine Benutzer konfiguriert — es gilt die Standard-Rolle.",
-    us_add_title: "Benutzer anlegen / bearbeiten",
+    us_new: "Neuer Benutzer", us_new_title: "Benutzer anlegen", us_edit_title: "Benutzer bearbeiten: {0}",
     us_f_identity: "Identität (Pocket-ID sub)", us_ph_identity: "z. B. alice",
     us_f_role: "Rolle", us_role_default: "Standard (nicht gesetzt)",
     us_f_memory: "Memory-Bereich", us_own: "eigener Bereich", us_all: "alles",
@@ -102,7 +103,7 @@ const I18N = {
     us_operator: "Operator",
     us_operator_hint: "Operator: Admin bei der Anmeldung (policy.json „operators“)",
     save: "Speichern", cancel: "Abbrechen", delete: "Löschen",
-    clear: "Leeren", confirm: "Ja, löschen",
+    confirm: "Ja, löschen",
     toast_error: "Fehler: {0}",
   },
   en: {
@@ -138,6 +139,7 @@ const I18N = {
     vault_list_hint: "Names only — values never leave the vault.",
     vault_col_name: "Name", vault_col_owner: "Scope",
     vault_empty: "No secrets stored yet.",
+    vault_new: "New secret", vault_toggle: "Show or hide the value",
     vault_add_title: "Add a secret", vault_edit: "Edit", vault_edit_title: "Edit secret: {0}",
     vault_keep_value: "New value — leave empty to keep the stored one",
     vault_edit_hint: "You never see the stored value. Enter a new one only to replace it — or delete the entry altogether.",
@@ -149,7 +151,7 @@ const I18N = {
     cl_list_title: "Agent keys", cl_list_hint: "One key per agent — revocable one by one.",
     cl_col_agent: "Agent", cl_col_person: "Person", cl_col_access: "Access", cl_col_created: "Created",
     cl_empty: "No agent keys yet.",
-    cl_new_title: "Connect a new agent",
+    cl_new: "New agent", cl_new_title: "Connect a new agent",
     cl_f_name: "Agent name", cl_ph_name: "e.g. hermes, claude-code",
     cl_f_person: "For person", cl_ph_person: "identity (IdP sub)",
     cl_f_profile: "Tools",
@@ -190,7 +192,7 @@ const I18N = {
     us_list_hint: "Roles and data areas from policy.json — enforced with AUTH_ENFORCE=1.",
     us_col_identity: "Identity", us_col_role: "Role", us_col_area: "Area",
     us_empty: "No users configured — the default role applies.",
-    us_add_title: "Add / edit user",
+    us_new: "New user", us_new_title: "Add a user", us_edit_title: "Edit user: {0}",
     us_f_identity: "Identity (Pocket ID sub)", us_ph_identity: "e.g. alice",
     us_f_role: "Role", us_role_default: "Default (not set)",
     us_f_memory: "Memory area", us_own: "own area", us_all: "everything",
@@ -202,7 +204,7 @@ const I18N = {
     us_operator: "operator",
     us_operator_hint: "Operator: admin when signing in (policy.json “operators”)",
     save: "Save", cancel: "Cancel", delete: "Delete",
-    clear: "Clear", confirm: "Yes, delete",
+    confirm: "Yes, delete",
     toast_error: "Error: {0}",
   },
 };
@@ -225,6 +227,10 @@ const t = (k, ...args) => {
 function applyI18n() {
   $$("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   $$("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
+  $$("[data-i18n-aria]").forEach((el) => {       // icon-only buttons (× close, 👁)
+    el.setAttribute("aria-label", t(el.dataset.i18nAria));
+    el.title = t(el.dataset.i18nAria);
+  });
   $$(".lang-switch button").forEach((b) =>
     b.classList.toggle("active", b.dataset.setlang === LANG));
   document.documentElement.lang = LANG;
@@ -246,34 +252,29 @@ async function api(path, opts = {}) {
   return data;
 }
 
-/* ── toast + confirm modal ───────────────────────────────────────────────── */
+/* ── toast (the confirm dialog lives in dialogs.js) ──────────────────────── */
 let toastTimer = null;
+const toastLayer = (el, on) => {                 // popover = top layer: above an open dialog
+  if (!el.showPopover) return;
+  if (el.matches(":popover-open")) el.hidePopover();
+  if (on) el.showPopover();
+};
+// The toast sits in the topmost open dialog — outside it the page is inert, and a screen
+// reader would not hear it — or in <body>. Moving a popover closes it: show it again.
+function placeToast() {
+  const el = $("#toast");
+  const host = topDialog() || document.body;
+  if (el.parentNode !== host) host.append(el);
+  toastLayer(el, !el.classList.contains("hidden"));
+}
 function toast(msg, ok = true) {
   const el = $("#toast");
   el.textContent = msg;
   el.classList.toggle("bad", !ok);
   el.classList.remove("hidden");
+  placeToast();
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add("hidden"), 4200);
-}
-
-function confirmModal(text) {
-  return new Promise((resolve) => {
-    const m = $("#modal");
-    $("#modal-text").textContent = text;
-    m.classList.remove("hidden");
-    const done = (v) => { m.classList.add("hidden"); cleanup(); resolve(v); };
-    const okH = () => done(true), noH = () => done(false);
-    const escH = (e) => { if (e.key === "Escape") done(false); };
-    function cleanup() {
-      $("#modal-ok").removeEventListener("click", okH);
-      $("#modal-cancel").removeEventListener("click", noH);
-      document.removeEventListener("keydown", escH);
-    }
-    $("#modal-ok").addEventListener("click", okH);
-    $("#modal-cancel").addEventListener("click", noH);
-    document.addEventListener("keydown", escH);
-  });
+  toastTimer = setTimeout(() => { el.classList.add("hidden"); toastLayer(el, false); }, 4200);
 }
 
 /* ── router ──────────────────────────────────────────────────────────────── */
@@ -353,10 +354,12 @@ async function deleteSecret(s) {
   if (!(await confirmModal(t("confirm_del_secret", s.name)))) return;
   const r = await api("/ui/api/secrets/delete", { method: "POST", body: { name: s.name, owner: s.owner } });
   toast(r.message, r.ok);
-  if (r.ok && VAULT_EDIT && VAULT_EDIT.name === s.name) editSecret(null);
+  if (r.ok && VAULT_EDIT && VAULT_EDIT.name === s.name) closeDialog($("#vault-editor"));
   loadVault();
 }
 
+// Opens the vault dialog: a new secret (s = null) or an existing one, whose stored
+// value is never shown — a new value replaces it, an empty one keeps it.
 function editSecret(s) {
   VAULT_EDIT = s || null;
   const form = $("#form-secret");
@@ -370,9 +373,8 @@ function editSecret(s) {
   $("#sec-value").required = !editing;
   $("#sec-value").placeholder = editing ? t("vault_keep_value") : t("vault_ph_value");
   $("#vault-edit-hint").classList.toggle("hidden", !editing);
-  $("#btn-sec-cancel").classList.toggle("hidden", !editing);
   $("#btn-sec-delete").classList.toggle("hidden", !editing);
-  if (editing) { form.scrollIntoView({ behavior: "smooth", block: "nearest" }); $("#sec-value").focus(); }
+  openDialog($("#vault-editor"));                // focus: name (new) or the new value (edit)
 }
 
 async function loadVault() {
@@ -490,12 +492,32 @@ async function loadClients() {
   });
 }
 
+// The dialog has two states: the form, then — once the key exists — the key (shown
+// only now) with its setup snippet and a "Done" button.
+function showAgentKeyResult(on) {
+  $("#form-agentkey").classList.toggle("hidden", on);
+  $("#cl-result").classList.toggle("hidden", !on);
+  ["#btn-ak-create", "#btn-ak-cancel"].forEach((s) => $(s).classList.toggle("hidden", on));
+  $("#btn-ak-done").classList.toggle("hidden", !on);
+}
+
+function newAgentKey() {
+  $("#form-agentkey").reset();
+  $("#cl-key").value = "";
+  showAgentKeyResult(false);
+  openDialog($("#cl-editor"));
+}
+
 function initClients() {
   const sel = $("#cl-client");
   Object.keys(CLIENT_SNIPPETS).forEach((name) => {
     const o = document.createElement("option"); o.value = name; o.textContent = name; sel.append(o);
   });
   sel.addEventListener("change", renderSnippet);
+  $("#btn-ak-new").addEventListener("click", newAgentKey);
+  $("#cl-editor").addEventListener("close", () => {   // the key doesn't linger in the page
+    $("#cl-key").value = ""; $("#cl-snippet").textContent = "";
+  });
   $("#cl-copy-key").addEventListener("click", () => copyText($("#cl-key").value));
   $("#cl-copy-snippet").addEventListener("click", () => copyText($("#cl-snippet").textContent));
   $("#form-agentkey").addEventListener("submit", async (e) => {
@@ -510,8 +532,10 @@ function initClients() {
       if (!r.ok) return;
       MCP_URL = r.mcp_url || MCP_URL;
       $("#cl-key").value = r.key;
-      $("#cl-result").classList.remove("hidden");
+      showAgentKeyResult(true);
       renderSnippet();
+      dialogRebase($("#cl-editor"));             // created — nothing left to discard
+      $("#cl-copy-key").focus();
       loadClients();
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
@@ -572,7 +596,7 @@ async function openSkill(name) {
   $("#sk-desc").value = d.description;
   $("#sk-body").value = d.instructions;
   $("#btn-skill-delete").classList.remove("hidden");
-  $("#sk-editor").classList.remove("hidden");
+  openDialog($("#sk-editor"));
   renderSkillList();
 }
 
@@ -581,9 +605,8 @@ function newSkill() {
   $("#sk-editor-title").textContent = t("sk_new_title");
   $("#form-skill").reset();
   $("#btn-skill-delete").classList.add("hidden");
-  $("#sk-editor").classList.remove("hidden");
+  openDialog($("#sk-editor"));
   renderSkillList();
-  $("#sk-name").focus();
 }
 
 async function loadServices() {
@@ -717,6 +740,7 @@ async function loadUsers() {
     const act = document.createElement("td");
     const edit = document.createElement("button");
     edit.className = "btn ghost sm"; edit.textContent = "✎";
+    edit.title = t("vault_edit"); edit.setAttribute("aria-label", `${t("vault_edit")}: ${u.identity}`);
     edit.addEventListener("click", () => fillUserForm(u));
     const del = document.createElement("button");
     del.className = "btn danger sm"; del.textContent = t("delete");
@@ -733,16 +757,21 @@ async function loadUsers() {
   });
 }
 
+// Opens the user dialog: empty for a new entry (u = null) or filled with one.
 function fillUserForm(u) {
-  $("#us-identity").value = u.identity;
-  $("#us-role").value = u.role || "default";
-  $("#us-memory").value = ["own", "all"].includes(u.memory) ? u.memory : "";
-  $("#us-services").value = u.services === "all" ? "" : u.services;
-  $("#us-skills").value = u.skills === "all" ? "" : u.skills;
-  $("#us-devices").value =
-    Object.entries(u.devices).map(([k, v]) => `${k}=${v}`).join("; ");
-  $("#us-note").value = u.note;
-  $("#us-identity").focus();
+  $("#form-user").reset();
+  $("#us-editor-title").textContent = u ? t("us_edit_title", u.identity) : t("us_new_title");
+  if (u) {
+    $("#us-identity").value = u.identity;
+    $("#us-role").value = u.role || "default";
+    $("#us-memory").value = ["own", "all"].includes(u.memory) ? u.memory : "";
+    $("#us-services").value = u.services === "all" ? "" : u.services;
+    $("#us-skills").value = u.skills === "all" ? "" : u.skills;
+    $("#us-devices").value =
+      Object.entries(u.devices).map(([k, v]) => `${k}=${v}`).join("; ");
+    $("#us-note").value = u.note;
+  }
+  openDialog($("#us-editor"), { focus: $("#us-identity") });
 }
 
 /* ── wire-up ─────────────────────────────────────────────────────────────── */
@@ -809,7 +838,8 @@ document.addEventListener("DOMContentLoaded", () => {
       toast(r.message, r.ok); loadVault();
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
-  $("#btn-sec-cancel").addEventListener("click", () => editSecret(null));
+  $("#btn-vault-new").addEventListener("click", () => editSecret(null));
+  $("#vault-editor").addEventListener("close", () => { VAULT_EDIT = null; });
   $("#btn-sec-delete").addEventListener("click", () => { if (VAULT_EDIT) deleteSecret(VAULT_EDIT); });
   $("#form-secret").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -820,7 +850,7 @@ document.addEventListener("DOMContentLoaded", () => {
           description: $("#sec-desc").value.trim(),
         }});
         toast(r.message, r.ok);
-        if (r.ok) { editSecret(null); loadVault(); }
+        if (r.ok) { closeDialog($("#vault-editor")); loadVault(); }
       } catch (err2) { toast(t("toast_error", err2.message), false); }
       return;
     }
@@ -836,7 +866,7 @@ document.addEventListener("DOMContentLoaded", () => {
         description: $("#sec-desc").value.trim(),
       }});
       toast(r.message, r.ok);
-      if (r.ok) { $("#form-secret").reset(); loadVault(); }
+      if (r.ok) { closeDialog($("#vault-editor")); $("#form-secret").reset(); loadVault(); }
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
 
@@ -854,10 +884,10 @@ document.addEventListener("DOMContentLoaded", () => {
       toast(err.message, false);
     }
   });
-  $("#btn-skill-close").addEventListener("click", () => {
-    CURRENT_SKILL = "";
-    $("#sk-editor").classList.add("hidden");
-    renderSkillList();
+  // however the dialog closes (Save, Delete, Cancel, ×, Esc): no skill is selected any more
+  $("#sk-editor").addEventListener("close", () => {
+    if ($("#sk-editor").open) return;            // reopened meanwhile
+    CURRENT_SKILL = ""; renderSkillList();
   });
   $("#form-skill").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -870,6 +900,7 @@ document.addEventListener("DOMContentLoaded", () => {
         instructions: $("#sk-body").value,
       }});
       toast(r.message, r.ok !== false);
+      if (r.ok !== false) closeDialog($("#sk-editor"));
       loadSkills();
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
@@ -880,7 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
       { method: "POST", body: { name: CURRENT_SKILL } });
     toast(r.message, r.ok);
     CURRENT_SKILL = "";
-    $("#sk-editor").classList.add("hidden");
+    closeDialog($("#sk-editor"));
     loadSkills();
   });
 
@@ -913,10 +944,10 @@ document.addEventListener("DOMContentLoaded", () => {
         note: $("#us-note").value.trim(),
       }});
       toast(r.message, r.ok);
-      if (r.ok) { $("#form-user").reset(); loadUsers(); }
+      if (r.ok) { closeDialog($("#us-editor")); loadUsers(); }
     } catch (err2) { toast(t("toast_error", err2.message), false); }
   });
-  $("#btn-user-clear").addEventListener("click", () => $("#form-user").reset());
+  $("#btn-user-new").addEventListener("click", () => fillUserForm(null));
 
   boot();
 });

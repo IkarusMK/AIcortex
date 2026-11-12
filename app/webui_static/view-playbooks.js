@@ -241,8 +241,7 @@ function openStartForm(playbook) {
   if (playbook) sel.value = playbook;
   PB.tab = "runs";
   loadPlaybooks().catch((x) => toast(x.message, false));
-  $("#pb-start-form").classList.remove("hidden");
-  $("#pb-f-project").focus();
+  openDialog($("#pb-start-form"), { focus: $("#pb-f-project") });   // the playbook is preselected
 }
 
 VIEWS.playbooks = loadPlaybooks;
@@ -255,7 +254,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#pb-project").addEventListener("input", refresh);
   $("#pb-status").addEventListener("change", refresh);
   $("#btn-pb-start").addEventListener("click", () => openStartForm(""));
-  $("#btn-pb-start-close").addEventListener("click", () => $("#pb-start-form").classList.add("hidden"));
   $("#form-pb-start").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
@@ -263,7 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
         playbook: $("#pb-f-playbook").value, project: $("#pb-f-project").value, title: $("#pb-f-title").value } });
       if (!r.ok) { toast(r.message, false); return; }
       toast(t("toast_pb_started"));
-      $("#pb-start-form").classList.add("hidden");
+      closeDialog($("#pb-start-form"));
       $("#form-pb-start").reset();
       await openRun(r.id);
     } catch (x) { fail(x); }

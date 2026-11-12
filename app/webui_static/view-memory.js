@@ -103,7 +103,7 @@ async function openMemory(name) {
   $("#mem-meta").textContent = t("mem_meta", MEM.version, d.meta.updated || "–", d.meta.author || "–");
   $("#mem-conflict").classList.add("hidden");
   $("#btn-mem-delete").classList.remove("hidden");
-  $("#mem-editor").classList.remove("hidden");
+  openDialog($("#mem-editor"));                  // also after "reload": fresh unchanged state
   renderMemList();
 }
 
@@ -115,8 +115,7 @@ function newMemory() {
   $("#mem-meta").textContent = "";
   $("#mem-conflict").classList.add("hidden");
   $("#btn-mem-delete").classList.add("hidden");
-  $("#mem-editor").classList.remove("hidden");
-  $("#mem-title").focus();
+  openDialog($("#mem-editor"));
 }
 
 async function saveMemory(ev) {
@@ -131,8 +130,9 @@ async function saveMemory(ev) {
     toast(d.message, false); return;
   }
   toast(t("toast_mem_saved", d.version));
+  MEM.current = d.name;                          // the saved note stays marked in the list
+  closeDialog($("#mem-editor"));
   await loadMemory();
-  await openMemory(d.name);
 }
 
 async function deleteMemory() {
@@ -141,7 +141,7 @@ async function deleteMemory() {
   if (!d.ok) { toast(d.message, false); return; }
   toast(t("toast_mem_deleted"));
   MEM.current = null;
-  $("#mem-editor").classList.add("hidden");
+  closeDialog($("#mem-editor"));
   await loadMemory();
 }
 
@@ -184,7 +184,6 @@ document.addEventListener("DOMContentLoaded", () => {
   fillTypeSelect($("#mem-f-type"), false);
   $("#btn-mem-new").addEventListener("click", newMemory);
   $("#form-mem").addEventListener("submit", (e) => saveMemory(e).catch((x) => toast(x.message, false)));
-  $("#btn-mem-close").addEventListener("click", () => $("#mem-editor").classList.add("hidden"));
   $("#btn-mem-delete").addEventListener("click", () => deleteMemory().catch((x) => toast(x.message, false)));
   $("#btn-mem-reload").addEventListener("click", () => openMemory(MEM.current));
   const refresh = () => { clearTimeout(MEM.timer); MEM.timer = setTimeout(() => loadMemory().catch((x) => toast(x.message, false)), 250); };
