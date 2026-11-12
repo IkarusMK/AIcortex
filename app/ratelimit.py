@@ -9,6 +9,7 @@ client that keeps hammering is not locked out any longer than one that waits.
     group     paths                                                env (default)
     auth      /authorize /token /consent /revoke /auth/callback   RATE_LIMIT_AUTH (30/min)
     login     /ui/login /ui/callback /ui/mcp-oauth/callback       RATE_LIMIT_LOGIN (30/min)
+              /ui/api/mcp-oauth/finish (the pasted-address callback)
     register  /register                                           RATE_LIMIT_REGISTER (10/hour)
     hooks     /hooks/<name>                                       RATE_LIMIT_HOOKS (60/min)
     ui        /ui/api/*                                           RATE_LIMIT_UI (300/min)
@@ -65,6 +66,7 @@ _EXACT = {
     "/authorize": "auth", "/token": "auth", "/consent": "auth", "/revoke": "auth",
     "/auth/callback": "auth",
     "/ui/login": "login", "/ui/callback": "login", "/ui/mcp-oauth/callback": "login",
+    "/ui/api/mcp-oauth/finish": "login",
     "/register": "register",
 }
 _PREFIXES = (("/hooks/", "hooks"), ("/ui/api/", "ui"))

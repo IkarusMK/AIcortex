@@ -7,7 +7,11 @@ registers such a server; a person then signs in once in the WebUI and AICortex
 1. finds the login: the protected-resource metadata (RFC 9728) named in the server's
    401 challenge or at its well-known address, then the authorization server's
    metadata (RFC 8414);
-2. registers itself there as a public client (RFC 7591), once per provider;
+2. registers itself there as a public client (RFC 7591), once per provider — as a web
+   client with the WebUI's callback address, or, when the provider refuses that
+   redirect address, as a native client with the RFC 8252 loopback redirect
+   ``LOOPBACK_REDIRECT`` ("paste" mode: the browser lands on an error page at
+   127.0.0.1 and the person pastes that address into the WebUI — see ``pasted``);
 3. runs the authorization-code flow with PKCE S256 and the resource indicator
    (RFC 8707), checking state, the signed-in person and the issuer (RFC 9207);
 4. keeps the tokens encrypted in THAT person's own vault area and renews them with
@@ -39,7 +43,7 @@ import socket
 import threading
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlsplit
 
 import netguard
 import secrets_store
@@ -52,6 +56,12 @@ _TIMEOUT = 15
 _PROTOCOL = "2025-06-18"
 _PARAM = re.compile(r'(\w+)="([^"]*)"')
 _IDENTITY_SCOPES = ("openid", "profile", "email", "offline_access")
+# The redirect of the native-client fallback (RFC 8252 §7.3, loopback). Nothing listens
+# there: the browser shows an error page and the person pastes its address back.
+LOOPBACK_REDIRECT = "http://127.0.0.1:8765/callback"
+MAX_PASTED = 4096                # characters of a pasted address
+_ANSWER = ("code", "state", "iss", "error")
+_REDIRECT_ERRORS = ("invalid_redirect_uri", "invalid_client_metadata")
 _locks: dict = {}
 _locks_guard = threading.Lock()
 
@@ -284,35 +294,85 @@ def _save_client(server: str, client: dict) -> None:
             store.write_json(path, {**data, "oauth_client": client})
 
 
-def _client_id(server: str, cfg: dict, login: dict, redirect_uri: str) -> str:
-    """AICortex's client id at this provider — registered once, again only when the
-    provider, the server or the callback address changed."""
-    known = cfg.get("oauth_client") if isinstance(cfg.get("oauth_client"), dict) else {}
-    if (known.get("client_id") and known.get("issuer") == login["issuer"]
-            and known.get("resource") == login["resource"]
-            and known.get("redirect_uri") == redirect_uri):
-        return str(known["client_id"])
+def _usable(known: dict, login: dict, web_redirect: str) -> bool:
+    """Whether the stored client still fits: same provider, same server, and the redirect
+    it was registered with is still the one its mode uses. A record from before the
+    native fallback (no mode) is a web client."""
+    if not (known.get("client_id") and known.get("issuer") == login["issuer"]
+            and known.get("resource") == login["resource"]):
+        return False
+    want = LOOPBACK_REDIRECT if known.get("mode") == "native" else web_redirect
+    return known.get("redirect_uri") == want
+
+
+def _register(login: dict, redirect_uri: str, native: bool):
+    """One registration attempt: (HTTP status, the answer, the provider's reason)."""
     body = {"client_name": "AICortex", "redirect_uris": [redirect_uri],
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"], "token_endpoint_auth_method": "none"}
+    if native:
+        body["application_type"] = "native"
     if login["scope"]:
         body["scope"] = login["scope"]
-    status, doc = _post(login["registration_endpoint"], login["plain_ok"], json=body)
+    r = _request("POST", login["registration_endpoint"], login["plain_ok"],
+                 headers={"Accept": "application/json"}, json=body)
+    doc = _json_of(r)
+    why = doc.get("error_description") or doc.get("message") or doc.get("error") or ""
+    if not doc and r.status_code >= 400 and "html" not in r.headers.get("content-type", ""):
+        why = r.text                      # some providers answer in plain text
+    return r.status_code, doc, " ".join(str(why).split())[:160]
+
+
+def _refuses_redirect(status: int, doc: dict, why: str) -> bool:
+    """Whether a refused web registration is about its redirect address (RFC 7591
+    invalid_redirect_uri / invalid_client_metadata, or a message saying so)."""
+    return status == 400 and (doc.get("error") in _REDIRECT_ERRORS or "redirect" in why.lower())
+
+
+def _http(status: int, why: str) -> str:
+    return f"HTTP {status}{': ' + why if why else ''}"
+
+
+def _client(server: str, cfg: dict, login: dict, web_redirect: str) -> dict:
+    """AICortex's client at this provider: {"client_id", "redirect_uri", "mode"}.
+
+    Registered once — as a web client with `web_redirect`; when the provider refuses that
+    redirect address, once more as a native client with the loopback redirect (mode
+    "native") — and again only when the provider, the server or the redirect its mode
+    uses changed. The mode and the redirect actually registered are stored with it."""
+    known = cfg.get("oauth_client") if isinstance(cfg.get("oauth_client"), dict) else {}
+    if _usable(known, login, web_redirect):
+        return {"client_id": str(known["client_id"]), "redirect_uri": known["redirect_uri"],
+                "mode": "native" if known.get("mode") == "native" else "web"}
+    mode, redirect = "web", web_redirect
+    status, doc, why = _register(login, redirect, native=False)
+    if status not in (200, 201) and _refuses_redirect(status, doc, why):
+        web_refusal = _http(status, why)
+        mode, redirect = "native", LOOPBACK_REDIRECT
+        status, doc, why = _register(login, redirect, native=True)
+        if status not in (200, 201) or not doc.get("client_id"):
+            raise OAuthError(f"The provider refused AICortex as a web client ({web_refusal}) "
+                             f"and as a desktop client with the loopback address "
+                             f"{LOOPBACK_REDIRECT} ({_http(status, why)}), so there is no way "
+                             f"to sign in there.", "provider")
     client_id = str(doc.get("client_id") or "")
     if status not in (200, 201) or not client_id:
-        why = doc.get("error_description") or doc.get("error") or ""
-        raise OAuthError(f"The provider refused the client registration (HTTP {status}"
-                         f"{': ' + str(why)[:120] if why else ''}).", "provider")
+        raise OAuthError(f"The provider refused the client registration ({_http(status, why)}).",
+                         "provider")
     _save_client(server, {"client_id": client_id, "issuer": login["issuer"],
-                          "resource": login["resource"], "redirect_uri": redirect_uri,
+                          "resource": login["resource"], "redirect_uri": redirect, "mode": mode,
                           "registered": datetime.now(timezone.utc).isoformat(timespec="seconds")})
-    return client_id
+    return {"client_id": client_id, "redirect_uri": redirect, "mode": mode}
 
 
 # ── sign-in ──────────────────────────────────────────────────────────────────
 def begin(server: str, redirect_uri: str, owner: str):
     """Start a sign-in for `owner`: (the login URL for their browser, the pending state
-    to keep — signed — until the provider sends them back)."""
+    to keep — signed — until the provider's answer comes back).
+
+    `redirect_uri` is the WebUI's callback. ``pending["mode"]`` says where the answer
+    goes: "web" — to that callback; "paste" — the provider only took the native client,
+    so the browser lands on the loopback address and the person pastes it (``pasted``)."""
     import mcp_gateway
     cfg = mcp_gateway._load(server)
     if not is_oauth(cfg):
@@ -320,19 +380,50 @@ def begin(server: str, redirect_uri: str, owner: str):
     if not owner:
         raise OAuthError("Cannot tell who is signing in.", "person")
     login = discover(_norm(cfg.get("url")))
-    client_id = _client_id(server, cfg, login, redirect_uri)
+    client = _client(server, cfg, login, redirect_uri)
+    redirect, client_id = client["redirect_uri"], client["client_id"]
     state, verifier = pysecrets.token_urlsafe(24), pysecrets.token_urlsafe(48)
-    params = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri,
+    params = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect,
               "state": state, "code_challenge": _pkce(verifier),
               "code_challenge_method": "S256", "resource": login["resource"]}
     if login["scope"]:
         params["scope"] = login["scope"]
     sep = "&" if urlparse(login["authorization_endpoint"]).query else "?"
     pending = {"server": _slug(server), "sub": owner, "state": state, "verifier": verifier,
-               "redirect_uri": redirect_uri, "client_id": client_id, "issuer": login["issuer"],
+               "redirect_uri": redirect, "client_id": client_id, "issuer": login["issuer"],
                "resource": login["resource"], "token_endpoint": login["token_endpoint"],
-               "plain_ok": login["plain_ok"], "iss_required": login["iss_required"]}
+               "plain_ok": login["plain_ok"], "iss_required": login["iss_required"],
+               "mode": "paste" if client["mode"] == "native" else "web"}
     return f"{login['authorization_endpoint']}{sep}{urlencode(params)}", pending
+
+
+def pasted(pending: dict, address) -> dict:
+    """The provider's answer (code, state, iss, error) from the address the browser
+    landed on in paste mode. Taken only when it is the loopback redirect this sign-in was
+    started with — same scheme, host, port and path, no user info — with at most one of
+    each answer parameter. The address is only parsed, never fetched; ``finish`` then
+    checks state, issuer and the code like any other answer, and the code is useless
+    without the PKCE verifier, which never leaves AICortex."""
+    want = str(pending.get("redirect_uri") or "")
+    if pending.get("mode") != "paste" or not want:
+        raise OAuthError("This sign-in does not take a pasted address — please start again.",
+                         "state")
+    hint = f"Paste the whole address your browser shows after signing in — it starts with {want}."
+    text = address.strip() if isinstance(address, str) else ""
+    if not text or len(text) > MAX_PASTED:
+        raise OAuthError(hint, "address")
+    try:
+        got, exp = urlsplit(text), urlsplit(want)
+        query = parse_qs(got.query, keep_blank_values=True, max_num_fields=32)
+    except ValueError:
+        raise OAuthError(hint, "address") from None
+    if ((got.scheme, got.netloc, got.path) != (exp.scheme, exp.netloc, exp.path)
+            or any(len(query.get(k, ())) > 1 for k in _ANSWER)):
+        raise OAuthError(hint, "address")
+    answer = {k: query[k][0] for k in _ANSWER if k in query}
+    if not answer.get("code") and not answer.get("error"):
+        raise OAuthError(f"The address holds no sign-in code. {hint}", "address")
+    return answer
 
 
 def finish(pending: dict, params: dict) -> None:

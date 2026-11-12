@@ -153,6 +153,9 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
 - Andere MCP-Server: mcp_add / mcp_list / mcp_tools (entdecken) / mcp_call (Tool aufrufen).
   Server mit Browser-Anmeldung (OAuth, z. B. ein Dienst mit 2FA-Login): mcp_add(name, url, auth="oauth"[, read_only=True]);
   dann meldet sich jede Person selbst in der WebUI an (Dienste → Anmelden) — der Login gilt nur für sie.
+  Manche Anbieter nehmen AICortex nur als Desktop-App: dann die Adresse der Fehlerseite (http://127.0.0.1:8765/callback?…) in der WebUI einfügen.
+  Wer die Anmeldung benutzen darf (Apps, Runner, Agent-Schlüssel), legt nur die Person in der WebUI fest (Dienste → Zugriff; mcp_access zeigt/schränkt ein).
+  Ein Tool, das etwas ändern kann, wartet dann auf ihre Freigabe: mcp_call nennt eine approval_id — später mit derselben approval_id das Ergebnis holen.
 - Geplante Jobs (Cron als Daten): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: der Job läuft im BEREICH dieses Users (Nicht-Admin darf nur als er selbst planen).
   once=True für einmalige Jobs („morgen um 8“ = "0 8 <Tag> <Monat> *"): danach schaltet er sich aus.
@@ -352,6 +355,9 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
 - Other MCP servers: mcp_add / mcp_list / mcp_tools (discover) / mcp_call (invoke a tool).
   Servers with a browser sign-in (OAuth, e.g. a service with a 2FA login): mcp_add(name, url, auth="oauth"[, read_only=True]);
   each person then signs in in the WebUI (Services → Sign in) — the login is theirs alone.
+  Some providers accept AICortex only as a desktop app: then paste the error page's address (http://127.0.0.1:8765/callback?…) into the WebUI.
+  Which apps, runners and agent keys may use the sign-in only the person sets, in the WebUI (Services → Access; mcp_access shows/narrows).
+  A tool that may change something then waits for their approval: mcp_call names an approval_id — fetch the result later with that approval_id.
 - Scheduled jobs (cron as data): cron_add(name, schedule, prompt[, owner, runner, once]) / cron_list / cron_delete.
   owner = act-as: the job runs in that user's AREA (a non-admin may schedule only as themselves).
   once=True for a one-off job ("tomorrow at 8" = "0 8 <day> <month> *"): it then switches itself off.

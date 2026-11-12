@@ -6,6 +6,14 @@ signed, HttpOnly cookie that expires after ten minutes and is bound to the signe
 person: the callback refuses to finish someone else's sign-in. The tokens go straight
 into that person's vault area (mcp_oauth) — no answer from here ever contains one.
 
+Paste mode (``mode: "paste"`` from start): the provider refused the WebUI's callback
+address, so AICortex registered as a native client with the loopback redirect. The
+WebUI opens the login in a new tab; afterwards the browser shows an error page at
+``http://127.0.0.1:8765/callback?…`` and the person pastes that address into the WebUI,
+which posts it to ``/ui/api/mcp-oauth/finish`` (CSRF-checked, same person and pending
+cookie as the callback). A malformed address spends nothing and can be corrected; any
+answer that reached the state check ends the sign-in, like the callback.
+
 Who may sign in to a server is the same rule as for calling it (``mcp_call`` through
 ``authz.enforce_rest``): the role and, for a non-admin, the MCP servers an admin
 assigned them. Signing out is always possible — your own stored login is yours to drop.
@@ -23,6 +31,7 @@ import mcp_oauth
 
 COOKIE = "aicortex_ui_mcp_oauth"
 _TTL = 600     # seconds a sign-in at the provider may take
+_MAX_FINISH = 8192    # bytes of a pasted-address request
 
 
 def _servers() -> list:
@@ -105,8 +114,11 @@ def register(mcp, h, ui):
         except Exception as exc:          # never a 500 — and never details of the provider
             h.audit(sess, "mcp_oauth_start", "deny", f"server={name} {type(exc).__name__}")
             return h.json({"ok": False, "message": "The sign-in could not start."}, 502)
-        resp = h.json({"ok": True, "url": url, "server_url": str(cfg.get("url", "")),
-                       "login_host": urlparse(url).netloc})
+        answer = {"ok": True, "url": url, "server_url": str(cfg.get("url", "")),
+                  "login_host": urlparse(url).netloc, "mode": pending["mode"]}
+        if pending["mode"] == "paste":
+            answer["redirect_prefix"] = pending["redirect_uri"]
+        resp = h.json(answer)
         ui.cookie(resp, COOKIE, ui.sign({**pending, "exp": time.time() + _TTL}), request, _TTL)
         h.audit(sess, "mcp_oauth_start", "allow", f"server={name}")
         return resp
@@ -142,6 +154,52 @@ def register(mcp, h, ui):
         h.audit(sess, "mcp_oauth_callback", "allow", f"server={server} signed in")
         return back("ok")
 
+    @mcp.custom_route("/ui/api/mcp-oauth/finish", methods=["POST"])
+    async def _finish(request):
+        """Paste mode: body {url} = the address the browser landed on after signing in.
+        Same checks as the callback — and a malformed address keeps the sign-in open."""
+        sess = h.require_session(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = h.gate(request, sess)
+        if denied:
+            return denied
+        if len(await request.body()) > _MAX_FINISH:
+            return h.json({"ok": False, "code": "address", "message": "Request too large."}, 413)
+        body = await h.body(request)
+        if body is None:
+            return h.json({"ok": False, "code": "address", "message": "Invalid request."}, 400)
+        pending = ui.verify(request.cookies.get(COOKIE, "")) or {}
+        server = str(pending.get("server", ""))
+
+        def answer(code: str, message: str = "", status: int = 400, spent: bool = True):
+            resp = h.json({"ok": code == "ok", "code": code, "server": server,
+                           "message": message or ("Signed in." if code == "ok" else "")}, status)
+            if spent:
+                ui.cookie(resp, COOKIE, "", request, 0)      # one-shot, like the callback
+            return resp
+
+        if not pending:
+            return answer("state", "No sign-in is in flight (or it timed out) — please start "
+                                   "again.", spent=False)
+        if str(sess.get("sub", "")) != str(pending.get("sub", "")):
+            h.audit(sess, "mcp_oauth_finish", "deny", f"server={server} started by another person")
+            return answer("person", "Someone else started this sign-in — refused.", 403)
+        try:
+            params = mcp_oauth.pasted(pending, body.get("url"))
+        except mcp_oauth.OAuthError as exc:          # nothing was checked or sent yet
+            return answer(exc.code, str(exc), spent=False)
+        try:
+            await asyncio.to_thread(mcp_oauth.finish, pending, params)
+        except mcp_oauth.OAuthError as exc:
+            h.audit(sess, "mcp_oauth_finish", "deny", f"server={server} {exc.code}")
+            return answer(exc.code, str(exc), 502 if exc.code in ("network", "blocked") else 400)
+        except Exception as exc:
+            h.audit(sess, "mcp_oauth_finish", "deny", f"server={server} {type(exc).__name__}")
+            return answer("error", "The sign-in could not be completed.", 502)
+        h.audit(sess, "mcp_oauth_finish", "allow", f"server={server} signed in")
+        return answer("ok", status=200)
+
     @mcp.custom_route("/ui/api/mcp-oauth/logout", methods=["POST"])
     async def _logout(request):
         sess, name, _cfg = await _person_and_server(request, check_use=False)
@@ -151,3 +209,7 @@ def register(mcp, h, ui):
         h.audit(sess, "mcp_oauth_logout", "allow" if done else "deny", f"server={name}")
         return h.json({"ok": done, "message": "Signed out." if done else "You were not signed in."},
                       200 if done else 404)
+
+    # who may use your sign-in, and your waiting approvals
+    import webui_mcp_access
+    webui_mcp_access.register(mcp, h, _person_and_server)
