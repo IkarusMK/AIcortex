@@ -70,10 +70,9 @@ When you run more than one agent, give each its own `agent_id` and use
 
 ## Access & areas (multi-user)
 
-If several people share one AICortex (enterprise mode, `AUTH_ENFORCE=1`), each
+If several people share one AICortex , each
 non-admin is confined to their own memory + vault and reaches only the
 services/skills an **admin** granted them. An unexpected *"denied"* means a missing
 area, not a bug — an admin grants access as data with
-`tenancy_set(identity, services=…, skills=…)`. In homelab mode (`AUTH_ENFORCE=0`)
-there are no limits. Scheduled work for a specific person runs **act-as** in that
+`tenancy_set(identity, services=…, skills=…)`. Scheduled work for a specific person runs **act-as** in that
 user's area (`cron_add(..., owner=<sub>)`). Full guide: [authorization.md](authorization.md) · [per-user-areas.md](per-user-areas.md).

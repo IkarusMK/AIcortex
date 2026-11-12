@@ -17,7 +17,7 @@ so you can be confident your secrets stay secret.
 - 🧱 **Fail-closed.** An unreadable/wrong-key vault is **never silently
   overwritten** — writes refuse and a `.bak` is kept. Plaintext storage is refused
   unless you explicitly opt in.
-- 👤 **Per-user isolation (multi-user).** With `AUTH_ENFORCE=1`, an admin
+- 👤 **Per-user isolation (multi-user).** With several people, an admin
   provisions per-user secrets; ordinary users can't create them and see only the
   shared names plus their own.
 
@@ -76,11 +76,11 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 STORAGE_ENCRYPTION_KEY=...
 ```
 Without it, `secret_set` refuses to store (so you never get a plaintext vault by
-accident). `ALLOW_PLAINTEXT_VAULT=1` overrides this — **not recommended**.
+accident). Since 2.7.1 there is no override.
 
 ## Multi-user: per-user secrets
 
-With `AUTH_ENFORCE=1`, an **admin** can store a secret in a specific user's
+With several people, an **admin** can store a secret in a specific user's
 private namespace:
 ```
 secret_set("API_TOKEN", "<value>", owner="<their-pocketid-sub>")

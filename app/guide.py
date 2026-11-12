@@ -173,7 +173,7 @@ SERVICES / GERÄTE / TOOLS (Integrationen als Daten — kein Code, kein Redeploy
   Klartext wird EINMAL gezeigt. Aufruf: POST /api/v1/tools/<name> (Bearer-Key), GET /api/v1/tools,
   GET /api/v1/openapi.json. (Proxy: /api/* wie /hooks/* ohne OIDC durchreichen, nie /mcp.)
 
-ZUGRIFF & BEREICHE (Multi-User — greift bei AUTH_ENFORCE=1; Homelab/AUTH_ENFORCE=0: keine Grenzen)
+ZUGRIFF & BEREICHE (Multi-User — immer aktiv)
 - Nicht-Admins sind auf ihren EIGENEN Memory-Scope (users/<sub>) + Vault-Namespace beschränkt und
   erreichen nur die Services, Skills UND Geräte-Endpoints (caldav/imap/webdav/ssh/mail/print/scan/
   mqtt/ftp/mcp), die ein Admin ihnen zugewiesen hat (DEFAULT-DENY). Läufst du unerwartet auf
@@ -375,7 +375,7 @@ SERVICES / DEVICES / TOOLS (integrations as data — no code, no redeploy):
   shown ONCE in plaintext. Call: POST /api/v1/tools/<name> (bearer key), GET /api/v1/tools,
   GET /api/v1/openapi.json. (Proxy: pass /api/* like /hooks/* without OIDC, never /mcp.)
 
-ACCESS & AREAS (multi-user — applies when AUTH_ENFORCE=1; homelab/AUTH_ENFORCE=0: no limits)
+ACCESS & AREAS (multi-user — always on)
 - Non-admins are confined to their OWN memory scope (users/<sub>) + vault namespace and reach only
   the services, skills AND device endpoints (caldav/imap/webdav/ssh/mail/print/scan/mqtt/ftp/mcp) an
   admin assigned (DEFAULT-DENY). If you hit an unexpected "denied", that's the reason — not a bug,

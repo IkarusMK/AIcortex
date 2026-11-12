@@ -4,14 +4,10 @@
 > data (memory/vault) to shared capabilities (services/skills) and to scheduled jobs
 > that run **as** a specific user. Reviewed decisions from 2026-07-02 are baked in.
 
-## The switch — one flag: `AUTH_ENFORCE`
+## Always on
 
-Areas ride on the same switch as authorization ("enforce means enforce" — no separate
-`TENANCY_ISOLATE`):
+Areas ride on authorization and are always on (since 2.7.1 there is no switch):
 
-- **`AUTH_ENFORCE=0` (homelab):** no checks at all. Every caller uses all data and all
-  capabilities, exactly as before. A defect can never lock anyone out.
-- **`AUTH_ENFORCE=1` (default, enterprise):**
   - **private data** (memory, vault): each non-admin is confined to their own scope;
   - **shared capabilities** (services, skills): **default-deny** — a user reaches only
     what an admin assigned;

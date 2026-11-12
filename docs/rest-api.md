@@ -47,7 +47,7 @@ envelope to a clean `result` value. Errors are JSON with an HTTP status:
 | `400` | Body isn't a JSON object |
 | `401` | Missing/invalid/expired/disabled key |
 | `403` | Tool outside the key's `scopes`, or denied by the identity's role / device area |
-| `404` | No such tool, or `API_ENABLED=0` |
+| `404` | No such tool |
 | `413` | Body over `API_MAX_BODY_BYTES` |
 | `429` | Per-key rate limit exceeded (`Retry-After` header) |
 | `500` | The tool raised |
@@ -100,7 +100,7 @@ A REST call passes **every** gate, in order:
 1. **Authentication** — bearer key from the `Authorization` header **only** (never a
    query param, so it can't leak into proxy/access logs); constant-time hash compare;
    expiry + disabled checks.
-2. **Rate limit** — per-key sliding window (`API_RATE_PER_MIN`, default 60/min).
+2. **Rate limit** — per-key sliding window (60/min, built in).
 3. **Scope** — the key's `scopes` allow-list (default-deny) **plus** a hard **denylist**
    that no key can override, even with `scopes="all"`: `secret_set`/`secret_delete`,
    `apikey_*`, `tenancy_*`. Those stay OIDC-admin-only.
@@ -118,8 +118,6 @@ identity to the existing authz/tenancy pipeline.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_ENABLED` | `1` | Turn the whole REST layer on/off |
-| `API_RATE_PER_MIN` | `60` | Per-key rate limit (requests/minute; `0` = unlimited) |
 | `API_MAX_BODY_BYTES` | `1000000` | Max request body for a tool call |
 | `APIKEY_DIR` | `/data/apikeys` | Where key records are stored |
 

@@ -21,7 +21,7 @@ no terminal needed except for the keychain in step 4.
    WebUI lives under `/ui`) and sign in through your IdP. The first person to sign
    in to the WebUI becomes the **operator** (admin) — a chat app never does;
    everyone after that is **user** unless you
-   give them a role (`OIDC_DEFAULT_ROLE` changes that default). Still point
+   give them a role. Still point
    AICortex at an IdP only your own people can use, and limit the OIDC client to
    your group there.
 2. **Connect your chat apps** (Claude, ChatGPT): add `https://<your-host>/mcp` as a
@@ -38,14 +38,12 @@ no terminal needed except for the keychain in step 4.
    *Setup for* then shows the snippet for the chosen client. Keep the key in the
    client's secret store or the macOS keychain, never in a file you share.
 
-**What a key can see** depends on `AUTH_ENFORCE`:
+**What a key can see:** a key for person *P* gets *P*'s role from *Users*, else
+**user** — never admin by default. As a user it works in *P*'s **own** memory area
+only, so it does **not** see the shared notes your chat apps write — unless *P*'s
+memory area is **everything**.
 
-| `AUTH_ENFORCE` | A key for person *P* … |
-|---|---|
-| `0` (homelab) | reaches everything its *Allowed tools* include. |
-| `1` (default) | gets *P*'s role from *Users*, else **user** — never admin by default. As a user it works in *P*'s **own** memory area only, so it does **not** see the shared notes your chat apps write — unless *P*'s memory area is **everything**. |
-
-For a single owner with `AUTH_ENFORCE=1` that means: set **memory area: everything**
+For a single owner that means: set **memory area: everything**
 for your own identity, and limit each key with *Allowed tools* instead (the Claude
 Code start hook needs only `cortex_start`). With several people, leave others on
 *own area* so they never read each other's notes.
@@ -98,7 +96,7 @@ silently ignored.
 1. **Create the key** on the WebUI's *Connect clients* page (see *Step by step*
    above): *For person* = your identity, *Allowed tools* = `cortex_start` if the key
    is only for the start hook in step 4, `all` if you also connect the MCP server
-   with it in step 3. With `AUTH_ENFORCE=1` give your identity the memory area
+   with it in step 3. Give your identity the memory area
    **everything** on the *Users* page, or the briefing won't include the notes your
    other apps saved.
 

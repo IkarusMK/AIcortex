@@ -20,7 +20,7 @@ LibreChat is the **MCP client** + chat surface; Ollama is the **model**; AICorte
 
 **No connector changes needed** — LibreChat connects to your existing AICortex over MCP
 with **per-person OAuth** (the same OAuth 2.1 + dynamic client registration flow Claude.ai
-uses, so nothing to pre-register). In enterprise mode (`AUTH_ENFORCE=1`), grant that
+uses, so nothing to pre-register). Grant that
 identity its areas like any user with `tenancy_set`.
 
 > Prefer a *headless* client or a single static token instead of per-person OAuth? AICortex

@@ -52,18 +52,13 @@ resolve a caller's identity it allows the call rather than locking anyone out.
 > **Note for the local-model setup:** with the [LibreChat guide](local-llm-librechat.md)
 > your local model connects **per-person via OAuth**, so it runs with that person's role
 > and areas (an operator is `admin`; any other person is `user` unless mapped). A static `RUNNER_TOKEN` stays
-> an option for *headless* clients — that one is a `user`; raise it with `RUNNER_ROLE=admin`.
+> an option for *headless* clients — that one is a `user` (or what `policy.json` `"roles"` names for `runner`).
 
 ## Configure with environment variables
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `AUTH_ENFORCE` | `1` (on) | Set `0` to disable the layer entirely (everyone authenticated gets all tools). |
-| `RUNNER_ROLE` | `user` | Role for the `RUNNER_TOKEN` (`admin`/`user`/`viewer`). |
-| `OIDC_DEFAULT_ROLE` | _(unset)_ | Role for OIDC logins with no explicit mapping. Unset: operators (see below) are `admin`, everyone else `user`. `admin` restores the pre-2.6 behaviour. |
 | `AUTH_ROLE_CLAIM` | `groups` | Token claim that carries the role/group (see *IdP-driven roles*). |
-| `AUTH_AUDIT_ALL` | `0` | `1` also logs **allowed** calls, not just denials. |
-| `MAIL_ALLOWED_RECIPIENTS` | _(unset)_ | Comma list of allowed `mail_send` recipients (addresses, `@domain`, or `domain`). Unset = unrestricted. |
 
 ## Per-identity roles — `data/auth/policy.json`
 
@@ -90,16 +85,14 @@ replaces the old "every OIDC login is admin" default:
   (`audit.log` and its rotated files) becomes an operator — also when `operators`
   already exists (added, nobody removed). That repairs a single-user install that
   2.6.x left without its admin. Not for an explicit non-admin role, not for someone
-  later removed or demoted in the Users view, and not when `OIDC_DEFAULT_ROLE` or
-  policy `default` is set. `operators_migrated` in `policy.json` records that it ran.
+  later removed or demoted in the Users view, and not when policy `default` is set. `operators_migrated` in `policy.json` records that it ran.
 - **Name them up front:** `OPERATORS=<sub>[,<sub>…]` in the environment always
   makes those identities operators (IdP `sub`, shown on the WebUI's Users page).
 - **Fresh install:** without `OPERATORS`, the first person to sign in **to the
-  WebUI** (`/ui`) within `OPERATOR_BOOTSTRAP_MINUTES` (default 30) of a start with
+  WebUI** (`/ui`) within 30 minutes of a start with
   nobody in charge becomes the operator; the start is logged loudly. A chat app or
   agent key calling `/mcp` never takes that place. Sign in yourself right after
-  setting up, then check `operators` in `policy.json`. `OPERATOR_BOOTSTRAP_MINUTES=0`
-  turns this off — then only `OPERATORS` or `policy.json` make an operator. A person
+  setting up, then check `operators` in `policy.json`.   turns this off — then only `OPERATORS` or `policy.json` make an operator. A person
   who is not admin sees their own identity in the WebUI, ready to copy into
   `OPERATORS=` or to send to an admin.
 - The last operator can't be removed or demoted (WebUI and `tenancy_*` refuse).
@@ -128,9 +121,9 @@ that group to a role here via `groups` in `policy.json` (or name the group
 >    **groups claim** (it travels in the profile scope), assign users.
 > 2. **Request it:** set `OIDC_SCOPE=openid profile email groups`.
 > 3. **Map it:** `data/auth/policy.json` → `"groups": {"AICortex-Admins":"admin", …}`.
-> 4. **Verify:** with `AUTH_AUDIT_ALL=1`, one tool call logs your PocketID `sub` as
+> 4. **Verify:** with a call that is refused, the audit log shows your PocketID `sub` as
 >    `identity` and the role derived from your group in `data/auth/audit.log`.
-> 5. **Least privilege is the default:** without `OIDC_DEFAULT_ROLE`, a login that
+> 5. **Least privilege is the default:** a login that
 >    is neither an operator nor mapped gets `user`. Keep yourself in `operators`
 >    (or map your group to admin) before you remove yourself from there.
 >
@@ -143,9 +136,7 @@ Roles decide *which tools* a caller may use. **Areas** decide *which data and wh
 capabilities* they get within those tools — so people sharing one brain don't read
 each other's notes, and not everyone may call every service.
 
-It rides on the **same switch as authorization** — `AUTH_ENFORCE` (default on; no
-separate `TENANCY_ISOLATE`). In homelab mode (`AUTH_ENFORCE=0`) nothing is confined;
-with `AUTH_ENFORCE=1`, for each **non-admin** identity (the forwarded Pocket ID
+It is always on (since 2.7.1). For each **non-admin** identity (the forwarded Pocket ID
 `sub`, so it's per-**person**):
 
 - **Private data** — confined to their **own memory scope** `users/<sub>` and **own
@@ -203,7 +194,7 @@ Grant a user the full (admin-like) vault by setting `"vault": "all"` in their
 
 ### Assigning rights — a worked example (generic)
 
-Enterprise mode (`AUTH_ENFORCE=1`), goal: admins full access; staff who may use the
+Goal: admins full access; staff who may use the
 document tools but not the dev/API services; read-only guests.
 
 **1 · Roles from IdP groups.** Create the groups in your provider, request the claim,
@@ -212,7 +203,7 @@ map them once:
 // data/auth/policy.json
 { "groups": { "AICortex-Admins": "admin", "AICortex-Staff": "user", "AICortex-Guests": "viewer" } }
 ```
-Set `OIDC_SCOPE=openid profile email groups`, and `OIDC_DEFAULT_ROLE=user` so a login
+Set `OIDC_SCOPE=openid profile email groups`; a login
 with no group gets least privilege.
 
 **2 · Per-person override (optional).** Pin one identity regardless of its groups:
@@ -231,15 +222,15 @@ They now reach only those services/skills (everything else default-denied), plus
 their own memory + vault. Widen with `services="all"`, lock out with `"none"`, or
 revert entirely with `tenancy_unset("<staff-sub>")`.
 
-**4 · Verify.** With `AUTH_AUDIT_ALL=1`, one call from that user logs their `sub`,
+**4 · Verify.** A refused call from that user logs their `sub`,
 the resolved role and the allow/deny decision in `data/auth/audit.log`.
 
 ## Recipes
 
-**Let the local model (RUNNER_TOKEN) be admin too**
-```bash
-# in .env
-RUNNER_ROLE=admin
+**Give the local model (RUNNER_TOKEN) more rights** — name it in `policy.json`
+`"roles"` (the runner is always `user` otherwise):
+```json
+{ "roles": { "runner": "admin" } }
 ```
 
 **Add a read-only viewer client**
@@ -248,21 +239,10 @@ RUNNER_ROLE=admin
 { "roles": { "<that-client-id>": "viewer" } }
 ```
 
-**Turn the whole layer off (old all-access behaviour)**
-```bash
-# in .env
-AUTH_ENFORCE=0
-```
+**Restrict who mail_send may email** — WebUI → **Overview → Settings** → *Allowed
+mail recipients*, e.g. `@example.com, alerts@example.net`.
 
-**Full audit (log every allowed call, not just denials)**
-```bash
-AUTH_AUDIT_ALL=1
-```
-
-**Restrict who mail_send may email**
-```bash
-MAIL_ALLOWED_RECIPIENTS=@yourcompany.com, alerts@example.com
-```
+Since 2.7.1 the layer can't be turned off, and the audit log keeps refusals only.
 
 ## Audit log
 
@@ -272,7 +252,7 @@ MAIL_ALLOWED_RECIPIENTS=@yourcompany.com, alerts@example.com
 {"ts":"2026-06-29T20:11:04+00:00","identity":"runner","role":"user","tool":"service_add","decision":"deny","reason":"admin-only tool (registration/secrets/identity)"}
 ```
 
-Denials are always logged; allowed calls only with `AUTH_AUDIT_ALL=1`.
+Denials are always logged (allowed calls are not).
 
 ## Finding the caller's identity
 

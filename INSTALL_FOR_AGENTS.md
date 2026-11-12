@@ -117,22 +117,16 @@ JWT_SIGNING_KEY=<run: openssl rand -hex 32>
 
 3. Restart: `docker compose up -d`
 
-## Phase 5 — Pick the mode (one line)
+## Phase 5 — Roles (nothing to switch)
 
-**🏠 Homelab** — one trusted person, every authenticated caller gets every tool:
+Roles (admin / user / viewer), per-user memory + private vault and default-deny
+service/skill areas are always on. The first person to sign in becomes the operator
+(admin), or name operators with `OPERATORS=<sub>`. To map IdP groups to roles:
 ```env
-AUTH_ENFORCE=0
-```
-
-**🏢 Enterprise** — several people on one brain, roles + private data:
-```env
-AUTH_ENFORCE=1
 OIDC_SCOPE=openid profile email groups
 AUTH_ROLE_CLAIM=groups
 ```
-`AUTH_ENFORCE=1` (the default) is the single switch: it turns on roles
-(admin / user / viewer), per-user memory + private vault, and default-deny
-service/skill areas — all managed with the `tenancy_*` admin tools. Full guides:
+Areas are managed with the `tenancy_*` admin tools or the WebUI. Full guides:
 `docs/authorization.md` and `docs/per-user-areas.md`. Restart after changing.
 
 ## Phase 6 — Add the connector (human step — hand this back)
@@ -166,9 +160,8 @@ Walk the user through `docs/clients.md` → *Step by step: people, keys and the 
 clients*. In short:
 
 1. Open `https://agent.example.com/ui` (the bare host shows `404`) and sign in
-   through the IdP. Every OIDC sign-in is admin unless a role is set
-   (`OIDC_DEFAULT_ROLE`).
-2. **Users** page: set role and memory area per person. With `AUTH_ENFORCE=1` and a
+   through the IdP. Every OIDC sign-in is admin unless a role is set.
+2. **Users** page: set role and memory area per person. With a
    single owner, give the owner's identity the memory area **everything** — keys
    for that person otherwise see only their own, empty area, not the shared notes
    the chat apps write.

@@ -76,9 +76,8 @@ single-user setup; a successful login is enough.
 > scope makes the login UI hang (`scope=null`). You don't need to do anything for
 > this — it's handled — just don't strip the scope.
 
-That's the whole login setup. **Single trusted user?** You can stop here — set
-`AUTH_ENFORCE=0` for the simplest "everyone who logs in gets everything" homelab
-posture.
+That's the whole login setup. **Single trusted user?** You can stop here — you are
+the operator (admin), and anyone else who signs in is a plain user.
 
 ---
 
@@ -92,7 +91,6 @@ Only needed if **several people** share one AICortex and you want roles
    members. Make sure the group is associated with the AICortex client.
 2. **Request the groups claim** — in AICortex `.env`:
    ```env
-   AUTH_ENFORCE=1                          # the one switch: roles + per-user isolation + areas
    OIDC_SCOPE=openid profile email groups  # ask Pocket ID for the groups claim
    AUTH_ROLE_CLAIM=groups                  # which claim carries the role
    ```
@@ -112,7 +110,7 @@ See [authorization.md](authorization.md) for the full role/area model and the
 Make one tool call from your client, then check the audit log on the NAS:
 
 ```bash
-tail -n 10 <compose-dir>/data/auth/audit.log     # set AUTH_AUDIT_ALL=1 to log allowed calls too
+tail -n 10 <compose-dir>/data/auth/audit.log
 ```
 
 You should see a line whose `identity` is your **Pocket ID `sub`** (a UUID) — not
@@ -133,6 +131,6 @@ identity, so roles and isolation key off the real person.
 | Login redirects then fails | The **Callback URL** in Pocket ID doesn't exactly match `BASE_URL` + `/auth/callback`. Fix the URL in the client. |
 | `Bearer token rejected` (401) right after login | Behind a TLS-terminating proxy — set `FORWARDED_ALLOW_IPS` to your proxy's source (the `docker-compose.yml` default trusts loopback and private networks; avoid `"*"`). |
 | Pocket ID "Sign in" spins forever | Missing scope on `/authorize`. Already handled by AICortex; override only via `OIDC_SCOPE` if needed. |
-| Roles don't take effect | Confirm the `groups` claim actually arrives (audit log shows your `sub`; set `AUTH_AUDIT_ALL=1`), the group name matches `policy.json`, and `OIDC_SCOPE` includes `groups`. |
+| Roles don't take effect | Confirm the `groups` claim actually arrives (a refused call in the audit log shows your `sub`), the group name matches `policy.json`, and `OIDC_SCOPE` includes `groups`. |
 
 More auth/connection symptoms are in the main [README → Troubleshooting](../README.md#troubleshooting).
