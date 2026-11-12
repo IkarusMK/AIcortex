@@ -86,13 +86,22 @@ replaces the old "every OIDC login is admin" default:
   default (listed under `users` or `roles` without a non-admin role) becomes an
   operator. Nobody loses access; only people who sign in for the first time later
   get `user`.
+- **Upgrade to 2.7.0:** once, also everyone who signed in to the WebUI as admin
+  (`audit.log` and its rotated files) becomes an operator — also when `operators`
+  already exists (added, nobody removed). That repairs a single-user install that
+  2.6.x left without its admin. Not for an explicit non-admin role, not for someone
+  later removed or demoted in the Users view, and not when `OIDC_DEFAULT_ROLE` or
+  policy `default` is set. `operators_migrated` in `policy.json` records that it ran.
 - **Name them up front:** `OPERATORS=<sub>[,<sub>…]` in the environment always
   makes those identities operators (IdP `sub`, shown on the WebUI's Users page).
-- **Fresh install:** without `OPERATORS`, the first person to sign in within
-  `OPERATOR_BOOTSTRAP_MINUTES` (default 30) of a start with nobody in charge becomes
-  the operator; the start is logged loudly. Sign in yourself right after setting
-  up, then check `operators` in `policy.json`. `OPERATOR_BOOTSTRAP_MINUTES=0` turns
-  this off — then only `OPERATORS` or `policy.json` make an operator.
+- **Fresh install:** without `OPERATORS`, the first person to sign in **to the
+  WebUI** (`/ui`) within `OPERATOR_BOOTSTRAP_MINUTES` (default 30) of a start with
+  nobody in charge becomes the operator; the start is logged loudly. A chat app or
+  agent key calling `/mcp` never takes that place. Sign in yourself right after
+  setting up, then check `operators` in `policy.json`. `OPERATOR_BOOTSTRAP_MINUTES=0`
+  turns this off — then only `OPERATORS` or `policy.json` make an operator. A person
+  who is not admin sees their own identity in the WebUI, ready to copy into
+  `OPERATORS=` or to send to an admin.
 - The last operator can't be removed or demoted (WebUI and `tenancy_*` refuse).
 - Operators do **not** make agent keys or scheduled jobs admin: those still use
   only the explicit `roles` entry, else `user`.

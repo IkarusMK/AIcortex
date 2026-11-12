@@ -550,9 +550,10 @@ def register(mcp):
         if not sub:
             return _fail("claims")
         # The IdP's own role claim is recorded with the session; the role itself is
-        # recomputed from it and the current policy on every request (_session).
+        # recomputed from it and the current policy on every request (_session). This
+        # sign-in is the only way to become the first operator (authz.signin_role).
         claim_role = authz._role_from_claims(claims)
-        role = authz.role_for(sub, is_runner=False, claims=claims)
+        role = authz.signin_role(sub, claims)
         sess = {"sub": sub, "name": _display_name(claims), "role": role,
                 "claim_role": claim_role, "csrf": pysecrets.token_urlsafe(16),
                 "epoch": _session_epoch(), "exp": time.time() + SESSION_TTL}
@@ -605,10 +606,13 @@ def register(mcp):
         sess = _session(request)
         if not sess:      # nothing about the running version for anonymous callers
             return _json({"authenticated": False, "oidc": _oidc_configured()})
+        # operators_configured: is anyone in charge (an operator or an explicit admin)?
+        # A yes/no for the hint a non-admin sees — never who it is.
         return _json({"authenticated": True, "sub": sess.get("sub"),
                       "name": sess.get("name"), "role": sess.get("role"),
                       "csrf": sess.get("csrf"), "mode": sess.get("mode", "oidc"),
-                      "version": version.__version__})
+                      "version": version.__version__,
+                      "operators_configured": bool(authz.in_charge(authz._policy()))})
 
     @mcp.custom_route("/ui/api/overview", methods=["GET"])
     async def _overview(request):

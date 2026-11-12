@@ -379,6 +379,11 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .copy-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .copy-row code { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
                  word-break: break-word; }
+/* A non-admin's own identity, ready to copy (renderRoleHint) */
+.role-hint { margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.role-hint p { flex: 1 1 320px; }
+.role-hint code { padding: 2px 7px; border: 1px solid var(--border); border-radius: 6px;
+                  overflow-wrap: anywhere; user-select: all; }
 .rn-name .tag { margin-left: 6px; }
 .rn-link { color: var(--cyan); text-decoration: none; white-space: nowrap; }
 .rn-link:hover, .rn-link:focus-visible { text-decoration: underline; }

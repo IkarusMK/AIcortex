@@ -79,7 +79,8 @@ def test_explicit_policy_beats_group_claims_and_junk_policy_is_ignored(az):
 def test_runner_and_default_roles_follow_the_secure_defaults(az, monkeypatch):
     assert az.role_for("runner", True) == "user"
     az.start_bootstrap_window()                     # a start with nobody in charge …
-    assert az.role_for("operator", False) == "admin"   # … the first sign-in bootstraps
+    assert az.role_for("operator", False) == "user"    # … an app or key never bootstraps,
+    assert az.signin_role("operator") == "admin"       # … the first WebUI sign-in does
     monkeypatch.setenv("RUNNER_ROLE", "viewer")
     monkeypatch.setenv("OIDC_DEFAULT_ROLE", "user")
     assert az.role_for("runner", True) == "viewer" and az.role_for("operator", False) == "user"

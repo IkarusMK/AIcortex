@@ -19,7 +19,8 @@ no terminal needed except for the keychain in step 4.
 
 1. **Sign in.** Open `https://<your-host>/ui` (the bare host name shows `404`; the
    WebUI lives under `/ui`) and sign in through your IdP. The first person to sign
-   in becomes the **operator** (admin); everyone after that is **user** unless you
+   in to the WebUI becomes the **operator** (admin) — a chat app never does;
+   everyone after that is **user** unless you
    give them a role (`OIDC_DEFAULT_ROLE` changes that default). Still point
    AICortex at an IdP only your own people can use, and limit the OIDC client to
    your group there.

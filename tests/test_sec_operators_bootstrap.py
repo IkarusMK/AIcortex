@@ -8,8 +8,8 @@ wins the management plane. Now:
 
 - ``OPERATORS`` (comma-separated identities, env) are always operators;
 - the first-come bootstrap only works within ``OPERATOR_BOOTSTRAP_MINUTES`` (default
-  30, 0 = off) after a start with nobody in charge, and is logged loudly — at
-  startup and when it fires;
+  30, 0 = off) after a start with nobody in charge, only for a person signing in to
+  the WebUI (``signin_role``), and is logged loudly — at startup and when it fires;
 - the WebUI users endpoints and the tenancy tools refuse to remove the last
   operator, and every policy.json writer takes the policy lock the bootstrap and
   the upgrade migration take, so no update is lost (and an unreadable policy is
@@ -66,8 +66,8 @@ def test_operators_from_the_environment_are_always_admin(oidc_env, request, caps
     assert "alice" in out and "bob" in out                       # named at startup
     assert az.role_for("bob", False) == "admin"
     assert az.role_for("alice", False) == "admin"
-    assert az.role_for("dave", False) == "user"                  # nobody bootstraps
-    assert not az.POLICY_FILE.exists()                           # nothing was recorded
+    assert az.signin_role("dave") == "user"                      # nobody bootstraps
+    assert "operators" not in _policy(az)                        # nothing was recorded
     _write(az, {"operators": ["carol"]})                         # the policy names others …
     assert az.role_for("alice", False) == "admin"                # … OPERATORS still count
     oidc_env.setenv("OIDC_DEFAULT_ROLE", "viewer")               # a default for strangers …
@@ -85,8 +85,8 @@ def test_the_first_sign_in_wins_only_within_the_window(oidc_env, request, capsys
     real = time.monotonic
     later = real() + 31 * 60
     oidc_env.setattr(az, "_clock", lambda: later, raising=False)
-    assert az.role_for("dave", False) == "user"                  # too late: no admin by luck
-    assert not az.POLICY_FILE.exists()
+    assert az.signin_role("dave") == "user"                      # too late: no admin by luck
+    assert "operators" not in _policy(az)
     assert az.default_role() == "user"
 
 
@@ -96,10 +96,10 @@ def test_inside_the_window_the_bootstrap_fires_and_says_so(oidc_env, request, ca
     az, out = _start(request, capsys)
     assert "5 minutes" in out
     assert az.default_role() == "admin"
-    assert az.role_for("dave", False) == "admin"
+    assert az.signin_role("dave") == "admin"
     assert "dave" in capsys.readouterr().out                     # loud when it fires
     assert _policy(az)["operators"] == ["dave"]
-    assert az.role_for("erin", False) == "user"
+    assert az.signin_role("erin") == "user"
 
 
 @pytest.mark.oidc
@@ -107,8 +107,8 @@ def test_zero_minutes_switches_the_bootstrap_off(oidc_env, request, capsys):
     oidc_env.setenv("OPERATOR_BOOTSTRAP_MINUTES", "0")
     az, out = _start(request, capsys)
     assert "OPERATORS" in out
-    assert az.role_for("dave", False) == "user"
-    assert not az.POLICY_FILE.exists()
+    assert az.signin_role("dave") == "user"
+    assert "operators" not in _policy(az)
 
 
 @pytest.mark.oidc
@@ -119,7 +119,7 @@ def test_no_window_when_someone_is_in_charge_at_startup(oidc_env, request, capsy
     az, out = _start(request, capsys)
     assert "30 minutes" not in out
     (auth_dir / "policy.json").write_text(json.dumps({}), encoding="utf-8")   # emptied later
-    assert az.role_for("dave", False) == "user"                  # the window never opened
+    assert az.signin_role("dave") == "user"                      # the window never opened
 
 
 # ── never the last operator ──────────────────────────────────────────────────
