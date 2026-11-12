@@ -6,6 +6,39 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-11-12
+A short configuration: secure values are built in, not configurable.
+
+### Changed
+- **The .env is short.** `.env.example` went from 176 to 50 lines: six required
+  settings (`BASE_URL`, the three `OIDC_*`, `JWT_SIGNING_KEY`,
+  `STORAGE_ENCRYPTION_KEY`), a few optional ones (`INTERNAL_ALLOW_CIDRS`,
+  `FORWARDED_ALLOW_IPS`, `OPERATORS`, `MCP_REDIRECT_URIS`) and a short "rarely needed"
+  block. The compose file sets no data folders any more.
+- **Built in, no longer configurable:** roles are always enforced, the vault is
+  always encrypted, there is no default admin role and the runner is always `user`;
+  the first-operator window (30 minutes), rate limits, HSTS, the audit log and its
+  rotation, every size and time limit, the port, and the data folders under `/data`.
+  The variables of older releases are ignored; the start names the ones still set in
+  one line, so they can be deleted.
+- **Moved into the WebUI** (Overview → Settings, admin only, effective without a
+  restart): the allowed mail recipients, the default tool profile and auto-memory.
+  Their old `.env` values are taken over once at the first start. An unreadable
+  settings file is never replaced: mail refuses, auto-memory is off.
+- `ALLOW_INSECURE=1` stays only for trying AICortex on your own computer with no
+  sign-in at all (README "Try it in 5 minutes"); it is not in `.env.example`, and
+  the start warns loudly.
+
+### Upgrading
+- Pull `ghcr.io/ikarusmk/aicortex:v2.7.1` and redeploy; `data/` stays as it is.
+- Check the startup log for `settings no longer used … you can delete them: …` and
+  remove those lines from your `.env`.
+- In the compose file the data-folder lines (`MEMORY_DIR: /data/memory` …),
+  `SECRETS_DIR` and the `./secrets:/secrets:ro` mount can go. A folder set to a
+  different path keeps working, so no data moves.
+- A runner that needs more than `user` gets its role in `policy.json` (`"roles":
+  {"runner": "admin"}`); `RUNNER_ROLE` is no longer read.
+
 ## [2.7.0] — 2026-11-12
 Forms open as compact dialogs, upstream sign-ins also work with providers that only
 accept approved web addresses, and nobody uses a person's upstream sign-in without
