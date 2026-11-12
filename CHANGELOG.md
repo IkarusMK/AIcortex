@@ -52,7 +52,9 @@ that person's permission.
   once, also on installs 2.6.x already set up. If the audit log can't be read at that
   start, nobody becomes operator by signing in first: the start warns loudly (set
   `OPERATORS` or fix the file) and the upgrade runs again at the next start.
-- The first operator can only be a person signing in to the WebUI, never an app.
+- The first operator is always a person: the first to sign in to the WebUI, or the
+  person their own app calls for when the identity provider names them — never an
+  app's bare client id, an agent key or a runner.
 - The vault's name check in the browser works again (its pattern was invalid).
 
 ### Upgrading

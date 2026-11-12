@@ -108,21 +108,18 @@ def _mcp_caller(monkeypatch, client_id, claims):
     monkeypatch.setattr(deps, "get_access_token", lambda: tok)
 
 
-def test_an_app_calling_over_mcp_never_becomes_the_operator(ui, oidc_env):
+def test_an_app_takes_the_free_slot_only_for_the_person_the_idp_names(ui, oidc_env):
     az = ui.az
     assert az.default_role() == "admin"                        # the window is open
-    # Stock OIDCProxy: no forwarded sub, the identity is the app's client_id.
+    # Stock OIDCProxy: no forwarded sub, the identity is the app's client_id — never.
     _mcp_caller(oidc_env, "app-client-7", {})
     assert az.effective_identity() == ("app-client-7", "user")
-    # Forwarded sub, but still an MCP call — the person signs in to the WebUI instead.
-    _mcp_caller(oidc_env, "app-client-7", {"upstream_claims": {"sub": "dave"}})
-    assert az.effective_identity() == ("dave", "user")
-    assert az.role_for("app-client-7", False) == "user"
     assert not az.POLICY_FILE.exists() or "operators" not in _policy(az)
     assert az.default_role() == "admin"                        # the slot is still free
-    # The person signs in to the WebUI within the window: now they are the operator.
-    sess = ui.sign_in("dave")
-    assert sess["role"] == "admin"
+    # Forwarded sub: the IdP names the person, so the person's own app may take it
+    # (an install only ever used through an app would otherwise have no operator).
+    _mcp_caller(oidc_env, "app-client-7", {"upstream_claims": {"sub": "dave"}})
+    assert az.effective_identity() == ("dave", "admin")
     assert _policy(az)["operators"] == ["dave"]
     assert az.role_for("app-client-7", False) == "user"
     assert ui.sign_in("erin")["role"] == "user"                # only the first one

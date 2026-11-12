@@ -149,6 +149,17 @@ async def mcp(base, token, calls):
 def v1_phase(base, idp):
     client_id, tok = login(base)
     print(f"v1: OAuth login ok (client {client_id[:12]}…)")
+    # Since 2.6 a secret is bound to the hosts it may go to, and an assistant binds a
+    # new one only together with its value (secret_set(..., hosts=...)). Older
+    # releases don't know the argument, so fall back to the plain call there.
+    echo_host = urlparse(idp.base).hostname
+    seeded = asyncio.run(mcp(base, tok["access_token"], [
+        ("secret_set", {"name": "ECHO_TOKEN", "value": "s3cr3t-echo", "hosts": echo_host})]))
+    if seeded[0].startswith("ERROR"):
+        seeded = asyncio.run(mcp(base, tok["access_token"], [
+            ("secret_set", {"name": "ECHO_TOKEN", "value": "s3cr3t-echo"})]))
+    if seeded[0].startswith("ERROR"):
+        sys.exit("v1 phase failed: " + seeded[0])
     r = asyncio.run(mcp(base, tok["access_token"], [
         ("memory_write", {"title": "Größe der Düse", "type": "reference", "content": "0.4 mm"}),
         ("memory_write", {"title": "Printer setup", "type": "project",
@@ -156,7 +167,6 @@ def v1_phase(base, idp):
         ("memory_write", {"title": "Answer style", "type": "feedback", "content": "Short answers."}),
         ("skill_write", {"name": "printer-slicing", "description": "Slice models for the 3D printer",
                          "instructions": "Use SliceTool.", "category": "Birdhouse"}),
-        ("secret_set", {"name": "ECHO_TOKEN", "value": "s3cr3t-echo"}),
         ("secret_set", {"name": "BOB_TOKEN", "value": "bob-only", "owner": "bob-sub"}),
         ("service_add", {"name": "echo", "base_url": idp.base, "token_env": "ECHO_TOKEN",
                          "category": "test", "description": "echo endpoint"}),

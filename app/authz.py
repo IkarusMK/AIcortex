@@ -622,10 +622,10 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
     """Resolve a caller's role. Precedence: explicit per-identity policy →
     IdP role/group claim → runner/default fallback. Secure defaults: runner→user,
     an agent key→its person's explicit role or user, an interactive person →
-    ``session_role`` (operators are admin, everyone else user). Never the first-come
-    bootstrap: on /mcp and /api the identity may be a connected app's client_id (an
-    IdP that doesn't forward the person's 'sub'), so only a person signing in to the
-    WebUI can become the operator (``signin_role``).
+    ``session_role`` (operators are admin, everyone else user). The first-come
+    bootstrap fires here only for the person the IdP named in the token (its 'sub' is
+    the identity) — never for a bare client_id (an IdP that doesn't forward the
+    person), an agent key or a runner; the WebUI sign-in uses ``signin_role``.
     With sign-in configured, an unresolved identity gets no role ("")."""
     if _unresolved(identity) and _identity_required():
         return ""
@@ -641,7 +641,24 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
             return explicit or claim_role
         r = os.environ.get("RUNNER_ROLE") or pol.get("runner") or "user"
         return r if r in _VALID_ROLES else "user"
-    return session_role(identity, claim_role, pol)
+    role = session_role(identity, claim_role, pol)
+    # The first-come bootstrap over an app, only for the person themselves: the token
+    # names the person ('sub' from the IdP) and that IS the identity — never a bare
+    # client_id an IdP leaves when it doesn't forward the person. Without this, an
+    # install only ever used through an app comes back from the upgrade with nobody
+    # in charge and its owner as "user". Same window and lock as the WebUI sign-in.
+    if (role == "user" and not claim_role and _person_named(identity, claims)
+            and not _explicit_role(pol, identity) and _bootstrap_open(pol)
+            and _bootstrap_window_open() and _bootstrap_operator(identity)):
+        return "admin"
+    return role
+
+
+def _person_named(identity: str, claims) -> bool:
+    """Is ``identity`` the person the IdP named in this token (its 'sub')?"""
+    if _unresolved(identity) or not isinstance(claims, dict):
+        return False
+    return str(_claim_value(claims, "sub") or "").strip() == identity
 
 
 def signin_role(identity: str, claims=None) -> str:
