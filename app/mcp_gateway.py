@@ -450,12 +450,39 @@ def _call_work(server: str, cfg: dict, tool: str, args, hold: bool = False):
     return work
 
 
-async def run_approved(server: str, tool: str, args, owner: str) -> str:
-    """Run a call `owner` approved in the WebUI, with their sign-in — exactly once, and
-    still within read_only. Returns the answer as text (an error as text too)."""
-    cfg = _load(server)
+def approval_refusal(server: str, owner: str, role: str, channel: str) -> str:
+    """Why `owner` (with WebUI role `role`) can't have a held call to `server` run now,
+    or "". The person's CURRENT policy, as a call gets it: their role and the MCP servers
+    assigned to them (authz.enforce_rest, exactly as for mcp_call), the server's
+    read_only flag (a held call is one the server does not mark read-only) and their
+    access settings for the channel that asked (an approval is tagged with it)."""
+    import authz
+    slug = _slug(server)
+    cfg = _load(slug)
     if not mcp_oauth.is_oauth(cfg):
-        return f"The MCP server '{server}' is gone or no longer uses OAuth; nothing was run."
+        return f"The MCP server '{slug}' is gone or no longer uses OAuth; nothing was run."
+    ok, why = authz.enforce_rest(owner, role, "mcp_call", {"server": slug})
+    if not ok:
+        return f"Refused: you may not use '{slug}' now ({why}), so this call was not run."
+    if _flag(cfg.get("read_only")):
+        return (f"Refused: '{slug}' is set to read-only now and this call may change data, "
+                f"so it was not run.")
+    ch = mcp_access.untag(channel)
+    if not mcp_access.allows(cfg, owner, ch):
+        return (f"Refused: {mcp_access.label(ch)} may no longer use your sign-in to '{slug}' "
+                f"(Services → {slug} → Access), so this call was not run.")
+    return ""
+
+
+async def run_approved(server: str, tool: str, args, owner: str, *, role: str,
+                       channel: str) -> str:
+    """Run a call `owner` approved in the WebUI, with their sign-in — exactly once, only
+    while their current policy allows it (approval_refusal) and still within read_only.
+    Returns the answer as text (an error or a refusal as text too)."""
+    refused = await asyncio.to_thread(approval_refusal, server, owner, role, channel)
+    if refused:
+        return refused
+    cfg = _load(server)
     ok, reason = netguard.check_url(cfg.get("url", ""))
     if not ok:
         return f"Blocked by network policy — {reason}"

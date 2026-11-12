@@ -112,7 +112,17 @@ def register(mcp, h, oauth_server):
         if body is None or not isinstance(body.get("approve"), bool):
             return h.json({"ok": False, "message": "Invalid request."}, 400)
         person, aid = str(sess.get("sub", "")), str(body.get("id", ""))[:64]
+        role = str(sess.get("role", ""))
         try:
+            if body["approve"]:
+                # the person's policy NOW (role, assigned servers, read_only, access):
+                # refused → not run, and the approval keeps waiting
+                held = await asyncio.to_thread(mcp_approvals.get, person, aid)
+                refused = await asyncio.to_thread(mcp_gateway.approval_refusal, held["server"],
+                                                  person, role, held.get("channel", ""))
+                if refused:
+                    h.audit(sess, "mcp_oauth_approval", "deny", f"id={aid}: {refused}")
+                    return h.json({"ok": False, "message": refused}, 403)
             row = await asyncio.to_thread(mcp_approvals.claim, person, aid, body["approve"])
         except mcp_approvals.Refused as exc:
             h.audit(sess, "mcp_oauth_approval", "deny", f"id={aid}: {exc}")
@@ -123,7 +133,7 @@ def register(mcp, h, oauth_server):
             return h.json({"ok": True, "state": "rejected", "message": "Rejected."})
         h.audit(sess, "mcp_oauth_approval", "allow", f"approved {where}")
         result = await mcp_gateway.run_approved(row["server"], row["tool"], row.get("args"),
-                                                person)
+                                                person, role=role, channel=row["channel"])
         await asyncio.to_thread(mcp_approvals.finish, person, aid, result)
         return h.json({"ok": True, "state": "done",
                        "message": "Approved and run — the AI can fetch the answer now."})

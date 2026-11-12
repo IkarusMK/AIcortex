@@ -111,6 +111,16 @@ def create(person: str, server: str, tool: str, args, channel: str) -> str:
     return _change(person, add)
 
 
+def get(person: str, aid: str) -> dict:
+    """`person`'s approval `aid` while it still waits for a decision (else Refused)."""
+    row = next((r for r in _tidy(_read(person), _clock()) if r.get("id") == aid), None)
+    if row is None:
+        raise Refused("No such approval.")
+    if row.get("state") != "pending":
+        raise Refused(f"This approval is no longer waiting ({row.get('state')}).")
+    return row
+
+
 def waiting(person: str) -> list:
     """`person`'s approvals that wait for a decision (oldest first)."""
     now = _clock()

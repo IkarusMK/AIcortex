@@ -10,15 +10,27 @@
    their upstream sign-in — for a prompt the person never wrote. A runner now uses a
    sign-in only for a job its owner wrote themselves; anything else is refused and
    audited.
+3. Approving a call in the WebUI ran it without asking the person's CURRENT policy:
+   their role, the MCP servers an admin assigned them, the server's read_only flag and
+   their own access settings could all have changed since the call was held. Now the
+   decision re-checks all of that first; a refused approval is not run and stays
+   waiting.
 
 All upstream data is invented (the fake provider of test_mcp_oauth).
 """
 import asyncio
+import json
 import sys
+import time
 
-from test_mcp_access import (OWNER, access, app, as_token, audit_lines, mcp_client,  # noqa: F401
-                             owner_is_admin, text_of, up)
-from test_mcp_oauth import SERVER, call, env, prov  # noqa: F401
+import httpx
+import pytest
+from cryptography.fernet import Fernet
+
+from test_mcp_access import (OWNER, TOOLS, access, app, approval_id, as_token,  # noqa: F401
+                             audit_lines, decide, mcp_client, owner_is_admin, pending,
+                             text_of, up)
+from test_mcp_oauth import SERVER, add, call, direct_sign_in, env, prov  # noqa: F401
 
 MARKER = "(local)"
 READ = {"server": SERVER, "tool": "read_status"}
@@ -118,3 +130,80 @@ def test_a_runner_without_a_scheduled_job_behind_it_gets_nothing(up):
     out = _as_job(up.base, jid="no-such-job")             # a token for a job that isn't there
     assert out.startswith("Refused"), out
     assert up.prov.calls == []
+
+
+# ── 3. a decision re-checks the person's current policy ──────────────────────
+def _held(e, host="claude.ai"):
+    access(e, allow_apps=[host])
+    with as_token(app(host)):
+        return approval_id(call("mcp_call", {"server": SERVER, "tool": "set_value",
+                                             "args": {"v": 7}}))
+
+
+def _refused_and_still_waiting(e, aid, r, ui=None):
+    assert r.status_code == 403 and r.json()["ok"] is False, r.text
+    assert e.prov.calls == []
+    assert aid in [a["id"] for a in pending(e, ui)]
+
+
+def test_an_approval_does_not_run_once_the_server_is_read_only(up):
+    aid = _held(up)
+    add(up.prov.base, read_only=True)                     # switched on meanwhile
+    r = decide(up, aid, True)
+    _refused_and_still_waiting(up, aid, r)
+    assert "read-only" in r.json()["message"]
+    assert decide(up, aid, False).json()["ok"] is True    # rejecting it needs nothing
+    assert pending(up) == [] and up.prov.calls == []
+
+
+def test_an_approval_does_not_run_once_its_channel_is_no_longer_allowed(up):
+    aid = _held(up)
+    access(up, allow_apps=["other.example"])              # the app that asked was removed
+    r = decide(up, aid, True)
+    _refused_and_still_waiting(up, aid, r)
+    assert "claude.ai" in r.json()["message"]
+    access(up, allow_apps=["claude.ai"])                  # allowed again: now it runs
+    assert decide(up, aid, True).json()["ok"] is True
+    assert up.prov.calls == ["set_value"] and up.prov.call_args == [{"v": 7}]
+
+
+@pytest.mark.oidc
+def test_an_approval_runs_only_while_the_person_may_still_use_the_server(monkeypatch, request,
+                                                                         prov, fake_idp):
+    for var, value in (("OIDC_CONFIG_URL", f"{fake_idp}/.well-known/openid-configuration"),
+                       ("OIDC_CLIENT_ID", "aicortex"), ("OIDC_CLIENT_SECRET", "upstream-secret"),
+                       ("JWT_SIGNING_KEY", "0" * 64), ("AUTH_ENFORCE", "1"),
+                       ("STORAGE_ENCRYPTION_KEY", Fernet.generate_key().decode()),
+                       ("INTERNAL_ALLOW_CIDRS", "127.0.0.0/8")):
+        monkeypatch.setenv(var, value)
+    base = request.getfixturevalue("http_server")
+    webui, authz = sys.modules["webui"], sys.modules["authz"]
+    add(prov.base)
+    prov.tools = [dict(t) for t in TOOLS]
+
+    def policy(**alice):
+        authz.POLICY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        authz.POLICY_FILE.write_text(json.dumps({
+            "operators": ["boss"], "roles": {"alice": alice.pop("role", "user")},
+            "users": {"alice": alice}}), encoding="utf-8")
+    policy(mcp=[SERVER])
+    direct_sign_in("alice")
+    _store_access("alice", {"allow_apps": ["app.example"]})
+    aid = sys.modules["mcp_approvals"].create("alice", SERVER, "set_value", {"v": 1},
+                                              "app:app.example")
+    tok = webui._sign({"sub": "alice", "name": "alice", "role": "user", "csrf": "tok",
+                       "claim_role": "", "exp": time.time() + 600})
+    ui = httpx.Client(base_url=base, cookies={webui.SESSION_COOKIE: tok},
+                      headers={"X-CSRF": "tok"})
+    e = type("E", (), {"prov": prov, "ui": ui})
+    for change in ({"mcp": []}, {"mcp": [SERVER], "role": "viewer"}):
+        policy(**change)                                  # no longer hers / a viewer now
+        r = ui.post("/ui/api/mcp-oauth/approvals/decide", json={"id": aid, "approve": True})
+        _refused_and_still_waiting(e, aid, r)
+    assert any(a["identity"] == "alice" and a["decision"] == "deny" and a["tool"] == "mcp_call"
+               for a in audit_lines())
+    policy(mcp=[SERVER])                                  # assigned again: it runs
+    r = ui.post("/ui/api/mcp-oauth/approvals/decide", json={"id": aid, "approve": True})
+    assert r.status_code == 200 and r.json()["ok"] is True, r.text
+    assert prov.calls == ["set_value"]
+    ui.close()

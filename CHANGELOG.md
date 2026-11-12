@@ -23,7 +23,9 @@ that person's permission.
   read-only doesn't run on its own: it waits under Services → Approvals with the exact
   tool and arguments. Approve runs it once with the person's sign-in; Reject or ten
   minutes without an answer drop it. The assistant fetches the result with
-  `mcp_call(..., approval_id=...)`. On by default, switchable per person.
+  `mcp_call(..., approval_id=...)`. On by default, switchable per person. Approve
+  checks the person's permissions at that moment (role, assigned servers, read-only,
+  Access): a call they no longer allow doesn't run and keeps waiting.
 - **Sign-in with a paste step.** Some providers only accept the web addresses of
   approved apps. AICortex then registers like a desktop app with a local address
   (`http://127.0.0.1:8765/callback`): the sign-in opens in a new tab, and afterwards you

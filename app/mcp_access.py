@@ -182,6 +182,22 @@ def tag(ch: dict) -> str:
     return f"{ch['kind']}:{ch.get('id') or '?'}"
 
 
+def untag(text: str) -> dict:
+    """The channel back from its tag (an approval keeps the tag of the channel that asked)."""
+    kind, _, ident = str(text or "").partition(":")
+    if kind not in (*_KIND_OF, "webui") or ident == "?":
+        return {"kind": "unknown", "id": ""}
+    return {"kind": kind, "id": LOCAL if kind == "local" else ident}   # also the old marker
+
+
+def allows(cfg, person: str, ch: dict) -> bool:
+    """Do `person`'s settings for this server let channel `ch` use their sign-in?"""
+    if ch.get("kind") == "webui":
+        return True
+    key = _KIND_OF.get(ch.get("kind", ""))
+    return bool(key and ch.get("id")) and ch["id"] in settings(cfg, person)[key]
+
+
 # ── the check ────────────────────────────────────────────────────────────────
 def job_problem(job_id: str, person: str) -> str:
     """"" when the scheduled job `job_id` a runner carries out may use `person`'s
@@ -211,9 +227,7 @@ def check(server: str, cfg: dict, person: str, tool: str) -> tuple[bool, dict, s
     ch = channel()
     if ch["kind"] == "app":
         note_app(ch["id"], ch.get("name", ""))
-    allowed = ch["kind"] == "webui" or (
-        bool(ch["id"]) and ch["kind"] in _KIND_OF
-        and ch["id"] in settings(cfg, person)[_KIND_OF[ch["kind"]]])
+    allowed = allows(cfg, person, ch)
     problem = job_problem(ch.get("job", ""), person) if allowed and ch["kind"] == "runner" else ""
     allowed = allowed and not problem
     authz.audit(person or "unknown", authz.effective_identity()[1], tool,
