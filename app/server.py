@@ -260,7 +260,7 @@ try:
     if _authz_mw is not None:
         mcp.add_middleware(_authz_mw)
         print(f"[AICortex] authorization: policy gate active "
-              f"(AUTH_ENFORCE={'on' if authz.enabled() else 'off'})")
+              f"({'always on' if authz.enabled() else 'OFF — test switch'})")
     else:
         print("[AICortex] authorization: middleware unavailable — not enforced")
 except Exception as exc:
@@ -288,7 +288,7 @@ try:
     if _learn_mw is not None:
         mcp.add_middleware(_learn_mw)
         print("[AICortex] auto-memory: candidate-capture middleware active "
-              f"(LEARN_AUTOCAPTURE={'on' if learn._enabled() else 'off'})")
+              f"(auto-memory {'on' if learn._enabled() else 'off'} — WebUI → Settings)")
     else:
         print("[AICortex] auto-memory: middleware unavailable — Tier A only")
 except Exception as exc:
