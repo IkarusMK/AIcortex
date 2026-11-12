@@ -10,6 +10,10 @@ edited) and a click on the backdrop does not. The dialog is compact (540 px, 780
 long texts, height by content up to 85vh); the form scrolls inside it while the title
 and the Save/Delete row stay in view; short fields pair up; on phones a bottom sheet.
 
+Every <dialog> but the confirm question ("modal") is such a form dialog — also the two
+upstream sign-in dialogs (Access, and the paste step) that 2.7.0 first built in a look
+of their own, opened and closed past dialogs.js (no "Discard changes?", no focus return).
+
 Static guard over index.html, the scripts and style.css (no browser needed).
 """
 import re
@@ -28,8 +32,9 @@ EDITORS = {  # dialog id → the form it holds
     "vault-editor": "form-secret", "cl-editor": "form-agentkey", "sk-editor": "form-skill",
     "mem-editor": "form-mem", "cron-editor": "form-cron", "rn-editor": "form-runner",
     "sv-editor": "form-sv", "us-editor": "form-user", "pb-start-form": "form-pb-start",
-    "pb-def-editor": "form-pb-def",
+    "pb-def-editor": "form-pb-def", "oa-paste": "form-oa-paste", "oa-access": "form-oa-access",
 }
+CONFIRM = "modal"          # the one dialog that is a question, not a form
 # Lists whose form used to be always open beside them: they now get a "New" button.
 NEW_BUTTONS = {"view-vault": "btn-vault-new", "view-clients": "btn-ak-new", "view-users": "btn-user-new"}
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
@@ -85,6 +90,7 @@ def _tree():
 
 TREE = _tree()
 IDS = {n.attrs["id"]: n for n in TREE.iter() if n.attrs.get("id")}
+FORM_DIALOGS = [n for n in TREE.iter() if n.tag == "dialog" and n.attrs.get("id") != CONFIRM]
 
 
 def _with_class(node, cls):
@@ -101,13 +107,15 @@ def test_every_form_sits_in_a_modal_dialog():
     for node_id, node in IDS.items():
         if node_id.endswith("-editor"):
             assert node.tag == "dialog", node_id
-    assert {n.attrs.get("id") for n in TREE.iter() if n.tag == "dialog"} == set(EDITORS) | {"modal"}
+    assert {n.attrs.get("id") for n in TREE.iter() if n.tag == "dialog"} == set(EDITORS) | {CONFIRM}
 
 
 def test_each_dialog_has_a_title_a_close_button_a_scrolling_body_and_a_footer():
-    for dlg_id, form_id in EDITORS.items():
-        dlg = IDS.get(dlg_id)
-        assert dlg is not None and dlg.tag == "dialog", dlg_id
+    assert FORM_DIALOGS and all(d.attrs.get("id") for d in FORM_DIALOGS)
+    for dlg in FORM_DIALOGS:                       # every dialog but the confirm question
+        dlg_id = dlg.attrs["id"]
+        form_id = EDITORS.get(dlg_id)
+        assert form_id, f"{dlg_id}: a dialog outside the guard (add it to EDITORS)"
         assert "dlg" in dlg.classes() and "hidden" not in dlg.classes(), dlg_id
         title = IDS.get(dlg.attrs.get("aria-labelledby") or "")
         assert title is not None and dlg in title.ancestors() and title.tag in {"h2", "h3"}, dlg_id
@@ -181,7 +189,14 @@ def _keys(js: str, lang: str) -> set:
 
 def test_dialogs_open_modally_and_close_only_on_request():
     assert "showModal()" in DIALOGS_JS and "function openDialog(" in DIALOGS_JS
-    for dlg_id in EDITORS:
+    # only dialogs.js opens and closes a dialog — so every one gets "Discard changes?",
+    # the scroll lock and the focus return (the sign-in dialogs called showModal/close)
+    for name, text in SCRIPTS.items():
+        if name != "dialogs.js":
+            code = _code(text)
+            assert "showModal(" not in code and not re.search(r"\b(dlg|dialog)\.close\(", code), name
+    assert "onEscape" not in "".join(_code(t) for n, t in SCRIPTS.items() if n != "dialogs.js")
+    for dlg_id in (d.attrs["id"] for d in FORM_DIALOGS):
         assert re.search(rf'openDialog\(\$\("#{dlg_id}"\)', ALL_JS), f"{dlg_id} is never opened"
         # a dialog hidden by class would stay modal yet invisible — the page would freeze
         assert not re.search(rf'\$\("#{dlg_id}"\)\.classList\.\w+\("hidden"', ALL_JS), dlg_id

@@ -399,7 +399,7 @@ def test_access_and_approvals_are_wired_into_the_webui(up):
     js = up.ui.get("/ui/assets/view-mcp-access.js")
     assert js.status_code == 200
     for needle in ("/ui/api/mcp-oauth/access", "/ui/api/mcp-oauth/approvals",
-                   "/ui/api/mcp-oauth/approvals/decide", "showModal", "Freigaben", "Approvals",
+                   "/ui/api/mcp-oauth/approvals/decide", "openDialog", "Freigaben", "Approvals",
                    "Zugriff", "Access"):
         assert needle in js.text, needle
     assert "innerHTML" not in js.text and ".style." not in js.text

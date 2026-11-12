@@ -837,6 +837,48 @@
     </footer>
   </dialog>
 
+  <!-- Services & devices: finish an upstream sign-in by pasting the address the browser
+       landed on (view-registry.js oauthPaste) -->
+  <dialog id="oa-paste" class="dlg" aria-labelledby="oa-paste-title" data-return="#btn-sv-new">
+    <header class="dlg-head">
+      <h3 id="oa-paste-title" data-i18n="oa_paste_title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <p id="oa-paste-text"></p>
+      <p class="small"><a id="oa-paste-open" target="_blank" rel="noopener noreferrer" data-i18n="oa_paste_open"></a></p>
+      <form id="form-oa-paste" autocomplete="off">
+        <label for="oa-paste-url" data-i18n="oa_paste_url"></label>
+        <input id="oa-paste-url" class="inp mono" autocomplete="off" spellcheck="false" required>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-oa-paste" class="btn primary" data-i18n="oa_paste_finish"></button>
+      <button type="button" id="oa-paste-cancel" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
+  <!-- Services & devices: who may use your sign-in to an upstream server (view-mcp-access.js) -->
+  <dialog id="oa-access" class="dlg" aria-labelledby="oa-access-title" data-return="#btn-sv-new">
+    <header class="dlg-head">
+      <h3 id="oa-access-title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <p class="dim small" data-i18n="ma_hint"></p>
+      <form id="form-oa-access" autocomplete="off">
+        <fieldset id="oa-access-apps" class="oa-group"><legend data-i18n="ma_apps"></legend><div class="oa-items"></div></fieldset>
+        <fieldset id="oa-access-runners" class="oa-group"><legend data-i18n="ma_runners"></legend><div class="oa-items"></div></fieldset>
+        <fieldset id="oa-access-keys" class="oa-group"><legend data-i18n="ma_keys"></legend><div class="oa-items"></div></fieldset>
+        <label class="check"><input type="checkbox" id="oa-access-writes"><span data-i18n="ma_writes"></span></label>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-oa-access" class="btn primary" data-i18n="ma_save"></button>
+      <button type="button" id="oa-access-cancel" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
   <!-- confirm dialog (stacks above an open form) + toast (top layer, readable above it) -->
   <dialog id="modal" class="modal-card" role="alertdialog" aria-labelledby="modal-text">
     <p id="modal-text"></p>
@@ -846,37 +888,6 @@
     </div>
   </dialog>
   <div id="toast" class="toast hidden" role="status" popover="manual"></div>
-
-  <!-- MCP OAuth paste step (view-registry.js oauthPaste) -->
-  <dialog id="oa-paste" class="modal-card panel oa-dialog" aria-labelledby="oa-paste-title">
-    <form id="form-oa-paste">
-      <h3 id="oa-paste-title" data-i18n="oa_paste_title"></h3>
-      <p id="oa-paste-text"></p>
-      <a id="oa-paste-open" class="small" target="_blank" rel="noopener noreferrer" data-i18n="oa_paste_open"></a>
-      <label for="oa-paste-url" data-i18n="oa_paste_url"></label>
-      <input id="oa-paste-url" class="inp mono" autocomplete="off" spellcheck="false" required>
-      <div class="btn-row">
-        <button type="submit" class="btn" data-i18n="oa_paste_finish"></button>
-        <button type="button" id="oa-paste-cancel" class="btn ghost" data-i18n="cancel"></button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- MCP OAuth: who may use your sign-in (view-mcp-access.js) -->
-  <dialog id="oa-access" class="modal-card panel oa-dialog" aria-labelledby="oa-access-title">
-    <form id="form-oa-access">
-      <h3 id="oa-access-title"></h3>
-      <p class="dim small" data-i18n="ma_hint"></p>
-      <fieldset id="oa-access-apps" class="oa-group"><legend data-i18n="ma_apps"></legend><div class="oa-items"></div></fieldset>
-      <fieldset id="oa-access-runners" class="oa-group"><legend data-i18n="ma_runners"></legend><div class="oa-items"></div></fieldset>
-      <fieldset id="oa-access-keys" class="oa-group"><legend data-i18n="ma_keys"></legend><div class="oa-items"></div></fieldset>
-      <label class="check"><input type="checkbox" id="oa-access-writes"><span data-i18n="ma_writes"></span></label>
-      <div class="btn-row">
-        <button type="submit" class="btn" data-i18n="ma_save"></button>
-        <button type="button" id="oa-access-cancel" class="btn ghost" data-i18n="cancel"></button>
-      </div>
-    </form>
-  </dialog>
 
   <script src="/ui/assets/app.js?v={{v}}"></script>
   <script src="/ui/assets/dialogs.js?v={{v}}"></script>

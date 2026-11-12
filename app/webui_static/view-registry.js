@@ -248,8 +248,7 @@ function oauthPaste(name, d) {
   const input = $("#oa-paste-url");
   input.value = "";
   input.placeholder = `${d.redirect_prefix}?code=…`;
-  dlg.showModal();
-  input.focus();
+  openDialog($("#oa-paste"));                 // focus: the address field
 }
 
 async function oauthPasteFinish(ev) {
@@ -258,7 +257,7 @@ async function oauthPasteFinish(ev) {
   const d = await api("/ui/api/mcp-oauth/finish",
     { method: "POST", body: { url: $("#oa-paste-url").value.trim() } });
   if (d.ok) {
-    dlg.close();
+    closeDialog(dlg);
     toast(t("oa_ok", d.server || dlg.dataset.server || ""));
     await loadServices();
     return;
@@ -266,15 +265,14 @@ async function oauthPasteFinish(ev) {
   const key = "oa_" + d.code;
   toast(d.code === "address" ? t("oa_address", dlg.dataset.prefix || "")
     : (I18N.en[key] ? t(key) : (d.message || t("oa_error"))), false);
-  if (d.code !== "address") dlg.close();      // this sign-in is spent: start again
+  if (d.code !== "address") closeDialog(dlg);     // this sign-in is spent: start again
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const dlg = $("#oa-paste");
-  if (!dlg) return;
+  if (!$("#oa-paste")) return;
+  // × / Esc / Cancel: dialogs.js (asks first once an address was typed)
   $("#form-oa-paste").addEventListener("submit",
     (e) => oauthPasteFinish(e).catch((x) => toast(x.message, false)));
-  $("#oa-paste-cancel").addEventListener("click", () => dlg.close());
 });
 
 async function oauthSignOut(name) {

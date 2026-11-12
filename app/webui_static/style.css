@@ -297,10 +297,8 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
 .sk-item .n .tag { white-space: nowrap; }
 .sk-item .d { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
 
-/* MCP OAuth paste step: a native <dialog> with the confirm modal's look */
-.oa-dialog { width: min(560px, 92vw); margin: auto; color: var(--text); }
-.oa-dialog::backdrop { background: rgba(3, 4, 12, .7); backdrop-filter: blur(4px); }
-.oa-dialog a { color: var(--purple-2); }
+/* Upstream sign-ins: the Access dialog's groups (a .dlg like every form) and the
+   approvals panel above the services table */
 .oa-group { border: 1px solid var(--border); border-radius: 10px; padding: 4px 12px; margin: 10px 0; }
 .oa-group legend { padding: 0 6px; font-size: 12px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--dim); }
@@ -462,6 +460,7 @@ textarea.inp { resize: vertical; min-height: 130px; line-height: 1.5; }
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: 2px 18px 16px; container-type: inline-size;
 }
+.dlg-body a { color: var(--purple-2); }
 .dlg-foot {
   position: sticky; bottom: 0; z-index: 1; flex: none;
   margin: 0; padding: 10px 18px; gap: 8px;

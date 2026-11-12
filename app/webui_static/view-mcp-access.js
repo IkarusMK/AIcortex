@@ -1,7 +1,8 @@
 /* Who may use your sign-in to an OAuth MCP server (the Access dialog of its row in
-   Services & devices), and the calls that wait for your approval (a panel above the
-   services table). Only your own settings and approvals — nobody else's. Rendered with
-   textContent/createElement only; no inline styles. */
+   Services & devices — a form dialog like every other, dialogs.js), and the calls that
+   wait for your approval (a panel above the services table). Only your own settings and
+   approvals — nobody else's. Rendered with textContent/createElement only; no inline
+   styles. */
 "use strict";
 
 Object.assign(I18N.de, {
@@ -70,7 +71,7 @@ async function mcpAccessOpen(name) {
   MA_GROUPS.forEach(([group, key]) =>
     mcpAccessItems($(`#oa-access-${group} .oa-items`), d.choices[group] || [], d.settings[key] || []));
   $("#oa-access-writes").checked = d.settings.approve_writes !== false;
-  dlg.showModal();
+  openDialog($("#oa-access"));               // these values are the unchanged state
 }
 
 async function mcpAccessSave(ev) {
@@ -82,7 +83,7 @@ async function mcpAccessSave(ev) {
   });
   const d = await api("/ui/api/mcp-oauth/access", { method: "POST", body });
   toast(d.ok ? t("ma_saved") : d.message, !!d.ok);
-  if (d.ok) dlg.close();
+  if (d.ok) closeDialog(dlg);
 }
 
 /* Waiting approvals: a panel above the services table, shown only when there are any. */
@@ -151,8 +152,7 @@ loadServices = async function () {
 VIEWS.services = loadServices;
 
 document.addEventListener("DOMContentLoaded", () => {
-  const dlg = $("#oa-access");
-  if (!dlg) return;
+  if (!$("#oa-access")) return;
+  // × / Esc / Cancel: dialogs.js, with "Discard changes?" once something was ticked
   $("#form-oa-access").addEventListener("submit", (e) => mcpAccessSave(e).catch((x) => toast(x.message, false)));
-  $("#oa-access-cancel").addEventListener("click", () => dlg.close());
 });

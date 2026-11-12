@@ -38,10 +38,10 @@ that person's permission.
 
 ### Changed
 - **Every create and edit form opens in a dialog** over the page (vault, agent keys,
-  skills, notes, cron jobs, runners, playbooks, users, services & devices) instead of
-  far down the page. Compact: as high as its content, 540 px wide (780 px for skills,
-  notes and playbooks); a bottom sheet on phones. Esc or × closes it and asks first if
-  something was typed.
+  skills, notes, cron jobs, runners, playbooks, users, services & devices, and the
+  Access and paste steps of upstream sign-ins) instead of far down the page. Compact:
+  as high as its content, 540 px wide (780 px for skills, notes and playbooks); a
+  bottom sheet on phones. Esc or × closes it and asks first if something was typed.
 - A person who isn't admin sees their own identity in the WebUI and how to get admin
   rights.
 
