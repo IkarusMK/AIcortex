@@ -96,8 +96,8 @@ def register(mcp, h, oauth_server):
             return sess
         try:
             rows = await asyncio.to_thread(mcp_approvals.waiting, str(sess.get("sub", "")))
-        except mcp_approvals.Refused:
-            rows = []
+        except mcp_approvals.Refused as exc:      # no key, or a file that can't be read
+            return h.json({"approvals": [], "now": int(time.time()), "message": str(exc)})
         return h.json({"approvals": [_row(r) for r in rows], "now": int(time.time())})
 
     @mcp.custom_route("/ui/api/mcp-oauth/approvals/decide", methods=["POST"])
@@ -134,6 +134,10 @@ def register(mcp, h, oauth_server):
         h.audit(sess, "mcp_oauth_approval", "allow", f"approved {where}")
         result = await mcp_gateway.run_approved(row["server"], row["tool"], row.get("args"),
                                                 person, role=role, channel=row["channel"])
-        await asyncio.to_thread(mcp_approvals.finish, person, aid, result)
+        try:
+            await asyncio.to_thread(mcp_approvals.finish, person, aid, result)
+        except mcp_approvals.Refused as exc:      # the file became unreadable meanwhile
+            return h.json({"ok": True, "state": "done",
+                           "message": f"Approved and run, but the answer could not be kept: {exc}"})
         return h.json({"ok": True, "state": "done",
                        "message": "Approved and run — the AI can fetch the answer now."})

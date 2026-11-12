@@ -129,7 +129,11 @@ async function mcpApprovalsLoad() {
   const list = $("#oa-approvals-list");
   list.textContent = "";
   (d.approvals || []).forEach((a) => list.append(mcpApprovalRow(a, d.now)));
-  box.classList.toggle("hidden", !(d.approvals || []).length);
+  if (d.message) {               // the approvals can't be read: say so, never show "none"
+    const p = document.createElement("p"); p.className = "notice"; p.textContent = d.message;
+    list.append(p);
+  }
+  box.classList.toggle("hidden", !(d.approvals || []).length && !d.message);
 }
 
 async function mcpDecide(id, approve) {

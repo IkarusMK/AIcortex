@@ -21,6 +21,9 @@
    as using the sign-in (an allowed channel, or the person in the WebUI).
 5. One allowed app could fill all of a person's waiting approvals (20) and crowd out
    every other channel. Each channel may now ask for at most 5 approvals per 10 minutes.
+6. An approvals file that couldn't be read (another STORAGE_ENCRYPTION_KEY, damage) was
+   taken as empty and overwritten by the next held call — every kept answer gone. Now
+   nothing is written while it can't be read; every use says so.
 
 All upstream data is invented (the fake provider of test_mcp_oauth).
 """
@@ -254,4 +257,24 @@ def test_one_channel_asks_for_at_most_five_approvals_in_ten_minutes(up, monkeypa
     monkeypatch.setattr(approvals, "_clock", lambda: real() + 601)
     with as_token(app("claude.ai")):                      # ten minutes later: again
         approval_id(call("mcp_call", write))
+    assert up.prov.calls == []
+
+
+# ── 6. an unreadable approvals file is never overwritten ─────────────────────
+def test_an_unreadable_approvals_file_is_left_alone(up):
+    approvals = sys.modules["mcp_approvals"]
+    aid = _held(up)
+    path = approvals._file(OWNER)
+    other_key = Fernet(Fernet.generate_key()).encrypt(b"[]")       # as after a key change
+    path.write_bytes(other_key)
+    with as_token(app("claude.ai")):
+        held = call("mcp_call", {"server": SERVER, "tool": "set_value"})
+        fetched = call("mcp_call", {"server": SERVER, "tool": "set_value", "approval_id": aid})
+    for out in (held, fetched):
+        assert out.startswith("Refused") and "can't be read" in out, out
+    r = decide(up, aid, True)
+    assert r.status_code == 409 and "can't be read" in r.json()["message"], r.text
+    listed = up.ui.get("/ui/api/mcp-oauth/approvals").json()
+    assert listed["approvals"] == [] and "can't be read" in listed["message"]
+    assert path.read_bytes() == other_key                          # never rewritten
     assert up.prov.calls == []

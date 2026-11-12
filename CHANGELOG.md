@@ -58,7 +58,10 @@ that person's permission.
   keys stay off until you tick them.
 - Not admin after the update? Sign in to the WebUI: it shows your identity and the
   line `OPERATORS=<your identity>` for your `.env`.
-- Approvals are stored encrypted and need `STORAGE_ENCRYPTION_KEY`.
+- Approvals are stored encrypted and need `STORAGE_ENCRYPTION_KEY`. If the key changes,
+  the stored approvals can't be read: they are left untouched and nothing new is held
+  until the key is back, or the file `approvals-<person>.enc` under the MCP data
+  folder's `_access` is moved away.
 
 ## [2.6.1] — 2026-11-11
 The Services & devices list is readable again.

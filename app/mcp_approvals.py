@@ -14,7 +14,9 @@ one can't be decided again, a fetched answer is gone.
 
 Each person's approvals are one file, encrypted with the vault key (an answer can hold
 the upstream server's data); without STORAGE_ENCRYPTION_KEY nothing is kept — no
-sign-in can be stored without it either.
+sign-in can be stored without it either. A file that can't be read (another key,
+damage) is never taken as empty: nothing is held, decided or fetched — and nothing
+written over it — until the operator restores the key or moves the file away.
 """
 import json
 import secrets
@@ -54,17 +56,28 @@ def _cipher():
     return f
 
 
+def _unreadable(person: str, path) -> Refused:
+    return Refused(
+        f"Refused: the stored approvals of {person} can't be read (encrypted with another "
+        f"STORAGE_ENCRYPTION_KEY, or damaged), so nothing is held, decided or fetched and the "
+        f"file is left as it is. The operator restores the key, or moves {path.name} (in the "
+        f"MCP data folder, _access) away to start with no approvals.")
+
+
 def _read(person: str) -> list:
+    """`person`'s approvals; [] when there are none yet. A file that exists but can't be
+    read raises Refused — taken as empty, the next write would replace it."""
     path = _file(person)
     if not path.exists():
         return []
+    cipher = _cipher()
     try:
-        rows = json.loads(_cipher().decrypt(path.read_bytes()))
-    except Refused:
-        raise
+        rows = json.loads(cipher.decrypt(path.read_bytes()))
     except Exception:
-        return []            # unreadable (another key): nothing can be approved from it
-    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+        raise _unreadable(person, path) from None
+    if not isinstance(rows, list):
+        raise _unreadable(person, path)
+    return [r for r in rows if isinstance(r, dict)]
 
 
 def _write(person: str, rows: list) -> None:
