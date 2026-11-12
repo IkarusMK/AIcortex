@@ -43,6 +43,7 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import settings
 
 AUTH_DIR = Path(os.environ.get("AUTH_STORE_DIR", "/data/auth"))
 POLICY_FILE = AUTH_DIR / "policy.json"
@@ -177,7 +178,7 @@ def from_webui() -> bool:
 
 def enabled() -> bool:
     # Secure by default: enforce unless explicitly disabled.
-    return os.environ.get("AUTH_ENFORCE", "1").strip().lower() not in ("0", "false", "no", "off")
+    return settings.flag("AUTH_ENFORCE", True)
 
 
 def auth_configured() -> bool:
@@ -212,7 +213,7 @@ def _unresolved_role() -> str:
 
 
 def audit_all() -> bool:
-    return os.environ.get("AUTH_AUDIT_ALL", "0").strip().lower() in ("1", "true", "yes")
+    return settings.flag("AUTH_AUDIT_ALL", False)
 
 
 def _policy() -> dict:
@@ -275,7 +276,7 @@ def _configured_default(pol) -> str:
     """The operator's chosen role for interactive identities nobody configured:
     OIDC_DEFAULT_ROLE, then policy "default". "" when neither is set."""
     default = pol.get("default") if isinstance(pol, dict) else ""
-    return str(os.environ.get("OIDC_DEFAULT_ROLE") or default or "")
+    return str(settings.knob("OIDC_DEFAULT_ROLE", settings.DEFAULT_ROLE) or default or "")
 
 
 def env_operators() -> frozenset:
@@ -411,7 +412,7 @@ def start_bootstrap_window(pol=None) -> int:
     window when nobody is in charge, and say so loudly. Returns the minutes it is open
     (0 = closed: someone is in charge, or OPERATOR_BOOTSTRAP_MINUTES=0)."""
     pol = _policy() if pol is None else pol
-    minutes = _env_int("OPERATOR_BOOTSTRAP_MINUTES", _BOOTSTRAP_MINUTES, 0)
+    minutes = max(0, settings.knob("OPERATOR_BOOTSTRAP_MINUTES", settings.OPERATOR_BOOTSTRAP_MINUTES, int))
     _BOOTSTRAP["until"] = None
     if not _bootstrap_open(pol):
         return 0
@@ -639,7 +640,7 @@ def role_for(identity: str, is_runner: bool, claims=None) -> str:
         explicit = _explicit_role(pol, identity)
         if explicit or claim_role:
             return explicit or claim_role
-        r = os.environ.get("RUNNER_ROLE") or pol.get("runner") or "user"
+        r = settings.knob("RUNNER_ROLE", "") or pol.get("runner") or settings.RUNNER_ROLE
         return r if r in _VALID_ROLES else "user"
     role = session_role(identity, claim_role, pol)
     # The first-come bootstrap over an app, only for the person themselves: the token
@@ -713,10 +714,10 @@ def _rotate_audit() -> None:
     deliveries), so an unbounded file could fill the data volume. Checked before each
     write; the lock + re-check keep two writers from rotating twice. Never raises."""
     try:
-        limit = _env_int("AUDIT_MAX_BYTES", _AUDIT_MAX_BYTES, 0)
+        limit = max(0, settings.knob("AUDIT_MAX_BYTES", settings.AUDIT_MAX_BYTES, int))
         if not limit or AUDIT_FILE.stat().st_size < limit:
             return
-        keep = _env_int("AUDIT_KEEP", _AUDIT_KEEP, 1)
+        keep = max(1, settings.knob("AUDIT_KEEP", settings.AUDIT_KEEP, int))
         import store
         with store.locked(AUDIT_FILE.with_name("audit-rotate")):
             if AUDIT_FILE.stat().st_size < limit:

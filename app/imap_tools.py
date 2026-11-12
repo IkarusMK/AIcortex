@@ -22,6 +22,7 @@ import cfgstore
 import errtext
 import netguard
 import secrets_store
+import settings
 
 IMAP_DIR = Path(os.environ.get("IMAP_DIR", "/data/imap"))
 WORK_DIR = Path(os.environ.get("WORK_DIR", "/data/work"))
@@ -29,8 +30,8 @@ WORK_DIR = Path(os.environ.get("WORK_DIR", "/data/work"))
 # Message states IMAP understands directly; anything else is treated as a text term.
 _STATES = {"all", "unseen", "seen", "recent", "flagged", "unflagged", "answered"}
 # Max bytes of a text body returned inline by imap_fetch (keep the context small).
-_MAX_BODY = int(os.environ.get("IMAP_MAX_BODY_BYTES", str(40_000)))
-_MAX_ATTACH = int(os.environ.get("IMAP_MAX_ATTACH_BYTES", str(25_000_000)))
+_MAX_BODY = settings.knob("IMAP_MAX_BODY_BYTES", settings.IMAP_MAX_BODY_BYTES, int)
+_MAX_ATTACH = settings.knob("IMAP_MAX_ATTACH_BYTES", settings.IMAP_MAX_ATTACH_BYTES, int)
 
 
 def _slug(name: str) -> str:

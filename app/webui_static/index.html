@@ -88,6 +88,7 @@
         <header class="view-head">
           <h1 data-i18n="nav_overview"></h1>
           <span id="ov-enforce" class="badge"></span>
+          <button type="button" id="btn-settings" class="btn sm ghost" data-i18n="st_open"></button>
         </header>
         <div class="stat-grid" id="ov-grid"></div>
         <div class="term-chip wide"><span class="term-icon">&gt;_</span>
@@ -816,6 +817,29 @@
   </dialog>
 
   <!-- Services & devices: new / edit (fields built from each registry's schema) -->
+  <!-- Settings an admin changes here instead of in .env (since 2.7.1) -->
+  <dialog id="st-editor" class="dlg" aria-labelledby="st-editor-title" data-return="#btn-settings">
+    <header class="dlg-head">
+      <h3 id="st-editor-title" data-i18n="st_title"></h3>
+      <button type="button" class="dlg-x" data-dlg-close data-i18n-aria="close">×</button>
+    </header>
+    <div class="dlg-body">
+      <form id="form-settings" autocomplete="off">
+        <label for="st-mail" data-i18n="st_mail"></label>
+        <textarea id="st-mail" class="inp" rows="3" maxlength="2000"></textarea>
+        <p class="dim small" data-i18n="st_mail_hint"></p>
+        <label for="st-profile" data-i18n="st_profile"></label>
+        <select id="st-profile" class="inp"></select>
+        <p class="dim small" data-i18n="st_profile_hint"></p>
+        <label class="check"><input type="checkbox" id="st-learn"> <span data-i18n="st_learn"></span></label>
+      </form>
+    </div>
+    <footer class="dlg-foot btn-row">
+      <button type="submit" form="form-settings" class="btn primary" data-i18n="st_save"></button>
+      <button type="button" class="btn ghost" data-dlg-close data-i18n="cancel"></button>
+    </footer>
+  </dialog>
+
   <dialog id="sv-editor" class="dlg" aria-labelledby="sv-editor-title" data-return="#btn-sv-new">
     <header class="dlg-head">
       <h3 id="sv-editor-title"></h3>
@@ -899,5 +923,6 @@
   <script src="/ui/assets/view-playbook-lib.js?v={{v}}"></script>
   <script src="/ui/assets/view-search.js?v={{v}}"></script>
   <script src="/ui/assets/view-mcp-access.js?v={{v}}"></script>
+  <script src="/ui/assets/view-settings.js?v={{v}}"></script>
 </body>
 </html>

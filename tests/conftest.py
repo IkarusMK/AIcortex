@@ -24,6 +24,9 @@ if _APP not in sys.path:
 # Many tests hit /token, /register, /ui/login and /hooks/* from 127.0.0.1 in quick
 # succession; the per-IP rate limiter (ratelimit.py, on by default in production)
 # would turn them into 429s. tests/test_rate_limit.py switches it back on.
+# The ONE test hook (app/settings.py): under this switch the suite may still tune a
+# built-in value through its pre-2.7.1 environment variable. Production never sets it.
+os.environ["AICORTEX_TEST_OVERRIDES"] = "1"
 os.environ["RATE_LIMIT"] = "0"
 
 # Every data path an app module reads from the environment at import time.

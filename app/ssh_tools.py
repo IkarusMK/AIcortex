@@ -20,6 +20,7 @@ from pathlib import Path
 import errtext
 import netguard
 import secrets_store
+import settings
 
 SSH_DIR = Path(os.environ.get("SSH_DIR", "/data/ssh"))
 SSH_KNOWN_HOSTS = SSH_DIR / "known_hosts"
@@ -79,7 +80,7 @@ def _connect(cfg: dict):
         cli.load_host_keys(str(SSH_KNOWN_HOSTS))  # also sets the save path for TOFU
     except Exception:
         pass
-    if os.environ.get("SSH_STRICT_HOST_KEYS") == "1":
+    if settings.flag("SSH_STRICT_HOST_KEYS", False):
         cli.set_missing_host_key_policy(paramiko.RejectPolicy())
     else:
         cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())

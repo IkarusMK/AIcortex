@@ -19,13 +19,14 @@ from typing import Annotated
 from pydantic import Field
 
 import store
+import settings
 
 COORD_DIR = Path(os.environ.get("COORD_DIR", "/data/coordination"))
 
 # Presence thresholds: an agent is "online" if seen within ONLINE_SECS, "idle"
 # within IDLE_SECS, else "away". last_seen is refreshed by agent_register.
-ONLINE_SECS = int(os.environ.get("AGENT_ONLINE_SECS", "300"))    # 5 min
-IDLE_SECS = int(os.environ.get("AGENT_IDLE_SECS", "1800"))       # 30 min
+ONLINE_SECS = settings.knob("AGENT_ONLINE_SECS", settings.AGENT_ONLINE_SECS, int)    # 5 min
+IDLE_SECS = settings.knob("AGENT_IDLE_SECS", settings.AGENT_IDLE_SECS, int)       # 30 min
 _TASK_STATUS = ("open", "claimed", "blocked", "done")
 INBOX_FILE = COORD_DIR / "inbox.json"
 TASKS_FILE = COORD_DIR / "tasks.json"

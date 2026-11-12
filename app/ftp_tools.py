@@ -23,6 +23,7 @@ from urllib.parse import quote
 import errtext
 import netguard
 import secrets_store
+import settings
 
 FTP_DIR = Path(os.environ.get("FTP_DIR", "/data/ftp"))
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
@@ -136,7 +137,7 @@ def _safe_source(nas_path: str):
 # reuse natively and is the community-proven upload path for these devices.
 # Plain (non-TLS) FTP keeps using ftplib — no benefit in shelling out there.
 
-_CURL_MAX_TIME = int(os.environ.get("FTP_CURL_MAX_TIME", "300"))
+_CURL_MAX_TIME = settings.knob("FTP_CURL_MAX_TIME", settings.FTP_CURL_MAX_TIME, int)
 
 
 def _curl_quote(value: str) -> str:

@@ -13,6 +13,7 @@ import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+import settings
 
 # Image/PDF rendering for fs_view. Guarded so the connector still starts (and every
 # text tool keeps working) even if an optional imaging wheel is ever missing.
@@ -26,10 +27,10 @@ _MAX_READ = 200_000        # default bytes returned by fs_read (text)
 _READ_CEILING = 5_000_000  # hard cap a caller may request, even with a big max_bytes
 # Largest file fs_view will pull into memory to render (a 300-dpi colour A4 scan is a
 # few MB; keep headroom for multi-page PDFs). Tunable via env.
-_VIEW_CEILING = int(os.environ.get("FS_VIEW_CEILING_BYTES", str(30_000_000)))
-_MAX_WRITE = int(os.environ.get("FS_MAX_WRITE_BYTES", str(5_000_000)))  # per fs_write
+_VIEW_CEILING = settings.knob("FS_VIEW_CEILING_BYTES", settings.FS_VIEW_CEILING_BYTES, int)
+_MAX_WRITE = settings.knob("FS_MAX_WRITE_BYTES", settings.FS_MAX_WRITE_BYTES, int)  # per fs_write
 # Total workspace size cap (default 2 GB). Set FS_WORKSPACE_QUOTA_BYTES to tune.
-_WORKSPACE_QUOTA = int(os.environ.get("FS_WORKSPACE_QUOTA_BYTES", str(2_000_000_000)))
+_WORKSPACE_QUOTA = settings.knob("FS_WORKSPACE_QUOTA_BYTES", settings.FS_WORKSPACE_QUOTA_BYTES, int)
 
 
 def _usage() -> int:

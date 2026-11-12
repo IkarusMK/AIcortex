@@ -22,6 +22,7 @@ from typing import Annotated
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from pydantic import Field
+import admin_settings
 
 CORE_TOOLS = (
     "cortex_start", "memory_search", "memory_read", "memory_write",
@@ -45,8 +46,11 @@ def caller_profile() -> str:
         return normalize(claims["profile"])
     pol = authz._policy()
     by_identity = pol.get("profiles", {}) if isinstance(pol, dict) else {}
-    return (normalize(by_identity.get(ident)) or normalize(os.environ.get("TOOL_PROFILE_DEFAULT"))
-            or "core")
+    try:
+        default = admin_settings.get("tool_profile")      # WebUI → Settings (since 2.7.1)
+    except admin_settings.Unreadable:
+        default = "core"
+    return normalize(by_identity.get(ident)) or normalize(default) or "core"
 
 
 def build_middleware():

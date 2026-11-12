@@ -25,9 +25,10 @@ from typing import Annotated
 from pydantic import Field
 
 import store
+import settings
 
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "/data/sessions"))
-RETENTION_DAYS = int(os.environ.get("SESSION_RETENTION_DAYS", "90"))
+RETENTION_DAYS = settings.knob("SESSION_RETENTION_DAYS", settings.SESSION_RETENTION_DAYS, int)
 
 
 def _now() -> str:

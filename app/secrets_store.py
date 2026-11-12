@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import store
+import settings
 
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
 VAULT_FILE = VAULT_DIR / "secrets.enc"
@@ -656,7 +657,7 @@ def vault_set(name: str, value: str, owner: str = "", description: str = "",
         clean, why = _clean_hosts(hosts)
         if why:
             return why
-    if _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
+    if _fernet() is None and not settings.flag("ALLOW_PLAINTEXT_VAULT", False):
         return ("Refusing to store: STORAGE_ENCRYPTION_KEY is not set, so the vault "
                 "would be PLAINTEXT despite the .enc name. Generate a key with "
                 "`python -c \"from cryptography.fernet import Fernet; "
@@ -706,7 +707,7 @@ def vault_update(name: str, owner: str = "", value: str = "", description=None, 
     name = (name or "").strip()
     if name.upper().startswith(LOGIN_PREFIX):
         return _RESERVED
-    if value and _fernet() is None and os.environ.get("ALLOW_PLAINTEXT_VAULT") != "1":
+    if value and _fernet() is None and not settings.flag("ALLOW_PLAINTEXT_VAULT", False):
         return "Refusing to store: STORAGE_ENCRYPTION_KEY is not set."
     try:
         d = _read_all(strict=True)

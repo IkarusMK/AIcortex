@@ -33,6 +33,7 @@ EDITORS = {  # dialog id → the form it holds
     "mem-editor": "form-mem", "cron-editor": "form-cron", "rn-editor": "form-runner",
     "sv-editor": "form-sv", "us-editor": "form-user", "pb-start-form": "form-pb-start",
     "pb-def-editor": "form-pb-def", "oa-paste": "form-oa-paste", "oa-access": "form-oa-access",
+    "st-editor": "form-settings",
 }
 CONFIRM = "modal"          # the one dialog that is a question, not a form
 # Lists whose form used to be always open beside them: they now get a "New" button.

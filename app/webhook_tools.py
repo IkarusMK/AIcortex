@@ -52,9 +52,10 @@ import cfgstore
 import errtext
 import netguard
 import secrets_store
+import settings
 
 WEBHOOK_DIR = Path(os.environ.get("WEBHOOK_DIR", "/data/webhooks"))
-_MAX_BODY = int(os.environ.get("WEBHOOK_MAX_BODY_BYTES", str(256_000)))
+_MAX_BODY = settings.knob("WEBHOOK_MAX_BODY_BYTES", settings.WEBHOOK_MAX_BODY_BYTES, int)
 _MAX_INBOX = 4000  # how much of the payload we quote into the inbox message
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")   # what a sender may ask for
 # Unix seconds / a byte count: ASCII digits only — str.isdigit() also accepts "²" or
@@ -62,7 +63,7 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")   # what a sender ma
 _DIGITS_RE = re.compile(r"[0-9]{1,12}", re.ASCII)
 _TS_HEADER = "x-webhook-timestamp"
 _TS_WINDOW = 300            # a timestamped delivery must be within ±5 minutes
-_REPLAY_TTL = max(_TS_WINDOW * 2, int(os.environ.get("WEBHOOK_REPLAY_TTL", "600") or 600))
+_REPLAY_TTL = max(_TS_WINDOW * 2, settings.knob("WEBHOOK_REPLAY_TTL", settings.WEBHOOK_REPLAY_TTL, int))
 _REPLAY_MAX = 10_000        # accepted deliveries remembered at most (oldest dropped first)
 _QUIET_WINDOW = 60          # seconds: an unknown hook name is audited once per window …
 _QUIET_MAX = 20             # … and at most this many unknown-hook lines per window

@@ -41,15 +41,15 @@ import secrets
 import apikeys
 import authz
 import version
+import settings
 
-_MAX_BODY = int(os.environ.get("API_MAX_BODY_BYTES", str(1_000_000)))
+_MAX_BODY = settings.knob("API_MAX_BODY_BYTES", settings.API_MAX_BODY_BYTES, int)
 _log = logging.getLogger("aicortex.rest")
 _SSE_HEARTBEAT = 15  # seconds between keepalive comments while a tool runs
 
 
 def _enabled() -> bool:
-    return os.environ.get("API_ENABLED", "1").strip().lower() not in (
-        "0", "false", "no", "off")
+    return settings.flag("API_ENABLED", True)
 
 
 def _bearer(request) -> str:

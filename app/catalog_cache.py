@@ -21,8 +21,9 @@ a corrupt cache is simply rebuilt on the next call.
 import json
 import os
 from pathlib import Path
+import settings
 
-_CACHE_FILE = Path(os.environ.get("CATALOG_CACHE_FILE", "/data/.catalog_cache.json"))
+_CACHE_FILE = Path(settings.knob("CATALOG_CACHE_FILE", str(settings.data_root() / ".catalog_cache.json")))
 
 _mem = None      # in-process copy of the on-disk cache: {key: {"sig": [...], "lines": [...]}}
 _dirty = False   # whether _mem has unsaved changes (flushed once per bootstrap)

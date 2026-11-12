@@ -42,13 +42,14 @@ import secrets_store
 import skills
 import tenancy
 import version
+import settings
 
 UI_DIR = Path(__file__).parent / "webui_static"
 SESSION_COOKIE = "aicortex_ui"
 OAUTH_COOKIE = "aicortex_ui_oauth"
-SESSION_TTL = int(os.environ.get("UI_SESSION_TTL", str(12 * 3600)))
+SESSION_TTL = settings.knob("UI_SESSION_TTL", settings.UI_SESSION_TTL, int)
 _OAUTH_TTL = 600  # seconds a login attempt may take
-_MAX_BODY = int(os.environ.get("UI_MAX_BODY_BYTES", str(1_000_000)))
+_MAX_BODY = settings.knob("UI_MAX_BODY_BYTES", settings.UI_MAX_BODY_BYTES, int)
 
 _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "app.js": "application/javascript; charset=utf-8",
@@ -61,6 +62,7 @@ _ASSETS = {  # allow-list: only these files are ever served from UI_DIR
     "view-playbook-lib.js": "application/javascript; charset=utf-8",
     "view-search.js": "application/javascript; charset=utf-8",
     "view-mcp-access.js": "application/javascript; charset=utf-8",
+    "view-settings.js": "application/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
     "logo.svg": "image/svg+xml",
 }
@@ -93,8 +95,7 @@ _ROLES = ("admin", "user", "viewer")
 
 
 def _enabled() -> bool:
-    return os.environ.get("UI_ENABLED", "1").strip().lower() not in (
-        "0", "false", "no", "off")
+    return settings.flag("UI_ENABLED", True)
 
 
 def _oidc_configured() -> bool:
@@ -227,7 +228,7 @@ def _session(request):
     at sign-in (authz.session_role), so a demotion or a policy change takes effect
     at once instead of being frozen for the session's 12 hours."""
     if not _oidc_configured():
-        if not (_is_local_request(request) or os.environ.get("ALLOW_INSECURE") == "1"):
+        if not (_is_local_request(request) or settings.flag("ALLOW_INSECURE", False)):
             return None
         return {"sub": "local-operator", "name": "Local operator",
                 "role": "admin", "csrf": "local", "mode": "open"}
@@ -643,6 +644,38 @@ def register(mcp):
         return _json({"secrets": secrets_store.vault_entries(),
                       "status": secrets_store.vault_status(),
                       "missing": secrets_store.missing_references()})
+
+    # ── settings an admin changes here instead of in .env (since 2.7.1) ──────────
+    @mcp.custom_route("/ui/api/settings", methods=["GET"])
+    async def _settings_get(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        import admin_settings
+        try:
+            values = admin_settings.current()
+        except admin_settings.Unreadable as exc:
+            return _json({"error": "unreadable", "detail": str(exc)}, 409)
+        return _json({"settings": values, "profiles": list(admin_settings.PROFILES)})
+
+    @mcp.custom_route("/ui/api/settings", methods=["POST"])
+    async def _settings_set(request):
+        sess = _require_admin(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        denied = _gate_mutation(request, sess)
+        if denied:
+            return denied
+        body = await _body(request)
+        if body is None:
+            return _json({"error": "invalid body"}, 400)
+        import admin_settings
+        ok, msg, values = admin_settings.update(body)
+        _audit(sess, "settings_set", "allow" if ok else "deny",
+               ("changed " + ", ".join(sorted(body))) if ok else msg)
+        if not ok:
+            return _json({"ok": False, "message": msg}, 400)
+        return _json({"ok": True, "message": msg, "settings": values})
 
     @mcp.custom_route("/ui/api/secrets", methods=["POST"])
     async def _secrets_set(request):

@@ -286,7 +286,7 @@ def test_allow_list_refuses_the_whole_send_when_any_recipient_is_outside(srv, wo
     monkeypatch.setenv("MAIL_ALLOWED_RECIPIENTS", "@example.com, carol@example.net")
     _add(srv)
     out = _send(srv, to="alice@example.com", cc="bob@example.org, Dave@Example.Net")
-    assert out.startswith("Refused: recipient(s) not allowed by MAIL_ALLOWED_RECIPIENTS")
+    assert out.startswith("Refused: recipient(s) not allowed by the mail allow-list")
     assert "bob@example.org, Dave@Example.Net" in out
     assert world.sessions == []
 

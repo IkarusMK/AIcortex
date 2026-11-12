@@ -19,6 +19,8 @@ from pathlib import Path
 import errtext
 import netguard
 import secrets_store
+import settings
+import admin_settings
 
 MAIL_DIR = Path(os.environ.get("MAIL_DIR", "/data/mail"))
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
@@ -28,7 +30,7 @@ _TYPES = {"pdf": ("application", "pdf"), "png": ("image", "png"),
           "txt": ("text", "plain"), "csv": ("text", "csv")}
 
 # Max attachment size accepted (default 25 MB).
-_MAX_ATTACH = int(os.environ.get("MAIL_MAX_ATTACH_BYTES", str(25_000_000)))
+_MAX_ATTACH = settings.knob("MAIL_MAX_ATTACH_BYTES", settings.MAIL_MAX_ATTACH_BYTES, int)
 
 
 def _recipient_allowed(rcpt: str, allow: list) -> bool:
@@ -153,13 +155,18 @@ def register(mcp):
             msg.add_attachment(ap.read_bytes(), maintype=maintype, subtype=subtype, filename=ap.name)
 
         rcpts = [a.strip() for a in (to + ("," + cc if cc else "")).split(",") if a.strip()]
-        # #11: optional recipient allow-list (server-side policy). Unset = unrestricted.
-        raw_allow = os.environ.get("MAIL_ALLOWED_RECIPIENTS", "").strip()
+        # #11: optional recipient allow-list (WebUI → Settings since 2.7.1). Empty =
+        # unrestricted; an unreadable settings file refuses rather than allowing anyone.
+        try:
+            raw_allow = str(admin_settings.get("mail_allowed_recipients") or "").strip()
+        except admin_settings.Unreadable:
+            return ("Refused: the AICortex settings file can't be read, so the recipient "
+                    "allow-list is unknown. Ask the operator to fix it (WebUI → Settings).")
         if raw_allow:
             allow = [x for x in re.split(r"[,\s]+", raw_allow) if x]
             bad = [r for r in rcpts if not _recipient_allowed(r, allow)]
             if bad:
-                return ("Refused: recipient(s) not allowed by MAIL_ALLOWED_RECIPIENTS — "
+                return ("Refused: recipient(s) not allowed by the mail allow-list (WebUI → Settings) — "
                         f"{', '.join(bad)}. Ask the operator to permit them.")
         sec = cfg.get("security", "starttls")
         port = int(cfg.get("port", 587))

@@ -25,12 +25,13 @@ import httpx
 
 import errtext
 import netguard
+import settings
 
 PRINT_DIR = Path(os.environ.get("PRINT_DIR", "/data/printers"))
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/data")).resolve()
 # Max document size accepted for a single print job (default 20 MB). Guards
 # against loading a huge payload into memory and printer-spool abuse.
-_MAX_DOC = int(os.environ.get("PRINT_MAX_BYTES", str(20_000_000)))
+_MAX_DOC = settings.knob("PRINT_MAX_BYTES", settings.PRINT_MAX_BYTES, int)
 
 # IPP value tags (RFC 8011 §5.1.x)
 _TAG_CHARSET = 0x47

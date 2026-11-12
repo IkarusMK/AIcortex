@@ -21,6 +21,7 @@ DESIGN SAFETY:
 import os
 
 import memory
+import admin_settings
 
 # tool name -> (memory type, human label) for durable registrations worth noting.
 _DURABLE = {
@@ -43,9 +44,12 @@ _CONTEXT_KEYS = ("base_url", "host", "url", "from_addr", "schedule", "descriptio
 
 def _enabled() -> bool:
     # On by default — candidates are STAGED for review, never written live, so
-    # auto-capture can't pollute the curated brain. Set LEARN_AUTOCAPTURE=0 to
-    # turn it off.
-    return os.environ.get("LEARN_AUTOCAPTURE", "1").strip().lower() in ("1", "true", "yes")
+    # auto-capture can't pollute the curated brain. Switched in WebUI → Settings
+    # (since 2.7.1); an unreadable settings file switches it off.
+    try:
+        return bool(admin_settings.get("learn_autocapture"))
+    except admin_settings.Unreadable:
+        return False
 
 
 def _stage(tool_name: str, args: dict) -> None:

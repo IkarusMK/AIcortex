@@ -60,6 +60,7 @@ import json
 import os
 import re
 from pathlib import Path
+import settings
 
 AUTH_DIR = Path(os.environ.get("AUTH_STORE_DIR", "/data/auth"))
 POLICY_FILE = AUTH_DIR / "policy.json"
@@ -78,8 +79,7 @@ def _enforced() -> bool:
     (secure by default: ON unless explicitly disabled). Read the env DIRECTLY so this
     can never raise and can't be caught in an import cycle — the fail-closed logic
     below relies on always being able to tell whether we're in enforce mode."""
-    return os.environ.get("AUTH_ENFORCE", "1").strip().lower() not in (
-        "0", "false", "no", "off")
+    return settings.flag("AUTH_ENFORCE", True)
 
 
 def isolation_enabled() -> bool:

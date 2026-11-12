@@ -16,6 +16,7 @@ below the ASGI layer, out of reach of a middleware).
 """
 import os
 import re
+import settings
 
 DEFAULT_HSTS = "max-age=31536000"
 _OFF = {"0", "off", "false", "no", "none"}
@@ -26,7 +27,7 @@ def hsts_value() -> str | None:
     """The Strict-Transport-Security value to send, or None."""
     if not os.environ.get("BASE_URL", "").strip().lower().startswith("https://"):
         return None
-    setting = os.environ.get("HSTS")
+    setting = settings.knob("HSTS", None)
     if setting is None or not setting.strip():
         return DEFAULT_HSTS
     setting = setting.strip()

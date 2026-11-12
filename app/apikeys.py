@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import store
+import settings
 
 APIKEY_DIR = Path(os.environ.get("APIKEY_DIR", "/data/apikeys"))
 _PREFIX = "ak_"
@@ -222,7 +223,7 @@ def revoke(keyid: str) -> bool:
 # The event loop is single-threaded, so there's no await between the read and the
 # append below → a plain dict/deque is race-free. In-memory is fine: a restart just
 # resets the window (a limiter, not an audit trail).
-_RATE_PER_MIN = int(os.environ.get("API_RATE_PER_MIN", "60"))
+_RATE_PER_MIN = settings.knob("API_RATE_PER_MIN", settings.API_RATE_PER_MIN, int)
 _hits: dict = collections.defaultdict(collections.deque)
 
 

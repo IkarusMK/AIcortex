@@ -50,11 +50,12 @@ import tenancy
 import apikeys
 import rest_api
 import webui
+import settings
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
-HOST = os.environ.get("MCP_HOST", "0.0.0.0")
-PORT = int(os.environ.get("MCP_PORT", "8787"))
+HOST = settings.knob("MCP_HOST", settings.HOST)
+PORT = settings.knob("MCP_PORT", settings.PORT, int)
 
 
 def http_middleware():
@@ -129,7 +130,7 @@ def _build_auth():
     config_url = os.environ.get("OIDC_CONFIG_URL")
     client_id = os.environ.get("OIDC_CLIENT_ID")
     if not (config_url and client_id):
-        if os.environ.get("ALLOW_INSECURE") == "1":
+        if settings.flag("ALLOW_INSECURE", False):
             return None
         print("[AICortex] auth: bearer tokens only (agent keys / RUNNER_TOKEN), no OIDC")
         return agent_auth.build(base_url=os.environ.get("BASE_URL") or None)
@@ -391,6 +392,12 @@ profiles.register(mcp)
 
 def main():
     print(f"[AICortex] version {version.__version__} starting")
+    settings.warn_leftovers()          # names settings a .env may still carry
+    try:
+        import admin_settings
+        admin_settings.ensure_initialized()   # takes the three moved settings over once
+    except Exception as exc:
+        print(f"[AICortex] WARNING: WebUI settings not initialised ({type(exc).__name__}: {exc})")
     # Native (libuv) event loop for faster async I/O — set the policy BEFORE any loop is
     # created. uvicorn also auto-detects uvloop; installing it here makes it explicit and
     # LOGS which loop is live so it's verifiable. Guarded: if uvloop is unavailable

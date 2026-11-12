@@ -40,6 +40,7 @@ import os
 import re
 import time
 from collections import OrderedDict
+import settings
 
 MAX_CLIENTS = 10_000
 _EPS = 1e-9                     # float slack when a bucket has refilled to exactly 1
@@ -84,12 +85,12 @@ def parse_limit(text: str) -> tuple[int, float] | None:
 
 def limits_from_env() -> dict[str, tuple[int, float]]:
     """The active groups and their (count, period); an invalid value keeps the default."""
-    if os.environ.get("RATE_LIMIT", "").strip() == "0":
+    if str(settings.knob("RATE_LIMIT", "")).strip() == "0":
         return {}
     active = {}
     for group, (var, default) in GROUPS.items():
         try:
-            limit = parse_limit(os.environ.get(var, default))
+            limit = parse_limit(settings.knob(var, default))
         except ValueError as exc:
             print(f"[AICortex] WARNING: {var}: {exc}; using the default {default}")
             limit = parse_limit(default)
@@ -102,16 +103,16 @@ def failure_limit_from_env():
     """((count, period), cooldown seconds) for the credential-failure guard, or None
     when it is off (RATE_LIMIT=0, or either setting 0). Invalid values keep the
     defaults."""
-    if os.environ.get("RATE_LIMIT", "").strip() == "0":
+    if str(settings.knob("RATE_LIMIT", "")).strip() == "0":
         return None
     var, default = FAILURES
     try:
-        limit = parse_limit(os.environ.get(var, default))
+        limit = parse_limit(settings.knob(var, default))
     except ValueError as exc:
         print(f"[AICortex] WARNING: {var}: {exc}; using the default {default}")
         limit = parse_limit(default)
     cvar, cdefault = COOLDOWN
-    raw = os.environ.get(cvar, cdefault).strip()
+    raw = str(settings.knob(cvar, cdefault)).strip()
     if not raw.isascii() or not raw.isdigit():
         print(f"[AICortex] WARNING: {cvar}={raw!r} is not a number of seconds; "
               f"using the default {cdefault}")
