@@ -27,7 +27,9 @@ that person's permission.
   `mcp_call(..., approval_id=...)`. On by default, switchable per person. Approve
   checks the person's permissions at that moment (role, assigned servers, read-only,
   Access): a call they no longer allow doesn't run and keeps waiting. One app, runner
-  or key can ask for at most 5 approvals per 10 minutes.
+  or key can ask for at most 5 approvals per 10 minutes. Invisible and
+  direction-changing characters in an approval are shown as escapes (`\u202e`), so
+  the text can't read differently from the call.
 - **Sign-in with a paste step.** Some providers only accept the web addresses of
   approved apps. AICortex then registers like a desktop app with a local address
   (`http://127.0.0.1:8765/callback`): the sign-in opens in a new tab, and afterwards you

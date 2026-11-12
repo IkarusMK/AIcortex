@@ -10,11 +10,17 @@ POST /ui/api/mcp-oauth/approvals/decide {id, approve}: approve → AICortex runs
 Everything here is about the signed-in person's OWN sign-ins and approvals — nobody,
 an admin included, sees or decides someone else's. Changes are CSRF-checked and
 audited; an approval can only be decided here, never by a tool call.
+
+What an approval shows (tool, arguments, server, channel) comes from the call, i.e.
+from the AI and whatever it copied. Characters that are invisible or change the
+writing direction (U+202E, U+2066, U+200B, U+FEFF, …) are shown as escapes (\\u202e),
+so the text the person approves can't read differently from the call that runs.
 """
 import asyncio
 import json
 import os
 import time
+import unicodedata
 
 import mcp_access
 import mcp_approvals
@@ -44,10 +50,36 @@ def _choices(person: str, current: dict) -> dict:
             "keys": merged(keys, "allow_keys")}
 
 
+# Invisible letters a format-character check misses (Hangul fillers and the like).
+_BLANKS = frozenset("\u115f\u1160\u3164\uffa0")
+
+
+def _hidden(c: str, keep: str) -> bool:
+    """Does `c` not show as itself: a format character (bidi controls, zero-width ones,
+    BOM, tags), a line/paragraph separator, a control character, a blank letter?"""
+    return c not in keep and (unicodedata.category(c) in ("Cf", "Cc", "Zl", "Zp")
+                              or c in _BLANKS)
+
+
+def _escape(c: str) -> str:
+    n = ord(c)
+    if n <= 0xFFFF:
+        return f"\\u{n:04x}"
+    n -= 0x10000                     # a JSON-style surrogate pair, so the text stays JSON
+    return f"\\u{0xD800 + (n >> 10):04x}\\u{0xDC00 + (n & 0x3FF):04x}"
+
+
+def visible(text, keep: str = "") -> str:
+    """`text` with every character that doesn't show as itself written as its escape."""
+    return "".join(_escape(c) if _hidden(c, keep) else c for c in str(text))
+
+
 def _row(r: dict) -> dict:
-    return {"id": r["id"], "server": r.get("server", ""), "tool": r.get("tool", ""),
-            "args": json.dumps(r.get("args") or {}, ensure_ascii=False, indent=2),
-            "requested_by": r.get("channel", ""), "created": int(r.get("created", 0)),
+    args = json.dumps(r.get("args") or {}, ensure_ascii=False, indent=2)
+    return {"id": r["id"], "server": visible(r.get("server", "")),
+            "tool": visible(r.get("tool", "")),
+            "args": visible(args, keep="\n"),     # json.dumps escapes every \n inside a string
+            "requested_by": visible(r.get("channel", "")), "created": int(r.get("created", 0)),
             "expires": int(r.get("expires", 0))}
 
 

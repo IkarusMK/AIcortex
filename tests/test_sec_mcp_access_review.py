@@ -24,6 +24,11 @@
 6. An approvals file that couldn't be read (another STORAGE_ENCRYPTION_KEY, damage) was
    taken as empty and overwritten by the next held call — every kept answer gone. Now
    nothing is written while it can't be read; every use says so.
+7. (the first-come window after an unreadable audit log: test_sec_operators_restore.py)
+8. An approval shows arguments the AI (or an upstream answer it copied) chose.
+   Direction overrides and invisible characters (U+202E, U+2066, U+200B, U+FEFF …)
+   could make the text the person approves read differently from the call that runs.
+   They are shown as visible escapes (\\u202e); the arguments stay the exact call.
 
 All upstream data is invented (the fake provider of test_mcp_oauth).
 """
@@ -278,3 +283,23 @@ def test_an_unreadable_approvals_file_is_left_alone(up):
     assert listed["approvals"] == [] and "can't be read" in listed["message"]
     assert path.read_bytes() == other_key                          # never rewritten
     assert up.prov.calls == []
+
+
+# ── 8. what an approval shows can't be visually reordered ───────────────────
+HIDDEN = ("\u202a", "\u202e", "\u2066", "\u2067", "\u2069", "\u200b", "\u200e", "\u200f",
+          "\ufeff", "\u2028", "\U000e0041")
+
+
+def test_hidden_and_direction_characters_are_shown_as_escapes(up):
+    access(up, allow_apps=["claude.ai"])
+    text = "report\u202etxt.exe " + "".join(HIDDEN)
+    with as_token(app("claude.ai")):
+        approval_id(call("mcp_call", {"server": SERVER, "tool": "set_value\u2066",
+                                      "args": {"note\u202e": text, "n": 1}}))
+    row = pending(up)[0]
+    shown = "".join(str(row[k]) for k in ("tool", "args", "server", "requested_by"))
+    assert not [c for c in HIDDEN if c in shown]
+    assert row["tool"] == "set_value\\u2066" and "report\\u202etxt.exe" in row["args"]
+    assert "\\udb40\\udc41" in row["args"]                     # beyond U+FFFF: a JSON pair
+    assert json.loads(row["args"]) == {"note\u202e": text, "n": 1}   # still exactly the call
+    assert "\n" in row["args"]                                   # the layout stays readable
