@@ -87,7 +87,7 @@ NO_LONGER_USED = (
     "API_ENABLED", "API_MAX_BODY_BYTES", "API_RATE_PER_MIN", "WEBHOOK_MAX_BODY_BYTES",
     "WEBHOOK_REPLAY_TTL", "FS_VIEW_CEILING_BYTES", "FS_MAX_WRITE_BYTES",
     "FS_WORKSPACE_QUOTA_BYTES", "IMAP_MAX_BODY_BYTES", "IMAP_MAX_ATTACH_BYTES",
-    "MAIL_MAX_ATTACH_BYTES", "PRINT_MAX_BYTES", "FTP_CURL_MAX_TIME", "MCP_HOST", "MCP_PORT",
+    "MAIL_MAX_ATTACH_BYTES", "PRINT_MAX_BYTES", "FTP_CURL_MAX_TIME",
     "CATALOG_CACHE_FILE", "AGENT_ONLINE_SECS", "AGENT_IDLE_SECS", "SESSION_RETENTION_DAYS",
     "SSH_STRICT_HOST_KEYS",
     "MAIL_ALLOWED_RECIPIENTS", "TOOL_PROFILE_DEFAULT", "LEARN_AUTOCAPTURE",
@@ -125,7 +125,12 @@ def flag(name: str, default: bool) -> bool:
     raw = knob(name, None)
     if raw is None:
         return default
-    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+    text = str(raw).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    return default                     # an unknown value keeps the built-in one
 
 
 def data_root() -> Path:

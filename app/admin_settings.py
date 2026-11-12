@@ -34,8 +34,12 @@ class Unreadable(Exception):
     """The settings file exists but can't be read or parsed."""
 
 
+# Resolved once at import, like every other data path of the app.
+_PATH = settings.data_dir("AUTH_STORE_DIR", "auth") / "settings.json"
+
+
 def path() -> Path:
-    return settings.data_dir("AUTH_STORE_DIR", "auth") / "settings.json"
+    return _PATH
 
 
 def validate(key: str, value):
@@ -114,9 +118,12 @@ def ensure_initialized(environ=None) -> dict:
 
 def current() -> dict:
     """All settings (defaults filled in). Raises ``Unreadable``."""
-    data = _read()
-    if data is None:
-        data = ensure_initialized()
+    try:
+        data = _read()
+        if data is None:
+            data = ensure_initialized()
+    except OSError as exc:            # e.g. the data volume can't be written
+        raise Unreadable(f"{path()} can't be used ({type(exc).__name__})") from exc
     return {k: data.get(k, v) for k, v in settings.ADMIN_DEFAULTS.items()}
 
 
@@ -151,6 +158,6 @@ def update(changes: dict) -> tuple[bool, str, dict]:
                 data = dict(settings.ADMIN_DEFAULTS)
             merged = {**data, **clean}
             _write(merged)
-    except Unreadable as exc:
+    except (Unreadable, OSError) as exc:
         return False, f"settings file unreadable — fix or remove it first ({exc})", {}
     return True, "saved", {k: merged.get(k, v) for k, v in settings.ADMIN_DEFAULTS.items()}

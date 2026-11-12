@@ -54,8 +54,9 @@ import settings
 
 MEMORY_DIR = os.environ.get("MEMORY_DIR", "/data/memory")
 SKILLS_DIR = os.environ.get("SKILLS_DIR", "/data/skills")
-HOST = settings.knob("MCP_HOST", settings.HOST)
-PORT = settings.knob("MCP_PORT", settings.PORT, int)
+# A launcher outside the container (stdio bridge, upgrade check) picks host and port.
+HOST = os.environ.get("MCP_HOST") or settings.HOST
+PORT = int(os.environ.get("MCP_PORT") or settings.PORT)
 
 
 def http_middleware():
