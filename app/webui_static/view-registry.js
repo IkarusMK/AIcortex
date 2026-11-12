@@ -165,10 +165,12 @@ Object.assign(I18N.de, {
   oa_denied: "Der Anbieter hat den Zugriff nicht freigegeben.",
   oa_issuer: "Die Antwort kam von einem anderen Anbieter — abgelehnt.",
   oa_exchange: "Der Anbieter hat kein Token ausgestellt.",
+  oa_exchange_hint: "Starte die Anmeldung neu und füge die Adresse gleich danach ein.",
+  oa_reason: "Grund laut Anbieter:",
   oa_vault: "Kein Verschlüsselungsschlüssel gesetzt — die Anmeldung wurde nicht gespeichert.",
   oa_error: "Anmeldung fehlgeschlagen.",
   oa_paste_title: "Anmeldung abschließen",
-  oa_paste_text: "Melde dich im neuen Tab an. Danach zeigt der Browser eine Fehlerseite mit einer Adresse, die mit {0} beginnt — das ist richtig so. Kopiere die komplette Adresse aus der Adresszeile hier hinein.",
+  oa_paste_text: "Melde dich im neuen Tab an. Danach zeigt der Browser eine Fehlerseite mit einer Adresse, die mit {0} beginnt — das ist richtig so. Kopiere die komplette Adresse aus der Adresszeile hier hinein — gleich danach, der Code darin gilt nur wenige Minuten.",
   oa_paste_open: "Anmeldeseite erneut öffnen ↗", oa_paste_url: "Adresse nach der Anmeldung",
   oa_paste_finish: "Abschließen",
   oa_address: "Das ist nicht die Adresse nach der Anmeldung — kopiere die komplette Adresse aus der Adresszeile (sie beginnt mit {0}).",
@@ -185,10 +187,12 @@ Object.assign(I18N.en, {
   oa_denied: "The provider did not grant access.",
   oa_issuer: "The answer came from another provider — refused.",
   oa_exchange: "The provider did not issue a token.",
+  oa_exchange_hint: "Start the sign-in again and paste the address right after it.",
+  oa_reason: "The provider says:",
   oa_vault: "No encryption key is set — the sign-in was not stored.",
   oa_error: "Sign-in failed.",
   oa_paste_title: "Finish signing in",
-  oa_paste_text: "Sign in in the new tab. Your browser then shows an error page whose address starts with {0} — that's expected. Copy the whole address from the address bar into this field.",
+  oa_paste_text: "Sign in in the new tab. Your browser then shows an error page whose address starts with {0} — that's expected. Copy the whole address from the address bar into this field right away — the code in it is only valid for a few minutes.",
   oa_paste_open: "Open the sign-in page again ↗", oa_paste_url: "Address after signing in",
   oa_paste_finish: "Finish",
   oa_address: "That isn't the address after signing in — copy the whole address from the address bar (it starts with {0}).",
@@ -263,8 +267,11 @@ async function oauthPasteFinish(ev) {
     return;
   }
   const key = "oa_" + d.code;
+  // the provider's reason is its own text: appended as is, never through t()'s {0}
+  const why = d.reason ? " " + t("oa_reason") + " " + d.reason : "";
+  const next = d.code === "exchange" ? " " + t("oa_exchange_hint") : "";
   toast(d.code === "address" ? t("oa_address", dlg.dataset.prefix || "")
-    : (I18N.en[key] ? t(key) : (d.message || t("oa_error"))), false);
+    : (I18N.en[key] ? t(key) + why + next : (d.message || t("oa_error"))), false);
   if (d.code !== "address") closeDialog(dlg);     // this sign-in is spent: start again
 }
 

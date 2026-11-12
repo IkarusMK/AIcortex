@@ -247,6 +247,28 @@ def test_a_wrong_code_is_refused_by_the_exchange(native):
     assert vault_keys() == []
 
 
+def test_a_refusal_names_the_reason_the_provider_gave(native):
+    """Up to 2.7.1 the WebUI said only "The provider did not issue a token." — not why
+    (a code that ran out while the address waited to be pasted reads invalid_grant).
+    The answer now carries the provider's reason on its own, so the WebUI can show it."""
+    _, landed = paste_start(native)
+    code = query_of(landed)["code"]
+    r = paste_finish(native, landed.replace(f"code={code}", "code=made-up"))
+    assert r.json()["code"] == "exchange" and r.json()["reason"] == "invalid_grant"
+    native.prov.deny = True
+    _, landed = paste_start(native)
+    r = paste_finish(native, landed)
+    assert r.json()["code"] == "denied" and r.json()["reason"] == "access_denied"
+    assert vault_keys() == []
+
+
+def test_the_provider_reason_is_plain_short_text():
+    import mcp_oauth
+    assert mcp_oauth._reason("invalid_grant") == "invalid_grant"
+    assert mcp_oauth._reason("a‮b​c\x00d\ne") == "abcd e"   # nothing hidden
+    assert len(mcp_oauth._reason("x" * 500)) == 120 and mcp_oauth._reason(None) == ""
+
+
 def test_finish_needs_csrf_the_pending_sign_in_and_a_small_body(native):
     _, landed = paste_start(native)
     no_csrf = httpx.Client(base_url=native.base, cookies=native.ui.cookies)
@@ -319,6 +341,11 @@ def test_the_paste_step_is_wired_into_the_webui(env):
     assert "innerHTML" not in js
     assert "Abschließen" in js and "Finish" in js
     assert "127.0.0.1:8765/callback" not in js       # the address comes from the server
+    # the code in the address runs out: the dialog says to paste it right away, and a
+    # refused exchange shows the provider's reason — as text, never through t()'s {0}
+    assert "gleich" in js and "right away" in js
+    assert js.count("oa_reason:") == 2 and js.count("oa_exchange_hint:") == 2
+    assert 'd.reason' in js and 't("oa_reason", d.reason)' not in js
     html = env.ui.get("/ui").text
     start = html.index('<dialog id="oa-paste"')
     dialog = html[start:html.index("</dialog>", start)]

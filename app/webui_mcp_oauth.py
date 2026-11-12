@@ -172,9 +172,13 @@ def register(mcp, h, ui):
         pending = ui.verify(request.cookies.get(COOKIE, "")) or {}
         server = str(pending.get("server", ""))
 
-        def answer(code: str, message: str = "", status: int = 400, spent: bool = True):
-            resp = h.json({"ok": code == "ok", "code": code, "server": server,
-                           "message": message or ("Signed in." if code == "ok" else "")}, status)
+        def answer(code: str, message: str = "", status: int = 400, spent: bool = True,
+                   reason: str = ""):
+            body = {"ok": code == "ok", "code": code, "server": server,
+                    "message": message or ("Signed in." if code == "ok" else "")}
+            if reason:
+                body["reason"] = reason              # the provider's words, plain text
+            resp = h.json(body, status)
             if spent:
                 ui.cookie(resp, COOKIE, "", request, 0)      # one-shot, like the callback
             return resp
@@ -193,7 +197,8 @@ def register(mcp, h, ui):
             await asyncio.to_thread(mcp_oauth.finish, pending, params)
         except mcp_oauth.OAuthError as exc:
             h.audit(sess, "mcp_oauth_finish", "deny", f"server={server} {exc.code}")
-            return answer(exc.code, str(exc), 502 if exc.code in ("network", "blocked") else 400)
+            return answer(exc.code, str(exc), 502 if exc.code in ("network", "blocked") else 400,
+                          reason=exc.reason)
         except Exception as exc:
             h.audit(sess, "mcp_oauth_finish", "deny", f"server={server} {type(exc).__name__}")
             return answer("error", "The sign-in could not be completed.", 502)

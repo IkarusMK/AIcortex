@@ -70,9 +70,26 @@ class OAuthError(Exception):
     """A sign-in or token problem. The message is meant for a person (and their AI);
     ``code`` is a short word the WebUI turns into its own text."""
 
-    def __init__(self, message: str, code: str = "error"):
+    def __init__(self, message: str, code: str = "error", reason: str = ""):
         super().__init__(message)
         self.code = code
+        self.reason = _reason(reason)      # the provider's own words, when it gave any
+
+
+_REASON_MAX = 120
+
+
+def _reason(text) -> str:
+    """A provider's error text as one short line of plain text: line breaks become
+    spaces, everything that doesn't show as itself (controls, bidi and zero-width
+    characters) is dropped."""
+    out = []
+    for c in str(text or ""):
+        if c in "\r\n\t":
+            out.append(" ")
+        elif c.isprintable():
+            out.append(c)
+    return "".join(out).strip()[:_REASON_MAX]
 
 
 # ── names, owner, small checks ───────────────────────────────────────────────
@@ -433,8 +450,8 @@ def finish(pending: dict, params: dict) -> None:
     if not state or not hmac.compare_digest(state.encode(), str(pending.get("state", "")).encode()):
         raise OAuthError("The sign-in could not be matched (state) — please start again.", "state")
     if params.get("error"):
-        raise OAuthError(f"The provider did not grant access ({str(params['error'])[:60]}).",
-                         "denied")
+        raise OAuthError(f"The provider did not grant access ({_reason(params['error'])[:60]}).",
+                         "denied", reason=params["error"])
     iss = params.get("iss")
     if (iss or pending.get("iss_required")) and _norm(iss) != _norm(pending.get("issuer")):
         raise OAuthError("The answer came from another issuer (or without one) — refused.",
@@ -456,7 +473,8 @@ def _tokens(status: int, doc: dict, bound: dict, old_refresh: str = "") -> dict:
     access = str(doc.get("access_token") or "")
     if status != 200 or not access:
         why = doc.get("error_description") or doc.get("error") or f"HTTP {status}"
-        raise OAuthError(f"The provider did not issue a token ({str(why)[:120]}).", "exchange")
+        raise OAuthError(f"The provider did not issue a token ({_reason(why)}).", "exchange",
+                         reason=why)
     if str(doc.get("token_type") or "Bearer").lower() != "bearer":
         raise OAuthError("The provider issued a token type other than Bearer.", "exchange")
     try:
