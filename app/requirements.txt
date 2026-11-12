@@ -9,7 +9,7 @@ fastmcp==4.1.4
 # Libraries the app imports DIRECTLY. fastmcp 4 moved to httpx2 and no longer pulls
 # httpx in, so relying on transitive installs broke services/scan/caldav/webdav —
 # every direct import is declared here instead.
-httpx>=0.28,<1
+httpx>=0.28.1,<1
 pyyaml>=6,<7
 cryptography>=46
 starlette>=1,<2
