@@ -130,7 +130,7 @@ def _build_auth():
     config_url = os.environ.get("OIDC_CONFIG_URL")
     client_id = os.environ.get("OIDC_CLIENT_ID")
     if not (config_url and client_id):
-        if settings.flag("ALLOW_INSECURE", False):
+        if os.environ.get("ALLOW_INSECURE") == "1":   # local trial only (README)
             return None
         print("[AICortex] auth: bearer tokens only (agent keys / RUNNER_TOKEN), no OIDC")
         return agent_auth.build(base_url=os.environ.get("BASE_URL") or None)

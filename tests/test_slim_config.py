@@ -16,7 +16,7 @@ import pytest
 APP = Path(__file__).resolve().parent.parent / "app"
 
 WEAKENING = {
-    "AUTH_ENFORCE": "0", "ALLOW_INSECURE": "1", "ALLOW_PLAINTEXT_VAULT": "1",
+    "AUTH_ENFORCE": "0", "ALLOW_PLAINTEXT_VAULT": "1",
     "OIDC_DEFAULT_ROLE": "admin", "RUNNER_ROLE": "admin", "HSTS": "off",
     "RATE_LIMIT": "0", "UI_SESSION_TTL": "999999", "UI_ENABLED": "0", "API_ENABLED": "0",
     "AUDIT_MAX_BYTES": "0", "WEBHOOK_MAX_BODY_BYTES": "999999999",
@@ -49,7 +49,6 @@ def test_variables_that_weakened_security_change_nothing_in_production(productio
     assert production["webui"]._enabled() and production["rest_api"]._enabled()
     assert production["webhook_tools"]._MAX_BODY == settings.WEBHOOK_MAX_BODY_BYTES
     assert not settings.flag("ALLOW_PLAINTEXT_VAULT", False)
-    assert not settings.flag("ALLOW_INSECURE", False)
 
 
 def test_the_test_switch_is_what_lets_the_suite_tune_a_value(monkeypatch):

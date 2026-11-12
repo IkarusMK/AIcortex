@@ -71,7 +71,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **Runners** carry the jobs out — AICortex **wakes your Claude** (a Claude Code cloud task on your plan) with the due job, or asks your **ChatGPT plan**, an API key or a local **Ollama**; each person sets up their own in the WebUI and gives each job its runner, no extra container ([how](#autonomy--scheduling))
 
 **🔒 Secure & multi-tenant**
-- Your own **OIDC** login and **roles** (admin / user / viewer) — one switch, `AUTH_ENFORCE`; only the **operators** you name are admin, everyone else signs in as *user*
+- Your own **OIDC** login and **roles** (admin / user / viewer), always enforced; only the **operators** you name are admin, everyone else signs in as *user*
 - **Per-user isolation *and* capability areas:** private memory + vault per person, plus **default-deny** service/skill allow-lists an admin assigns — so not everyone may use every tool
 - An **encrypted secret vault** whose tokens only go to the **hosts they're bound to**, an **SSRF egress guard** that pins every hop to a checked address, and capability checks that **fail closed** — end-to-end on your hardware, including a **local model** (Ollama)
 - OAuth with a **redirect allow-list and consent page**, **rate limits** on sign-in, token and webhook endpoints, **HSTS**, and an image that is **scanned before it ships**
@@ -166,6 +166,7 @@ The MCP endpoint is served at `http://<host>:8787/mcp`.
 > [CHANGELOG.md](CHANGELOG.md#upgrading-from-1x).
 
 > 🔐 **Updating to 2.6 or 2.7?** Pull and restart as usual — your data stays. Read
+> **[Upgrading to 2.7.1](#upgrading-to-271--a-short-env)**,
 > **[Upgrading to 2.7.0](#upgrading-to-270--whats-new-for-you)** and
 > **[Upgrading to 2.6.0](#upgrading-to-260--what-you-need-to-do)** first: one setting
 > may need a change, everyone signs in once more, each app asks for consent once, and
@@ -201,28 +202,36 @@ Register the OAuth client in your provider with redirect URI **`<BASE_URL>/auth/
 
 ### 2. Pick your mode — one line in `.env`
 
-|  | 🏠 **Homelab** | 🏢 **Enterprise** |
-|---|---|---|
-| **For** | one trusted person (you) | several people on one brain |
-| **Tool access** | everyone gets every tool | roles: admin / user / viewer |
-| **Data** | one shared brain | per-user memory **+ private vault** |
-| **The line** | `AUTH_ENFORCE=0` | `AUTH_ENFORCE=1` *(default)* |
-
-**🏠 Homelab — keep it simple**
+There is one mode, and it is the secure one (since 2.7.1 it can't be switched off):
+roles (admin / user / viewer), per-user isolation and per-user capability areas are
+always on. Alone, you are the operator and have every tool. With several people, each
+non-admin is confined to their **own memory scope and private vault namespace** — two
+people never read or overwrite each other's data — and reaches only the **services &
+skills an admin assigns** (default-deny); an admin provisions per-user secrets
+(`secret_set owner=…`) and areas (`tenancy_set services=… skills=…`) or uses the WebUI.
+Roles can come from your IdP's groups:
 ```env
-AUTH_ENFORCE=0
-```
-Every authenticated caller gets every tool — one shared brain, zero friction. Authentication (OIDC) still guards the front door; you've just turned off the *internal* role gate.
-
-**🏢 Enterprise — several people, one brain**
-```env
-AUTH_ENFORCE=1                          # default — the single switch (see below)
 OIDC_SCOPE=openid profile email groups  # request the groups claim
-AUTH_ROLE_CLAIM=groups                  # map Pocket ID groups → roles
+AUTH_ROLE_CLAIM=groups                  # map IdP groups → roles (data/auth/policy.json)
 ```
-`AUTH_ENFORCE=1` is the **one switch** — "enforce means enforce". It turns on roles (admin / user / viewer), per-user isolation, and per-user capability areas together. Roles are driven by your IdP groups (mapped in `data/auth/policy.json`, or managed live with the `tenancy_*` admin tools). Each non-admin is confined to their **own memory scope and private vault namespace** — two people never read or overwrite each other's data — and reaches only the **services & skills an admin assigns** (default-deny); an admin provisions per-user secrets (`secret_set owner=…`) and areas (`tenancy_set services=… skills=…`). Admins keep full access.
 
-Both modes run the same image. **Who is admin:** only the **operators** you name (`OPERATORS=<your IdP sub>`, or the first person who signs in after a fresh start — see [below](#who-is-admin)); everyone else who signs in is `user`. With sign-in configured, a caller whose identity can't be resolved, or a policy check that fails, is **refused** (fail closed). **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+**Who is admin:** only the **operators** you name (`OPERATORS=<your IdP sub>`, or the first person who signs in after a fresh start — see [below](#who-is-admin)); everyone else who signs in is `user`. With sign-in configured, a caller whose identity can't be resolved, or a policy check that fails, is **refused** (fail closed). **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+
+## Upgrading to 2.7.1 — a short .env
+
+Since 2.7.1 the configuration is short: six required settings, a handful of optional
+ones (see [`.env.example`](.env.example)). Everything else is built in and can't be
+switched off any more — roles are always enforced, the vault is always encrypted.
+
+1. **Update** as usual: `docker compose pull && docker compose up -d --force-recreate`.
+2. **Read the startup log once.** A line `settings no longer used (fixed since 2.7.1),
+   you can delete them: …` lists what you can remove from your `.env`.
+3. **Compose file:** the data-folder lines (`MEMORY_DIR: /data/memory` …), `SECRETS_DIR`
+   and the `./secrets:/secrets:ro` mount can go — they are built in or were unused. A
+   folder you set to a *different* path keeps working, so no data moves.
+4. **Moved into the WebUI:** the mail recipient allow-list, the default tool profile and
+   auto-memory are under **Overview → Settings** now. Your old `.env` values were taken
+   over at the first start (`settings: took over … into the WebUI settings`).
 
 ## Upgrading to 2.7.0 — what's new for you
 
@@ -300,13 +309,12 @@ the internet, update now. Nothing in `data/` has to be migrated by hand.
 - **Everyone else** who signs in is `user`: their own notes and vault area, no
   registration or secret tools. Give someone more in **WebUI → Users**.
 - **Fresh install without `OPERATORS`:** the first person to sign in within
-  `OPERATOR_BOOTSTRAP_MINUTES` (default 30) after a start becomes the operator. Sign in
+  30 minutes after a start becomes the operator. Sign in
   right after setting up. Missed it? Restart and sign in again, or set `OPERATORS`.
 - The **last operator** can't be removed or demoted, so you can't lock yourself out.
 - **Agent keys** and **scheduled jobs** never become admin through this; they use the
   role set for them explicitly, else `user`.
-- Want the old behaviour (everyone your IdP lets in is admin)? `OIDC_DEFAULT_ROLE=admin`
-  — only if your IdP admits nobody but you.
+- There is no switch back to "everyone your IdP lets in is admin" (since 2.7.1).
 
 #### Connecting apps
 
@@ -330,34 +338,33 @@ the internet, update now. Nothing in `data/` has to be migrated by hand.
 - **New integration in the WebUI:** just save it; saving binds the secret.
 - **Moving a service to a new host** or sending a secret with `webhook_send`: add the
   host in **WebUI → Vault → allowed hosts** for that secret.
-- Settings of the server itself (`RATE_LIMIT*`, `HSTS`, `MCP_*`, `FORWARDED_*`,
-  `OPERATOR*`, `UI_*`, `API_*`, …) are never read from the environment as a secret. A
+- Settings of the server itself (`FORWARDED_*`, `MCP_*`, `OPERATOR*`, `UI_*`, `API_*`,
+  …) are never read from the environment as a secret. A
   token you kept in such an environment variable must move into the vault.
 
 #### Behind a reverse proxy
 
 - `FORWARDED_ALLOW_IPS` names who may tell AICortex the real client IP. The default
   in `docker-compose.yml` is loopback plus private networks. **Never `*`.**
-- **Rate limits** per client IP (all configurable, `0` switches one off, `RATE_LIMIT=0`
-  all of them):
+- **Rate limits** per client IP (built in since 2.7.1):
 
-  | Setting | Default | Covers |
-  |---|---|---|
-  | `RATE_LIMIT_AUTH` | 30/min | `/authorize`, `/token`, `/consent`, `/revoke`, `/auth/callback` |
-  | `RATE_LIMIT_LOGIN` | 30/min | WebUI sign-in |
-  | `RATE_LIMIT_REGISTER` | 10/hour | app registration (`/register`) |
-  | `RATE_LIMIT_HOOKS` | 60/min | inbound webhooks |
-  | `RATE_LIMIT_UI` | 300/min | WebUI API |
-  | `RATE_LIMIT_AUTH_FAILURES` | 20/min | rejected credentials on `/mcp` and `/api/v1` → `429` for `RATE_LIMIT_FAILURE_COOLDOWN` (300 s) |
+  | Covers | Limit |
+  |---|---|
+  | `/authorize`, `/token`, `/consent`, `/revoke`, `/auth/callback` | 30/min |
+  | WebUI sign-in | 30/min |
+  | app registration (`/register`) | 10/hour |
+  | inbound webhooks | 60/min |
+  | WebUI API | 300/min |
+  | rejected credentials on `/mcp` and `/api/v1` | 20/min, then `429` for 5 minutes |
 
 - **HSTS** is sent automatically when `BASE_URL` starts with `https://` (this host
-  only; `HSTS=<value>` changes it, `HSTS=off` switches it off).
+  only, built in).
 
 #### Webhook senders
 
 - Existing senders keep working unchanged.
 - A delivery that is repeated byte for byte within 10 minutes is answered with
-  `{"ok": true, "duplicate": true}` and not delivered again (`WEBHOOK_REPLAY_TTL`).
+  `{"ok": true, "duplicate": true}` and not delivered again.
 - Optional replay protection: send `X-Webhook-Timestamp: <unix seconds>`. It must be
   within ±5 minutes, and HMAC hooks then sign `"<timestamp>." + body`.
 
@@ -413,7 +420,7 @@ Most assistants forget the moment a chat ends. AICortex closes that loop — and
 - **Typed & tiered.** Every memory is `user`, `feedback`, `project` or `reference`; `memory_write` refuses an untyped memory, and `cortex_catalog` groups them into tiers (Core → Projects → Working style → References) so the catalog reads long-term → ephemeral — the brain stays sorted by intent.
 - **Learns in-session, at zero extra cost.** The model already talking to you distills the durable facts and writes them back — no second model, no background loop.
 - **Dedup-first.** A write flags overlapping entries so related facts merge into one file instead of multiplying.
-- **A review queue.** Anything captured automatically (or staged with `memory_note`) lands as a **candidate**, not live memory — you `memory_promote` the keepers and `memory_reject` the rest. Set `LEARN_AUTOCAPTURE=0` to turn auto-capture off.
+- **A review queue.** Anything captured automatically (or staged with `memory_note`) lands as a **candidate**, not live memory — you `memory_promote` the keepers and `memory_reject` the rest. Set **Overview → Settings** (auto-memory off) to turn auto-capture off.
 
 ## Tools & integrations (as data)
 
@@ -457,7 +464,7 @@ A key **typed in** is stored encrypted as the runner's own vault entry (`RUNNER_
 
 **An own runner** outside AICortex that calls `cron_due` with the static `RUNNER_TOKEN` from the connector's `.env` keeps working: it gets the jobs assigned to *external*, and the unassigned ones while no standard runner is on. A job is handed out once per scheduled minute, so two runners never run it twice.
 
-> **What the runner may do.** In **homelab mode** (`AUTH_ENFORCE=0`) it has full access. In **enterprise mode** (`AUTH_ENFORCE=1`) it is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For a runner that should act broadly, set `RUNNER_ROLE=admin`; for scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
+> **What the runner may do.** It is a least-privilege **`user`**: it can't register integrations or set secrets, and reaches only the services/skills an admin assigned. For scheduled work on a person's behalf, give the job an **owner** so it runs act-as in that user's area (short-lived per-job token, no standing authority). See [docs/authorization.md](docs/authorization.md).
 >
 > **Plan or API key?** A Claude cloud task and the ChatGPT sign-in are the providers' own ways for this and count against your plan's limits; an API key bills per use. Because a runner is only woken when a job is due, the usage stays small either way.
 
@@ -596,7 +603,7 @@ are signed HttpOnly cookies, mutations are CSRF-guarded, every action lands in t
 browser gets exactly the rights of the person's AI.
 Without OIDC (local testing) the UI is open on the localhost-only bind — the same trust
 model as the MCP endpoint itself. There is no separate username/password login: remote
-access always goes through your IdP. Opt-out: `UI_ENABLED=0`.
+access always goes through your IdP.
 
 **First steps after the install** — sign in, set up people, create keys and connect
 Claude, ChatGPT, Claude Code and other agents: **[docs/clients.md](docs/clients.md)**
@@ -612,11 +619,12 @@ All config lives in `.env` (copy from `.env.example`):
 | `BIND_ADDR` | `127.0.0.1` | Address the published port binds to. Loopback = only this host's reverse proxy reaches it, not the LAN. Set `0.0.0.0` if your proxy is a **separate bridge-network container** |
 | `PUID` / `PGID` | `1000` | User/group ID the process runs as (file ownership) |
 | `TZ`        | `UTC`   | Container timezone |
-| `API_ENABLED` | `1` | Native REST API (`/api/v1/*`) on/off — keys are minted with `apikey_create` |
-| `API_RATE_PER_MIN` | `60` | Per-key REST rate limit (requests/minute; `0` = unlimited) |
-| `UI_ENABLED` | `1` | Admin WebUI (`/ui`) on/off — browser login via your IdP (redirect URI `<BASE_URL>/ui/callback`) |
 
-OIDC, authorization and hardening variables are documented inline in [`.env.example`](.env.example) and the [Authentication & authorization](#authentication--authorization) section.
+Sign-in, keys and the few optional settings are in [`.env.example`](.env.example) (50
+lines). Since 2.7.1 everything else is built in — data folders under `/data`, rate
+limits, HSTS, the audit log, size limits, and the protections. The mail recipient
+allow-list, the default tool profile and auto-memory are set in the WebUI
+(**Overview → Settings**).
 
 ## Deploying on a VPS or over a VPN
 
@@ -670,7 +678,7 @@ docker logs --tail 50 aicortex
 docker exec aicortex python -c "import netguard; print('has tls_verify:', hasattr(netguard,'tls_verify'))"
 
 # 4) Authorization decisions — who called what, allow/deny (per-person 'sub')
-tail -n 20 <compose-dir>/data/auth/audit.log        # set AUTH_AUDIT_ALL=1 to log allowed calls too
+tail -n 20 <compose-dir>/data/auth/audit.log
 
 # 5) Can the container actually reach a device? (verify off = ignore self-signed)
 docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-ip>/', verify=False, timeout=5).status_code)"
@@ -698,7 +706,6 @@ docker exec aicortex python -c "import httpx; print(httpx.get('https://<device-i
 | `mcp_call` answers that it **waits for approval** | The call changes something. Approve or reject it under **Services & devices → Approvals**; the assistant then fetches the result with `approval_id`. |
 | Log: **`WARNING: nobody is operator (admin) yet`**, WebUI shows no admin pages | Nobody is operator. Sign in within 30 minutes of a start, or set **`OPERATORS=<your sub>`** and restart. |
 | Log: **`WARNING: FORWARDED_ALLOW_IPS="*"`** or **`… is not set`** | Set `FORWARDED_ALLOW_IPS` to your proxy's source, e.g. `127.0.0.1,172.16.0.0/12` for a proxy on the Docker host. |
-| REST call returns **404 `{"error":"REST API disabled"}`** | `API_ENABLED=0`. Set it to `1` (the default) and `docker compose up -d --force-recreate`. |
 | IdP consent button spins forever; browser console shows `null is not an object (… scope.includes)` | The upstream `/authorize` carried **no `scope`** (some IdP UIs crash on `scope=null`). Already sent via `extra_authorize_params`; override with `OIDC_SCOPE`. |
 | `call_service` / `mqtt` / `ftp` to a **local device** returns *"Blocked by network policy"* | The SSRF guard blocks private IPs by default. Add the device's range to **`INTERNAL_ALLOW_CIDRS`** and restart. |
 | **Scan / WebDAV fails or falls back to plain HTTP** (e.g. *"did not start a job … 404"*) | The LAN device serves HTTPS with a **self-signed certificate**, which is verified by default. Confirm with `curl -k https://<device-ip>/...` → if that returns `200`, register it self-signed: `scan_add`/`webdav_add` with **`tls_insecure=true`** (or point `ca_bundle` at its cert). |

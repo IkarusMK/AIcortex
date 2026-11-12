@@ -228,7 +228,7 @@ def _session(request):
     at sign-in (authz.session_role), so a demotion or a policy change takes effect
     at once instead of being frozen for the session's 12 hours."""
     if not _oidc_configured():
-        if not (_is_local_request(request) or settings.flag("ALLOW_INSECURE", False)):
+        if not (_is_local_request(request) or os.environ.get("ALLOW_INSECURE") == "1"):
             return None
         return {"sub": "local-operator", "name": "Local operator",
                 "role": "admin", "csrf": "local", "mode": "open"}

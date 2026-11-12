@@ -10,6 +10,8 @@ environment is no longer read for any of them. What an install still sets in .en
              STORAGE_ENCRYPTION_KEY_OLD
   rarely     OIDC_SCOPE, AUTH_ROLE_CLAIM, RUNNER_TOKEN, MCP_ALLOWED_HOSTS,
              MCP_ALLOWED_ORIGINS
+  trial      ALLOW_INSECURE=1 — only for trying AICortex on your own computer with no
+             sign-in at all (README "Try it in 5 minutes"); the start warns loudly
 
 Three settings moved into the WebUI (Overview → Settings, see admin_settings.py): the
 mail recipient allow-list, the default tool profile and auto-memory.
@@ -77,7 +79,7 @@ ADMIN_DEFAULTS = {"mail_allowed_recipients": "", "tool_profile": "core",
 # log names the ones still set, so they can be deleted. (The three WebUI settings are
 # taken over from the environment once, at the first start — see admin_settings.py.)
 NO_LONGER_USED = (
-    "AUTH_ENFORCE", "ALLOW_INSECURE", "ALLOW_PLAINTEXT_VAULT", "OIDC_DEFAULT_ROLE",
+    "AUTH_ENFORCE", "ALLOW_PLAINTEXT_VAULT", "OIDC_DEFAULT_ROLE",
     "RUNNER_ROLE", "OPERATOR_BOOTSTRAP_MINUTES", "AUTH_AUDIT_ALL", "AUDIT_MAX_BYTES",
     "AUDIT_KEEP", "HSTS", "RATE_LIMIT", "RATE_LIMIT_AUTH", "RATE_LIMIT_LOGIN",
     "RATE_LIMIT_REGISTER", "RATE_LIMIT_HOOKS", "RATE_LIMIT_UI", "RATE_LIMIT_AUTH_FAILURES",
