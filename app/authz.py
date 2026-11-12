@@ -390,9 +390,11 @@ def _policy_strict() -> dict:
 # in to the WebUI within OPERATOR_BOOTSTRAP_MINUTES becomes the operator. Without a
 # window, an install whose policy names nobody handed admin to whoever signed in first —
 # at any time, months later. Opened only by ``start_bootstrap_window`` (server startup);
-# fired only by ``signin_role`` (/ui/callback).
+# fired only by ``signin_role`` (/ui/callback). Never on a start whose upgrade could not
+# read the audit log ("held", set by ``migrate_operators``): it could not tell who was
+# admin before, so "nobody is in charge" may be wrong.
 _BOOTSTRAP_MINUTES = 30
-_BOOTSTRAP: dict = {"until": None}      # monotonic deadline; None = closed
+_BOOTSTRAP: dict = {"until": None, "held": ""}   # monotonic deadline (None = closed); why held
 
 
 def _clock() -> float:
@@ -412,6 +414,14 @@ def start_bootstrap_window(pol=None) -> int:
     minutes = _env_int("OPERATOR_BOOTSTRAP_MINUTES", _BOOTSTRAP_MINUTES, 0)
     _BOOTSTRAP["until"] = None
     if not _bootstrap_open(pol):
+        return 0
+    if _BOOTSTRAP["held"]:
+        print(f"[AICortex] WARNING: nobody is operator (admin) according to the policy, but "
+              f"the audit log ({AUDIT_FILE}) can't be read ({_BOOTSTRAP['held']}), so the "
+              f"upgrade could not tell who was admin before. The first-come sign-in stays "
+              f"CLOSED for this start: name the operator with OPERATORS=<identity> (the IdP "
+              f"'sub') or make the audit log readable, and restart — the upgrade then runs "
+              f"again.")
         return 0
     if not minutes:
         print("[AICortex] WARNING: nobody is operator (admin) and the first-come bootstrap "
@@ -559,17 +569,26 @@ def migrate_operators():
     Never someone with an explicit non-admin role. Skipped when a default role is
     configured (OIDC_DEFAULT_ROLE / policy "default" keep deciding as before).
     Policy "operators_migrated" records that it ran, so no later start promotes
-    anyone (a later admin sign-in, a person added to "users").
+    anyone (a later admin sign-in, a person added to "users"). An audit log that exists
+    but can't be read stops it before anything is written — and keeps this start's
+    first-come window closed (``start_bootstrap_window``); the next start tries again.
 
     Returns {"kept": [...], "restored": [...]}: who was added from the policy and
     from the WebUI's sign-ins; None when it did not run. Never raises."""
+    _BOOTSTRAP["held"] = ""
     try:
         import store
         import tenancy
         before = _policy()
         if _MIGRATED_KEY in before or _configured_default(before):
             return None                             # cheap: no audit read when decided
-        signed_in = webui_admins()                  # read before the lock: append-only
+        try:
+            signed_in = webui_admins()              # read before the lock: append-only
+        except Exception as exc:
+            _BOOTSTRAP["held"] = type(exc).__name__
+            print(f"[AICortex] WARNING: the audit log can't be read ({type(exc).__name__}): "
+                  f"the operator upgrade ({OPERATORS_MIGRATION}) waits for the next start.")
+            raise
         with store.locked(POLICY_FILE):
             pol = _policy_strict()
             if _MIGRATED_KEY in pol or _configured_default(pol):

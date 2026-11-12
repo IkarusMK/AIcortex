@@ -19,10 +19,16 @@ Now:
   removing anyone), not for an explicit non-admin role, not for someone an admin
   removed or demoted later, and not when a default role is configured. The start
   says so in one line.
+- an audit log that exists but can't be read leaves the upgrade unable to tell who was
+  admin: then the first-come window stays CLOSED for that start (a loud warning names
+  OPERATORS and the file) instead of handing admin to whoever signs in first; the
+  upgrade retries at the next start. Without an audit log (a fresh install) the window
+  opens as before.
 
 Invented identities only (alice, bob, boss, carol, dave, erin, kim, mallory).
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -214,3 +220,49 @@ def test_an_unreadable_policy_is_left_alone_and_nothing_raises(oidc_env, request
     assert "operators not migrated" in az.AUDIT_FILE.read_text(encoding="utf-8")
     az.POLICY_FILE.write_text("{}", encoding="utf-8")          # repaired: it runs now
     assert az.migrate_operators() == {"kept": [], "restored": ["alice"]}
+
+
+# ── an audit log that can't be read ──────────────────────────────────────────
+HELD_LINE = "first-come sign-in stays CLOSED"
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0,
+                    reason="root reads a file without read permission")
+def test_an_unreadable_audit_log_keeps_the_first_come_window_closed(oidc_env, request, capsys,
+                                                                    tmp_path):
+    d = _seed(tmp_path, {"audit.log": [_rec("alice")]})
+    log = d / "audit.log"
+    log.chmod(0)
+    try:
+        az, out = _start(request, capsys)
+        assert not az._bootstrap_window_open()
+        assert "30 minutes" not in out and HELD_LINE in out and "OPERATORS" in out
+        assert not az.POLICY_FILE.exists() or "operators_migrated" not in _policy(az)
+        assert az.signin_role("mallory") == "user"     # the first sign-in is not the operator
+        assert not az.POLICY_FILE.exists() or "mallory" not in json.dumps(_policy(az))
+    finally:
+        log.chmod(0o600)
+    assert az.migrate_operators() == {"kept": [], "restored": ["alice"]}   # the next start
+
+
+def test_the_window_stays_closed_whenever_the_audit_log_cannot_be_read(oidc_env, request,
+                                                                      capsys, tmp_path,
+                                                                      monkeypatch):
+    az, out = _start(request, capsys)                  # a fresh install: no audit log at all
+    assert "30 minutes" in out and az._bootstrap_window_open()
+    az.POLICY_FILE.write_text("{}", encoding="utf-8")    # as before the upgrade ran
+    with open(az.AUDIT_FILE, "a", encoding="utf-8") as f:
+        f.write(_rec("alice") + "\n")
+
+    def unreadable():
+        raise PermissionError(13, "Permission denied", str(az.AUDIT_FILE))
+        yield                                          # pragma: no cover - a generator
+    readable = az._webui_records
+    monkeypatch.setattr(az, "_webui_records", lambda path: unreadable())
+    assert az.migrate_operators() is None
+    assert az.start_bootstrap_window() == 0 and not az._bootstrap_window_open()
+    assert HELD_LINE in capsys.readouterr().out
+    assert az.signin_role("mallory") == "user" and _policy(az) == {}
+    monkeypatch.setattr(az, "_webui_records", readable)   # readable again: it runs
+    assert az.migrate_operators() == {"kept": [], "restored": ["alice"]}
+    assert az.start_bootstrap_window() == 0            # someone is in charge now

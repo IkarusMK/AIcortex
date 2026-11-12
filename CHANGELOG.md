@@ -47,7 +47,9 @@ that person's permission.
 - **No longer admin after the 2.6 update.** The upgrade only kept people listed in
   `policy.json`, which a single-user install usually doesn't have. Now everyone who
   signed in to the WebUI as admin before (from the audit log) is restored as operator —
-  once, also on installs 2.6.x already set up.
+  once, also on installs 2.6.x already set up. If the audit log can't be read at that
+  start, nobody becomes operator by signing in first: the start warns loudly (set
+  `OPERATORS` or fix the file) and the upgrade runs again at the next start.
 - The first operator can only be a person signing in to the WebUI, never an app.
 - The vault's name check in the browser works again (its pattern was invalid).
 
