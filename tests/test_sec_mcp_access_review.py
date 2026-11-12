@@ -19,6 +19,8 @@
    caller acting as the person — an app they never allowed, an unknown one — could read
    who may use their sign-in, or narrow it to nothing. It now needs the same permission
    as using the sign-in (an allowed channel, or the person in the WebUI).
+5. One allowed app could fill all of a person's waiting approvals (20) and crowd out
+   every other channel. Each channel may now ask for at most 5 approvals per 10 minutes.
 
 All upstream data is invented (the fake provider of test_mcp_oauth).
 """
@@ -231,3 +233,25 @@ def test_the_settings_tool_needs_an_allowed_channel(up):
     out = call("mcp_access", {"server": SERVER, "allow_keys": []}, who=OWNER)   # and the WebUI
     assert not out.startswith("Refused"), out
     assert stored_access()["allow_keys"] == []
+
+
+# ── 5. one channel can't fill every approval slot ────────────────────────────
+def test_one_channel_asks_for_at_most_five_approvals_in_ten_minutes(up, monkeypatch):
+    approvals = sys.modules["mcp_approvals"]
+    access(up, allow_apps=["claude.ai", "app.example"])
+    write = {"server": SERVER, "tool": "set_value"}
+    with as_token(app("claude.ai")):
+        first = [approval_id(call("mcp_call", write)) for _ in range(5)]
+        out = call("mcp_call", write)
+    assert out.startswith("Refused") and "app:claude.ai" in out and "10 minutes" in out, out
+    assert decide(up, first[0], False).json()["ok"] is True   # deciding frees no new request
+    with as_token(app("claude.ai")):
+        assert call("mcp_call", write).startswith("Refused")
+    with as_token(app("app.example")):                    # another channel still can
+        approval_id(call("mcp_call", write))
+    assert len(pending(up)) == 5
+    real = approvals._clock
+    monkeypatch.setattr(approvals, "_clock", lambda: real() + 601)
+    with as_token(app("claude.ai")):                      # ten minutes later: again
+        approval_id(call("mcp_call", write))
+    assert up.prov.calls == []

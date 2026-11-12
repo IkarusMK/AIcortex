@@ -3,8 +3,10 @@
 With ``approve_writes`` on (mcp_access, the default), a call through an app, a runner
 or an agent key to a tool the upstream server does not mark readOnlyHint does not run.
 It is kept here as an approval — server, tool, arguments, the channel that asked —
-for TTL seconds, at most MAX_PENDING per person. The person sees it in the WebUI and
-approves or rejects it there (CSRF-checked, their own approvals only; no tool can).
+for TTL seconds, at most MAX_PENDING per person, and one channel asks for at most
+CHANNEL_MAX of them per CHANNEL_WINDOW seconds (so one app can't fill every slot). The
+person sees it in the WebUI and approves or rejects it there (CSRF-checked, their own
+approvals only; no tool can).
 On approval AICortex itself runs exactly that call, once, with the person's sign-in,
 and keeps the answer for RESULT_TTL seconds; the AI fetches it once with
 ``mcp_call(..., approval_id=…)``. A rejected or expired approval never runs, a decided
@@ -23,6 +25,8 @@ import store
 TTL = 600                  # seconds an approval waits for the person
 RESULT_TTL = 3600          # seconds an answer waits to be fetched
 MAX_PENDING = 20           # approvals waiting per person
+CHANNEL_MAX = 5            # new approvals one channel (app, runner, key) may ask for …
+CHANNEL_WINDOW = 600       # … per this many seconds, whatever became of them
 MAX_ARGS = 16 * 1024       # bytes of a call's arguments (JSON)
 MAX_RESULT = 64 * 1024     # characters of an answer kept
 _KEEP = 86400              # seconds a decided approval is remembered at all
@@ -100,6 +104,13 @@ def create(person: str, server: str, tool: str, args, channel: str) -> str:
         raise Refused(f"Refused: the arguments are larger than {MAX_ARGS} bytes.")
 
     def add(rows, now):
+        recent = [r for r in rows if r.get("channel") == channel
+                  and r.get("created", 0) > now - CHANNEL_WINDOW]
+        if len(recent) >= CHANNEL_MAX:
+            raise Refused(f"Refused: {channel} already asked for {len(recent)} approvals in the "
+                          f"last {CHANNEL_WINDOW // 60} minutes — at most {CHANNEL_MAX} per app, "
+                          f"runner or key. Try again later; {person} decides the waiting "
+                          f"ones in the AICortex WebUI (Services → Approvals).")
         waiting = [r for r in rows if r.get("state") == "pending"]
         if len(waiting) >= MAX_PENDING:
             raise Refused(f"Refused: {len(waiting)} approvals are already waiting for "
