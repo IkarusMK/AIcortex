@@ -15,6 +15,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# Log lines appear at once (the compose file used to set this).
+ENV PYTHONUNBUFFERED=1
 
 # Dependencies (baked into the image at build time → fast, reproducible startup)
 COPY app/requirements.txt ./requirements.txt

@@ -16,60 +16,22 @@ services:
       TZ: "${TZ:-UTC}"
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
-      PYTHONUNBUFFERED: "1"
-      # Trust the reverse proxy's X-Forwarded-* headers so the server knows it is
-      # served over HTTPS — otherwise issued OAuth tokens fail audience validation.
-      # Default: loopback + private networks (a proxy on the Docker host, in a
-      # Docker network or elsewhere in the LAN). Not "*": with "*" uvicorn takes the
-      # FIRST X-Forwarded-For entry, which an internet client can forge. Tighten to
-      # your proxy's source IP/subnet (e.g. "127.0.0.1,172.16.0.0/12").
+      # Who may tell AICortex the real client IP (your reverse proxy). Default:
+      # loopback + private networks. Never "*" — then a client could forge its IP.
       FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
-      # SSRF allow-list: internal/private IP ranges the dispatchers (call_service,
-      # mqtt, ftp) may reach. EMPTY = block all private/link-local by default.
-      # Set to the LAN and/or VPN subnets you actually use, e.g.
-      # "192.168.1.0/24,100.64.0.0/10". Operator-only — the model can't change it.
+      # Private networks integrations may reach (LAN/VPN), e.g. "192.168.1.0/24".
+      # Empty = private addresses are blocked.
       INTERNAL_ALLOW_CIDRS: "${INTERNAL_ALLOW_CIDRS:-}"
-      # Safety opt-ins (leave unset for the secure defaults):
-      #  ALLOW_INSECURE=1        → allow an open 0.0.0.0 bind when no OIDC is set
-      #  ALLOW_PLAINTEXT_VAULT=1 → allow secret_set without STORAGE_ENCRYPTION_KEY
-      ALLOW_INSECURE: "${ALLOW_INSECURE:-}"
-      ALLOW_PLAINTEXT_VAULT: "${ALLOW_PLAINTEXT_VAULT:-}"
-      # Optional static token for headless machine clients (an own runner outside
-      # AICortex, any LLM); the runners set up in the WebUI do not need it.
-      # When set, the connector accepts it ALONGSIDE OIDC (MultiAuth).
-      # Generate: openssl rand -hex 32
-      RUNNER_TOKEN: "${RUNNER_TOKEN:-}"
-      MEMORY_DIR: /data/memory
-      SKILLS_DIR: /data/skills
-      PLAYBOOKS_DIR: /data/playbooks
-      SERVICES_DIR: /data/services
-      VAULT_DIR: /data/vault
-      WORK_DIR: /data/work
-      MQTT_DIR: /data/mqtt
-      FTP_DIR: /data/ftp
-      MCP_DIR: /data/mcp
-      COORD_DIR: /data/coordination
-      CRON_DIR: /data/cron
-      SESSIONS_DIR: /data/sessions
-      # Sessions not updated within this many days are auto-pruned (0 = keep forever).
-      SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-90}"
-      PRINT_DIR: /data/printers
-      SCAN_DIR: /data/scanners
-      WEBDAV_DIR: /data/webdav
-      SSH_DIR: /data/ssh
-      MAIL_DIR: /data/mail
-      SECRETS_DIR: /secrets
-    # Optional: a fresh clone has only .env.example (real .env is git-ignored).
-    # Marking it not-required lets `docker compose build`/`up` work out of the box;
-    # every variable above already has a sensible default. Copy .env.example to
-    # .env to override (OIDC, secrets, CIDRs, …).
+      # Everything else (sign-in, keys, operators …) goes into .env — see .env.example.
+      # Data folders, limits and protections are built in since 2.7.1.
+    # A fresh clone has only .env.example (the real .env is git-ignored); not
+    # required, so `docker compose up` works out of the box for a local test.
     env_file:
       - path: .env
         required: false
     volumes:
       - ./data:/data            # all persistent state — the app creates subfolders itself
       - ./data/work:/data/work  # bulk file hub (scans, downloads) — point at an HDD if you like
-      - ./secrets:/secrets:ro   # read-only secret boundary
       - ./logs:/logs
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(0 if s.connect_ex(('127.0.0.1',8787))==0 else 1)"]
