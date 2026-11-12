@@ -394,6 +394,61 @@ def test_the_proxy_marks_the_app_on_every_token_and_never_trusts_a_forged_mark()
     assert pp.APP_CLAIM not in asyncio.run(pp.annotate(Proxy(), "other", forged)).claims
 
 
+def _metadata_client(doc: dict):
+    """The client FastMCP builds for an app that signs in with a client metadata
+    document (its client_id is the document's URL) — made by FastMCP's own code, so
+    the test follows FastMCP: it keeps the redirect addresses on the document and
+    leaves the client's own redirect_uris empty."""
+    from fastmcp.server.auth.cimd import CIMDClientManager, CIMDDocument
+
+    class Fetcher:
+        async def fetch(self, url):
+            return CIMDDocument.model_validate(doc)
+    manager = CIMDClientManager(enable_cimd=True)
+    manager._fetcher = Fetcher()
+    return asyncio.run(manager.get_client(doc["client_id"]))
+
+
+def test_an_app_signing_in_with_a_metadata_document_is_recognised():
+    """Up to 2.7.1 an app that signs in with a client metadata document — claude.ai
+    does — got no mark: AICortex read only the client's own redirect_uris, which
+    FastMCP leaves empty for such a client. claude.ai counted as "a caller AICortex
+    cannot identify", never showed up under Access and could not be allowed."""
+    import pocketid_proxy as pp
+    from fastmcp.server.auth.auth import AccessToken
+
+    url = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+    client = _metadata_client({"client_id": url, "client_name": "Claude",
+                               "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+                               "token_endpoint_auth_method": "none"})
+    assert client is not None and not client.redirect_uris     # how FastMCP builds it
+
+    class Proxy:
+        class jwt_issuer:
+            @staticmethod
+            def verify_token(token):
+                return {"client_id": url}
+
+        async def get_client(self, client_id):
+            return client if client_id == url else None
+
+    pp._apps.clear()
+    tok = AccessToken(token="x", client_id="upstream", scopes=[], claims={"sub": "p"})
+    found = asyncio.run(pp.annotate(Proxy(), "t", tok))
+    assert found.claims[pp.APP_CLAIM] == {"host": "claude.ai", "name": "Claude"}
+
+
+def test_a_metadata_document_with_two_hosts_is_no_app():
+    """The same rule as for a registered client: one host or none."""
+    import pocketid_proxy as pp
+    client = _metadata_client({"client_id": "https://app.example/meta", "client_name": "X",
+                               "redirect_uris": ["https://a.example/cb", "https://b.example/cb"],
+                               "token_endpoint_auth_method": "none"})
+    assert pp.redirect_uris_of(client) == ["https://a.example/cb", "https://b.example/cb"]
+    assert pp.app_of(pp.redirect_uris_of(client)) == ""
+    assert pp.redirect_uris_of(None) == [] and pp.redirect_uris_of(object()) == []
+
+
 # ── the WebUI ────────────────────────────────────────────────────────────────
 def test_access_and_approvals_are_wired_into_the_webui(up):
     js = up.ui.get("/ui/assets/view-mcp-access.js")

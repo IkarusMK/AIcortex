@@ -96,6 +96,18 @@ def app_of(redirect_uris) -> str:
     return host if is_app_host(host) else ""
 
 
+def redirect_uris_of(client) -> list:
+    """The redirect addresses a client stands for. A registered client keeps them
+    itself; FastMCP leaves them empty on a client that signs in with a client
+    metadata document (its client_id is the document's URL, as claude.ai does) and
+    keeps them on that document — which FastMCP fetched from that URL itself."""
+    own = getattr(client, "redirect_uris", None)
+    if own:
+        return [str(u) for u in own]
+    doc = getattr(client, "cimd_document", None)
+    return [str(u) for u in (getattr(doc, "redirect_uris", None) or [])]
+
+
 async def annotate(proxy, token: str, found):
     """`found` (the token the proxy accepted) marked with the app of the client the
     token was issued to — or with the mark removed when that can't be told."""
@@ -106,7 +118,7 @@ async def annotate(proxy, token: str, found):
         app = _apps.get(client_id)
         if app is None and client_id:
             client = await proxy.get_client(client_id)
-            host = app_of(getattr(client, "redirect_uris", None) or []) if client else ""
+            host = app_of(redirect_uris_of(client)) if client else ""
             if host:
                 app = {"host": host, "name": str(getattr(client, "client_name", "") or "")[:80]}
                 if len(_apps) >= _APPS_MAX:
