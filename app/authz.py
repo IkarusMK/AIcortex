@@ -64,6 +64,8 @@ ADMIN_TOOLS = {
     "scan_add", "scan_delete",
     "mcp_add", "mcp_delete",
     "webhook_add", "webhook_delete",
+    # Inbox forwarding sends every message for a recipient to a service — outbound.
+    "inbox_forward_set", "inbox_forward_delete", "inbox_forward_test",
     # cron_add/cron_delete are NOT here: a non-admin may schedule/delete their OWN
     # jobs (forced act-as as themselves); the tools enforce owner-scoping in-tool.
     "secret_set", "secret_delete",
@@ -97,7 +99,7 @@ READ_ONLY_TOOLS = {
     # is NOT here — it mints act-as capability tokens, so it's runner/admin-only
     # (guarded in-tool), not a safe read for a viewer.
     "cron_list", "runner_list",
-    "agent_list", "inbox_read",
+    "agent_list", "inbox_read", "inbox_forward_list",
     "task_list", "task_next",
     "secret_list",
 }

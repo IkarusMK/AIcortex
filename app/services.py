@@ -59,6 +59,60 @@ def _page(text: str, offset: int = 0, max_chars: int = 8000) -> str:
     return piece
 
 
+def _auth_headers(service: str, cfg: dict, url: str):
+    """(headers, problem) for a call to `url`: the token from the vault, only to a host
+    it is bound to. `problem` is the refusal text, "" when the call may go out."""
+    tok_env = cfg.get("token_env")
+    if not tok_env:
+        return {}, ""
+    try:
+        token = secrets_store.use(tok_env, url)   # only to a host the token is bound to
+    except secrets_store.Refused as exc:
+        return {}, str(exc)
+    if not token:
+        return {}, (f"Service '{service}' needs secret '{tok_env}'. Store it via the "
+                    f"secret_set tool first (do not edit .env).")
+    header_name = cfg.get("auth_header") or "Authorization"
+    scheme = cfg.get("auth_scheme", "Bearer")
+    if cfg.get("username") and scheme.lower() == "basic":
+        # User name + password secret → the Basic credentials themselves.
+        token = base64.b64encode(f"{cfg['username']}:{token}".encode()).decode()
+    # With a scheme (e.g. Bearer) send "<scheme> <token>"; without one
+    # (custom-header APIs) send the raw token value.
+    return {header_name: f"{scheme} {token}".strip() if scheme else token}, ""
+
+
+def valid_path(path: str) -> bool:
+    """A path relative to a service's base_url — never an absolute URL."""
+    return "://" not in (path or "") and not (path or "").startswith("//")
+
+
+def post_json(service: str, path: str, body) -> tuple:
+    """POST `body` as JSON to a registered service, for AICortex itself (inbox
+    forwarding) → (ok, short info). Same guards as call_service: the network policy,
+    the token's host binding, TLS settings. No paging, no response body on success."""
+    cfg = _load(service)
+    if not cfg:
+        return False, f"Unknown service '{service}'."
+    if not valid_path(path):
+        return False, "Invalid path (must be relative to the service base_url)."
+    url = cfg.get("base_url", "").rstrip("/") + "/" + (path or "").lstrip("/")
+    ok, reason = netguard.check_url(url)
+    if not ok:
+        return False, f"Blocked by network policy — {reason}"
+    headers, problem = _auth_headers(service, cfg, url)
+    if problem:
+        return False, problem
+    try:
+        with netguard.guard(urlparse(url).hostname or ""):
+            r = httpx.request("POST", url, json=body, headers=headers,
+                              timeout=15, verify=netguard.tls_verify(cfg))
+    except Exception as exc:
+        return False, f"Request failed: {errtext.safe(exc)}"
+    # The status code only: a remote answer could echo the request, token included.
+    return 200 <= r.status_code < 300, f"HTTP {r.status_code}"
+
+
 def register(mcp):
     @mcp.tool
     def service_add(name: str, base_url: str, token_env: str = "",
@@ -193,29 +247,15 @@ def register(mcp):
         m = (method or "GET").upper()
         if m not in _ALLOWED_METHODS:
             return f"Method '{method}' not allowed."
-        if "://" in (path or "") or (path or "").startswith("//"):
+        if not valid_path(path):
             return "Invalid path (must be relative to the service base_url)."
         url = cfg.get("base_url", "").rstrip("/") + "/" + (path or "").lstrip("/")
         ok, reason = netguard.check_url(url)
         if not ok:
             return f"Blocked by network policy — {reason}"
-        headers = {}
-        tok_env = cfg.get("token_env")
-        if tok_env:
-            try:
-                token = secrets_store.use(tok_env, url)   # only to a host the token is bound to
-            except secrets_store.Refused as exc:
-                return str(exc)
-            if not token:
-                return f"Service '{service}' needs secret '{tok_env}'. Store it via the secret_set tool first (do not edit .env)."
-            header_name = cfg.get("auth_header") or "Authorization"
-            scheme = cfg.get("auth_scheme", "Bearer")
-            if cfg.get("username") and scheme.lower() == "basic":
-                # User name + password secret → the Basic credentials themselves.
-                token = base64.b64encode(f"{cfg['username']}:{token}".encode()).decode()
-            # With a scheme (e.g. Bearer) send "<scheme> <token>"; without one
-            # (custom-header APIs) send the raw token value.
-            headers[header_name] = f"{scheme} {token}".strip() if scheme else token
+        headers, problem = _auth_headers(service, cfg, url)
+        if problem:
+            return problem
         try:
             with netguard.guard(urlparse(url).hostname or ""):
                 r = httpx.request(m, url, json=json_body, params=params, headers=headers,

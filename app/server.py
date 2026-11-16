@@ -28,6 +28,7 @@ import mqtt_tools
 import ftp_tools
 import mcp_gateway
 import coordination
+import inbox_forward
 import cron
 import runner_builtin
 import runners
@@ -329,6 +330,8 @@ mcp_gateway.register(mcp)
 
 # Multi-agent coordination: inbox_* / task_* / agent_* (shared inbox, tasks, registry)
 coordination.register(mcp)
+# Inbox forwarding: inbox_forward_* (a message for a person also reaches them as a push)
+inbox_forward.register(mcp)
 
 # Scheduled jobs as data: cron_add / cron_list / cron_delete / cron_due / cron_mark_run
 cron.register(mcp)

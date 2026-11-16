@@ -52,6 +52,7 @@
         <a href="#overview" data-nav="overview" data-admin><span class="ico">◳</span><span data-i18n="nav_overview"></span></a>
         <a href="#search" data-nav="search" data-admin><span class="ico">⌕</span><span data-i18n="nav_search"></span></a>
         <a href="#memory"   data-nav="memory"><span class="ico">✎</span><span data-i18n="nav_memory"></span></a>
+        <a href="#inbox"    data-nav="inbox"><span class="ico">✉</span><span data-i18n="nav_inbox"></span></a>
         <a href="#cron"     data-nav="cron"><span class="ico">⏱</span><span data-i18n="nav_cron"></span></a>
         <a href="#runners"  data-nav="runners"><span class="ico">▶</span><span data-i18n="nav_runners"></span></a>
         <a href="#playbooks" data-nav="playbooks"><span class="ico">☰</span><span data-i18n="nav_playbooks"></span></a>
@@ -198,6 +199,19 @@
       </section>
 
       <!-- Scheduled jobs -->
+      <section id="view-inbox" class="view hidden">
+        <header class="view-head">
+          <h1 data-i18n="nav_inbox"></h1>
+          <span id="inbox-unread" class="badge cyan" role="status"></span>
+        </header>
+        <div class="panel">
+          <p class="dim small" data-i18n="inbox_hint"></p>
+          <div id="inbox-forward"></div>
+          <ul id="inbox-list" class="inbox-list"></ul>
+          <p id="inbox-empty" class="dim hidden" data-i18n="inbox_empty"></p>
+        </div>
+      </section>
+
       <section id="view-cron" class="view hidden">
         <header class="view-head">
           <h1 data-i18n="nav_cron"></h1>
@@ -917,6 +931,7 @@
   <script src="/ui/assets/dialogs.js?v={{v}}"></script>
   <script src="/ui/assets/view-memory.js?v={{v}}"></script>
   <script src="/ui/assets/view-registry.js?v={{v}}"></script>
+  <script src="/ui/assets/view-inbox.js?v={{v}}"></script>
   <script src="/ui/assets/view-cron.js?v={{v}}"></script>
   <script src="/ui/assets/view-runner.js?v={{v}}"></script>
   <script src="/ui/assets/view-playbooks.js?v={{v}}"></script>

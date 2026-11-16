@@ -119,6 +119,11 @@ def post_inbox(to: str, body: str, subject: str = "", sender: str = "") -> str:
            "subject": subject, "body": body, "read": False, "person": _person()}
     items.append(msg)
     _write(INBOX_FILE, items)
+    try:
+        import inbox_forward   # lazy: it imports this module
+        inbox_forward.dispatch(msg)
+    except Exception:
+        pass                   # forwarding never stops a message from being stored
     return msg["id"]
 
 

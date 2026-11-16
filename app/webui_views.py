@@ -396,6 +396,79 @@ def register(mcp, h):
         h.audit(sess, "cron_delete", "allow", f"name={args['name']}")
         return h.json({"ok": True, "message": text})
 
+    # ── inbox: messages for the person, and where they are forwarded ──────────
+    import coordination
+    import inbox_forward
+    import store
+
+    def _own_messages(sub: str) -> list:
+        """Messages for "user" or "all" that are the person's own or unowned."""
+        return [m for m in coordination._read(coordination.INBOX_FILE)
+                if m.get("to") in ("user", "all") and m.get("person", "") in ("", sub)]
+
+    @mcp.custom_route("/ui/api/inbox", methods=["GET"])
+    async def _inbox_list(request):
+        sess = h.require_session(request)
+        if isinstance(sess, JSONResponse):
+            return sess
+        ok, reason = confine(sess, "inbox_read", {})
+        if not ok:
+            return h.json({"error": "forbidden", "detail": reason}, 403)
+        sub, _ = who(sess)
+        try:
+            rows = _own_messages(sub)
+        except store.StoreCorrupt as exc:
+            return h.json({"error": "unreadable", "detail": str(exc)}, 409)
+        keep = ("id", "ts", "to", "from", "subject", "body", "read")
+        messages = [{k: m.get(k, "") for k in keep} for m in reversed(rows[-200:])]
+        try:
+            rules = [r for r in inbox_forward.rules() if r.get("owner", "") == sub]
+        except store.StoreCorrupt:
+            rules = []
+        forwarding = [{**{k: r.get(k) for k in ("recipient", "service", "path", "enabled", "updated")},
+                       "approved": bool(r.get("approved")), "host": inbox_forward.host_of(r)}
+                      for r in rules]
+        deliveries = [e for e in inbox_forward.recent() if e.get("owner", "") == sub][-10:]
+        return h.json({"messages": messages, "unread": sum(1 for m in messages if not m["read"]),
+                       "forwarding": forwarding, "deliveries": list(reversed(deliveries))})
+
+    @mcp.custom_route("/ui/api/inbox/ack", methods=["POST"])
+    async def _inbox_ack(request):
+        sess, body = await session_and_body(request)
+        if body is None:
+            return sess
+        mid = str(body.get("id", ""))
+        sub, _ = who(sess)
+        try:
+            known = any(m.get("id") == mid for m in _own_messages(sub))
+        except store.StoreCorrupt as exc:
+            return h.json({"error": "unreadable", "detail": str(exc)}, 409)
+        if not known:
+            return h.json({"ok": False, "message": f"No message {mid}."}, 404)
+        ok, text = await run_tool(sess, "inbox_ack", {"message_id": mid})
+        if not ok:
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        if not text.startswith("Marked"):
+            return h.json({"ok": False, "message": text}, 404)
+        return h.json({"ok": True, "message": text})
+
+    @mcp.custom_route("/ui/api/inbox/forward/approve", methods=["POST"])
+    async def _inbox_forward_approve(request):
+        """The person switches on a forwarding rule their AI wrote (it waits until then)."""
+        sess, body = await session_and_body(request, admin=True)
+        if body is None:
+            return sess
+        recipient = str(body.get("recipient", ""))
+        sub, role = who(sess)
+        with authz.rest_identity(sub, role):
+            text = inbox_forward.approve(recipient)
+        if text.startswith("No forwarding"):
+            return h.json({"ok": False, "message": text}, 404)
+        if not text.startswith("Forwarding"):
+            return h.json({"error": "forbidden", "detail": text}, 403)
+        h.audit(sess, "inbox_forward_approve", "allow", f"recipient={recipient}")
+        return h.json({"ok": True, "message": text})
+
     # ── playbooks (library + a person's runs) ─────────────────────────────────
     import types
 

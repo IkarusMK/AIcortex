@@ -196,6 +196,12 @@ MULTI-AGENT (geteilter Koordinations-Layer — Mac, NAS-Ollama, Handy als EIN Te
 - Status: open/claimed/blocked/done via task_update. Inbox: inbox_post(to, body,
   sender) / inbox_read(agent) / inbox_ack(id). Wissen weiter über Memory-Scopes
   (shared bzw. agents/<name>). bootstrap zeigt Team-Präsenz + Board oben an.
+- Weiterleitung (Admin): inbox_forward_set(recipient, service, body, path) schickt jede
+  neue Nachricht an recipient (meist "user") als JSON-POST über einen registrierten
+  Dienst, z. B. ntfy (path "/", body {"topic":…, "title":"{title}", "message":"{body}"})
+  oder Gotify (path "/message", body {"title":"{title}", "message":"{body}",
+  "priority":5}). inbox_forward_list / inbox_forward_test / inbox_forward_delete. Die
+  Person sieht ihre Nachrichten in der WebUI unter „Postfach“.
 
 SESSION-HANDOFF (nahtlos mit jedem LLM/Gerät weitermachen)
 - session_save(summary, next_steps, model[, session_id, title]): einen Checkpoint
@@ -398,6 +404,12 @@ MULTI-AGENT (shared coordination layer — desktop, NAS-Ollama, mobile as ONE te
 - Status: open/claimed/blocked/done via task_update. Inbox: inbox_post(to, body,
   sender) / inbox_read(agent) / inbox_ack(id). Knowledge still flows via memory
   scopes (shared or agents/<name>). bootstrap shows team presence + board at the top.
+- Forwarding (admin): inbox_forward_set(recipient, service, body, path) sends every new
+  message for recipient (usually "user") as a JSON POST through a registered service,
+  e.g. ntfy (path "/", body {"topic":…, "title":"{title}", "message":"{body}"}) or
+  Gotify (path "/message", body {"title":"{title}", "message":"{body}", "priority":5}).
+  inbox_forward_list / inbox_forward_test / inbox_forward_delete. The person sees their
+  messages in the WebUI under "Inbox".
 
 SESSION HANDOFF (resume seamlessly from any LLM/device)
 - session_save(summary, next_steps, model[, session_id, title]): drop a checkpoint —

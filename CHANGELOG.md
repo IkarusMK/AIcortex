@@ -6,6 +6,37 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+### Added
+- **Messages for a person now reach them.** A cron job's report or a webhook event went
+  to the inbox for "user" — a file on the server that no screen showed. New
+  **inbox forwarding** sends every new message for a recipient as a JSON POST through a
+  registered service, so it arrives as a push: `inbox_forward_set(recipient, service,
+  body, path)` with a body template (`{title}` `{subject}` `{body}` `{from}` `{to}`
+  `{id}` `{ts}`), plus `inbox_forward_list`, `inbox_forward_test` and
+  `inbox_forward_delete`. Not tied to one service — ntfy (`path "/"`, body
+  `{"topic": "…", "title": "{title}", "message": "{body}"}`), Gotify (`path
+  "/message"`, key in `X-Gotify-Key`) or any other HTTP push API.
+  - **A person approves every rule.** A rule written by an AI (MCP or REST) sends
+    nothing until the person approves it in the WebUI, which shows where it would send
+    to; changing service, path or body needs the approval again. So a prompt-injected
+    admin session cannot open a standing channel out.
+  - Admin-only, and the owner is re-checked as an admin at every delivery. The call
+    goes through the same network policy and secret host binding as `call_service`,
+    runs as the rule's owner but can never bind a secret to a new host, and forwards
+    no other person's messages; a message that isn't the owner's own (a webhook event)
+    names its sender in the title.
+  - At most 30 deliveries per rule and minute, a bounded queue and two delivery
+    threads; the log keeps the status code only, never the remote answer. A failed
+    delivery never stops a message from being stored.
+- **WebUI tab "Inbox" ("Postfach").** A person sees their own messages (cron reports,
+  webhook events, notes from their agents), newest first, can mark them read, sees
+  whether they are forwarded and how the last delivery went, and approves a pending
+  forwarding rule there.
+
+### Changed
+- The cron view says where a job's result goes: the "Inbox" tab, and as a push with
+  forwarding.
+
 ## [2.7.2] — 2026-11-12
 Apps that sign in with a client metadata document are recognised; clearer sign-in
 dialogs.

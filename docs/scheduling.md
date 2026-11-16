@@ -112,6 +112,21 @@ runs, *Only once*, runner).
 - **Scheduled jobs:** *Last run*; hover it for the result.
 - **Runners:** the state of each runner; for Claude the link to the last session.
 - **Inbox:** the runner sends a short summary to the job's recipient (default: you).
+  You read it in the WebUI under **Inbox**.
+- **As a push on your phone:** forward the inbox to a push service you run (or use).
+  Register the service once (`service_add`, token in the vault), then ask your AI to
+  set up forwarding — it calls `inbox_forward_set` and `inbox_forward_test`:
+
+  | Service | `path` | `body` | Token |
+  |---|---|---|---|
+  | ntfy | `/` | `{"topic": "aicortex", "title": "{title}", "message": "{body}", "markdown": true}` | Bearer (`auth_scheme` `Bearer`) |
+  | Gotify | `/message` | `{"title": "{title}", "message": "{body}", "priority": 5}` | `auth_header` `X-Gotify-Key`, `auth_scheme` empty |
+
+  `{title}` is the subject or the first line of the message, `{body}` the text (cut at
+  3,500 characters); `{from}`, `{to}`, `{id}`, `{ts}` are there too.
+  **Then approve it once in the WebUI (tab Inbox, button "Approve")** — a rule your AI
+  writes sends nothing before that, and again after a change of service, path or body.
+  The Inbox tab also shows how the last delivery went.
 
 ---
 
