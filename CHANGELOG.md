@@ -6,6 +6,10 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-11-16
+Messages for a person now reach them: inbox forwarding to a push service (ntfy, Gotify
+or any HTTP push API) and an Inbox tab in the WebUI.
+
 ### Added
 - **Messages for a person now reach them.** A cron job's report or a webhook event went
   to the inbox for "user" — a file on the server that no screen showed. New
@@ -18,8 +22,11 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   "/message"`, key in `X-Gotify-Key`) or any other HTTP push API.
   - **A person approves every rule.** A rule written by an AI (MCP or REST) sends
     nothing until the person approves it in the WebUI, which shows where it would send
-    to; changing service, path or body needs the approval again. So a prompt-injected
+    to; changing service, path or body needs the approval again, and so does
+    re-pointing the service (its address, TLS or token settings). So a prompt-injected
     admin session cannot open a standing channel out.
+  - The owner must be an admin in AICortex's own policy (operators or roles), not
+    only through the sign-in provider.
   - Admin-only, and the owner is re-checked as an admin at every delivery. The call
     goes through the same network policy and secret host binding as `call_service`,
     runs as the rule's owner but can never bind a secret to a new host, and forwards
@@ -34,6 +41,7 @@ the [Releases](https://github.com/IkarusMK/AIcortex/releases) page.
   forwarding rule there.
 
 ### Changed
+- Dependencies: `httpx` at least 0.28.1 (Dependabot #49).
 - The cron view says where a job's result goes: the "Inbox" tab, and as a push with
   forwarding.
 

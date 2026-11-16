@@ -52,6 +52,7 @@ The model stays in its provider's cloud (or runs locally). **Your memory, skills
 - **Email** (SMTP send **+ IMAP read**), **calendars** (**CalDAV**), HTTP services, **MQTT** & **FTP/FTPS** devices, **WebDAV** cloud, **SSH/SFTP**
 - **IPP printing** & **eSCL scanning** (straight into Paperless-ngx) on LAN multifunction devices
 - **Event-driven:** inbound **webhooks** (`POST /hooks/<name>`, secret/HMAC-verified) turn external events into inbox items; outbound webhooks notify
+- **Push to your phone:** job reports and webhook events are forwarded through **ntfy**, **Gotify** or any HTTP push API you register — each forwarding rule approved by you in the WebUI (**Inbox** tab)
 - An **MCP gateway** to use other MCP servers' tools — register any integration with one call, **no code, no redeploy**
 
 **🌐 Beyond MCP — drive it over plain HTTP**
@@ -216,6 +217,20 @@ AUTH_ROLE_CLAIM=groups                  # map IdP groups → roles (data/auth/po
 ```
 
 **Who is admin:** only the **operators** you name (`OPERATORS=<your IdP sub>`, or the first person who signs in after a fresh start — see [below](#who-is-admin)); everyone else who signs in is `user`. With sign-in configured, a caller whose identity can't be resolved, or a policy check that fails, is **refused** (fail closed). **Full guides: [docs/authorization.md](docs/authorization.md) · [docs/per-user-areas.md](docs/per-user-areas.md).**
+
+## Upgrading to 2.8.0 — your messages as a push
+
+Nothing to change: pull `ghcr.io/ikarusmk/aicortex:v2.8.0` and redeploy. New is the
+WebUI tab **Inbox** — the reports of your scheduled jobs and webhook events, which
+until now only went to an inbox file nobody saw. To get them on your phone as a push:
+
+1. Run a push service — e.g. [ntfy](https://ntfy.sh) or [Gotify](https://gotify.net),
+   self-hosted or not — and register it once with `service_add` (its token in the
+   vault, bound to its host).
+2. Ask your AI to set up forwarding — it calls `inbox_forward_set` with a small JSON
+   template (ntfy and Gotify examples in [docs/scheduling.md](docs/scheduling.md)).
+3. **Approve** the rule in the WebUI under **Inbox** (an AI can't switch it on by
+   itself), then send a test with `inbox_forward_test`.
 
 ## Upgrading to 2.7.1 — a short .env
 
@@ -395,6 +410,7 @@ the internet, update now. Nothing in `data/` has to be migrated by hand.
 | Scanning (eSCL) | `scan_add` · `scan_list` · `scan_delete` · `scan_document` | Scan on a LAN device → `/data/work`, optionally into Paperless; picks glass or document feeder by itself (any eSCL device), two-sided where the feeder can |
 | MCP gateway | `mcp_add` · `mcp_list` · `mcp_tools` · `mcp_call` | Use other MCP servers' tools as data — with a vault token, or `auth="oauth"` for servers that want a browser sign-in (each person signs in once in the WebUI); `read_only` allows only tools the server marks read-only |
 | Webhooks | `webhook_add` · `webhook_list` · `webhook_delete` · `webhook_send` | Inbound `POST /hooks/<name>` (secret/HMAC) → inbox (event-driven); outbound POST notify |
+| Inbox forwarding | `inbox_forward_set` · `inbox_forward_list` · `inbox_forward_test` · `inbox_forward_delete` | New inbox messages (job reports, webhook events) as a push through a registered service — ntfy, Gotify or any HTTP push API — with a JSON template; each rule approved by the person in the WebUI |
 | Multi-agent | `agent_register`/`list` · `task_add`/`list`/`claim`/`update` · `task_next` · `task_handoff` · `inbox_*` | Presence-aware team: capability-routed pull & context-preserving handoff |
 | Sessions | `session_save` · `session_list` · `session_load` · `session_delete` · `session_prune` | Cross-LLM handoff log; auto-expires |
 | Scheduling | `cron_add` · `cron_list` · `cron_delete` · `runner_list` · `cron_due` · `cron_mark_run` | Cron jobs as data; each job goes to a runner set up in the WebUI |
@@ -445,7 +461,7 @@ Schedules live on the NAS as **data** — `cron_add(name, schedule, prompt[, run
 
 1. Once a minute, on the minute, AICortex checks for due jobs — **without any model**, so an idle minute costs nothing. A minute it missed (slow run, restart) is caught up for five minutes.
 2. Only when a job is due does it wake or ask the job's runner. A job that names none goes to its person's **own default runner** (their first one, or the one they chose), else to the **standard runner** (one of an admin's). A one-off job (`once`) switches itself off after its run.
-3. The job runs **through this connector** and reports via your configured channel or the connector **inbox**; `cron_mark_run` records the result.
+3. The job runs **through this connector** and reports to the connector **inbox** — the **Inbox** tab in the WebUI, and as a push on your phone with [inbox forwarding](docs/scheduling.md) (ntfy, Gotify, …); `cron_mark_run` records the result.
 
 **Kinds of runner:**
 
@@ -494,7 +510,7 @@ Deliberate. Memory is a **curated, typed catalog** — the handful of facts you 
 A code executor would be the single biggest attack surface and it breaks the *no code, no redeploy* principle. The sandbox pattern already exists **as data**: `ssh_add` a disposable, LAN-isolated jail host and `ssh_run` there. It's a documented pattern, not something baked into the connector.
 
 **Why no built-in Telegram / Slack / ntfy / … integrations?**
-Those are just HTTP APIs — so they're `service_add` + a skill, not new code. That's the whole point: a new capability is **data + a skill**, never a redeploy.
+Those are just HTTP APIs — so they're `service_add` + a skill, not new code. That's the whole point: a new capability is **data + a skill**, never a redeploy. To get your inbox (job reports, webhook events) as a push, **inbox forwarding** sends it through any such registered service with a JSON template — ntfy and Gotify examples are in [docs/scheduling.md](docs/scheduling.md).
 
 **Do I need OIDC and a reverse proxy?**
 For a public/cloud LLM client, yes — the endpoint must be reachable over HTTPS and authenticated (see [Authentication & authorization](#authentication--authorization)). Running a purely local client? You can keep it on the LAN. Homelab mode keeps auth simple; enterprise mode adds roles + per-user isolation with one switch — see **[docs/authorization.md](docs/authorization.md)**.
@@ -585,6 +601,7 @@ language-switchable **DE/EN**:
 |------|-----------------|
 | **Overview** | Version, enforce status, live counts (skills, secrets, services, devices, users) |
 | **Notes** *(everyone)* | Your memories: search, filter by type/project, edit with conflict detection; admins also review auto-captured candidates |
+| **Inbox** *(everyone)* | Your messages — job reports, webhook events, notes from your agents — newest first; mark read; whether they are forwarded as a push, how the last delivery went, and approving a forwarding rule your AI set up |
 | **Scheduled jobs** *(everyone)* | Your cron jobs: plain-language schedule, next/last run, on/off, the job's runner, presets with a preview of the next runs |
 | **Runners** *(everyone)* | Your runners: a Claude cloud task, an API key (typed or picked from the vault), an OpenAI-compatible address; state, link to the last Claude session, *Test*. Admins see all, choose the standard runner and sign in with ChatGPT |
 | **Playbooks** *(everyone)* | Library (adopt the AI-native SDLC template, edit stages) and your runs: progress, artifact versions, approve or reject each stage |
